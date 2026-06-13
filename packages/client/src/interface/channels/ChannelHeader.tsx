@@ -23,10 +23,12 @@ import {
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 
 import MdGroup from "@material-design-icons/svg/outlined/group.svg?component-solid";
+import MdMenu from "@material-design-icons/svg/outlined/menu.svg?component-solid";
 import MdPersonAdd from "@material-design-icons/svg/outlined/person_add.svg?component-solid";
 import MdSettings from "@material-design-icons/svg/outlined/settings.svg?component-solid";
 
 import MdKeep from "../../svg/keep.svg?component-solid";
+import { useMobileNav } from "../mobile/MobileNavContext";
 import { HeaderIcon } from "../common/CommonHeader";
 
 import { SidebarState } from "./text/TextChannel";
@@ -57,6 +59,7 @@ export function ChannelHeader(props: Props) {
   const { t } = useLingui();
   const state = useState();
   const voice = useVoice();
+  const { isMobile, openNav, openMembers } = useMobileNav();
 
   const searchValue = () => {
     if (!props.sidebarState) return null;
@@ -71,6 +74,11 @@ export function ChannelHeader(props: Props) {
 
   return (
     <>
+      <Show when={isMobile()}>
+        <IconButton onPress={openNav} aria-label="Open navigation">
+          <MdMenu />
+        </IconButton>
+      </Show>
       <Switch>
         <Match
           when={
@@ -222,7 +230,9 @@ export function ChannelHeader(props: Props) {
       <Show when={props.sidebarState && props.channel.type !== "SavedMessages"}>
         <IconButton
           onPress={() => {
-            if (props.sidebarState!().state === "default") {
+            if (isMobile()) {
+              openMembers();
+            } else if (props.sidebarState!().state === "default") {
               state.layout.toggleSectionState(
                 LAYOUT_SECTIONS.MEMBER_SIDEBAR,
                 true,

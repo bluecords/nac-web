@@ -13,6 +13,8 @@ import { useLocation, useParams, useSmartParams } from "@revolt/routing";
 import { useState } from "@revolt/state";
 import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
 
+import { MobileNav } from "./mobile/MobileNav";
+import { useMobileNav } from "./mobile/MobileNavContext";
 import { HomeSidebar, ServerList, ServerSidebar } from "./navigation";
 
 /**
@@ -28,11 +30,17 @@ export const Sidebar = (props: {
   const state = useState();
   const client = useClient();
   const { openModal } = useModals();
+  const { isMobile } = useMobileNav();
 
   const params = useParams<{ server: string }>();
   const location = useLocation();
 
   return (
+    <>
+    <Show when={isMobile()}>
+      <MobileNav menuGenerator={props.menuGenerator} />
+    </Show>
+    <Show when={!isMobile()}>
     <div style={{ display: "flex", "flex-shrink": 0 }}>
       <ServerList
         orderedServers={state.ordering.orderedServers(client())}
@@ -66,6 +74,8 @@ export const Sidebar = (props: {
         </Switch>
       </Show>
     </div>
+    </Show>
+    </>
   );
 };
 
