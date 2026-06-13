@@ -143,6 +143,11 @@ export function TextChannel(props: ChannelPageProps) {
   // Sidebar scroll target
   let sidebarScrollTargetElement!: HTMLDivElement;
 
+  // Detect mobile viewport synchronously so use:scrollable gets the right showOnHover value
+  const isMobile = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 768px)").matches;
+
   // Sidebar state
   const [sidebarState, setSidebarState] = createSignal<SidebarState>({
     state: "default",
@@ -165,7 +170,7 @@ export function TextChannel(props: ChannelPageProps) {
           setSidebarState={setSidebarState}
         />
       </Header>
-      <Content>
+      <Content style={{ position: isMobile() ? "relative" : undefined }}>
         <main class={main()}>
           <Show
             when={canConnect()}
@@ -225,15 +230,31 @@ export function TextChannel(props: ChannelPageProps) {
             ref={sidebarScrollTargetElement}
             use:scrollable={{
               direction: "y",
-              showOnHover: true,
+              showOnHover: !isMobile(),
               class: sidebar(),
             }}
-            style={{
-              width:
-                sidebarState().state !== "default"
-                  ? "min(85vw, 360px)"
-                  : "",
-            }}
+            style={
+              isMobile()
+                ? {
+                    position: "absolute",
+                    right: "0",
+                    top: "0",
+                    bottom: "0",
+                    "z-index": "200",
+                    width: "min(320px, calc(100% - 48px))",
+                    background: "var(--md-sys-color-surface-container)",
+                    "box-shadow": "-4px 0 16px rgba(0, 0, 0, 0.5)",
+                    "border-radius":
+                      "var(--borderRadius-lg) 0 0 var(--borderRadius-lg)",
+                    "overflow-y": "auto",
+                  }
+                : {
+                    width:
+                      sidebarState().state !== "default"
+                        ? "min(85vw, 360px)"
+                        : "",
+                  }
+            }
           >
             <Switch
               fallback={
@@ -296,9 +317,6 @@ const Content = styled("div", {
     flexGrow: 1,
     minWidth: 0,
     minHeight: 0,
-    mdDown: {
-      position: "relative",
-    },
   },
 });
 
@@ -313,18 +331,6 @@ const sidebar = cva({
     borderRadius: "var(--borderRadius-lg)",
     // color: "var(--colours-sidebar-channels-foreground)",
     // background: "var(--colours-sidebar-channels-background)",
-    mdDown: {
-      position: "absolute",
-      right: "0",
-      top: "0",
-      bottom: "0",
-      zIndex: "200",
-      width: "min(320px, calc(100% - 48px))",
-      background: "var(--md-sys-color-surface-container)",
-      boxShadow: "-4px 0 16px rgba(0, 0, 0, 0.5)",
-      borderRadius: "var(--borderRadius-lg) 0 0 var(--borderRadius-lg)",
-      overflowY: "auto",
-    },
   },
 });
 
