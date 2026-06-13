@@ -229,7 +229,10 @@ export function TextChannel(props: ChannelPageProps) {
               class: sidebar(),
             }}
             style={{
-              width: sidebarState().state !== "default" ? "360px" : "",
+              width:
+                sidebarState().state !== "default"
+                  ? "min(85vw, 360px)"
+                  : "",
             }}
           >
             <Switch
@@ -293,6 +296,9 @@ const Content = styled("div", {
     flexGrow: 1,
     minWidth: 0,
     minHeight: 0,
+    mdDown: {
+      position: "relative",
+    },
   },
 });
 
@@ -307,6 +313,18 @@ const sidebar = cva({
     borderRadius: "var(--borderRadius-lg)",
     // color: "var(--colours-sidebar-channels-foreground)",
     // background: "var(--colours-sidebar-channels-background)",
+    mdDown: {
+      position: "absolute",
+      right: "0",
+      top: "0",
+      bottom: "0",
+      zIndex: "200",
+      width: "min(85vw, 300px)",
+      background: "var(--md-sys-color-surface-container)",
+      boxShadow: "-4px 0 16px rgba(0, 0, 0, 0.5)",
+      borderRadius: "var(--borderRadius-lg) 0 0 var(--borderRadius-lg)",
+      overflowY: "auto",
+    },
   },
 });
 
