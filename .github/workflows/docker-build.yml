@@ -24,16 +24,23 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout with submodules
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Init public submodules
+        run: |
+          git submodule update --init packages/stoat.js
+          git submodule update --init packages/solid-livekit-components
+          git submodule update --init packages/js-lingui-solid
+          # packages/client/assets is on a private server; copyAssets.mjs falls back to scripts/assets_fallback
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.event_name != pull_request
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -55,9 +62,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != pull_request }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
