@@ -319,7 +319,7 @@ const sidebar = cva({
       top: "0",
       bottom: "0",
       zIndex: "200",
-      width: "min(85vw, 300px)",
+      width: "min(320px, calc(100% - 48px))",
       background: "var(--md-sys-color-surface-container)",
       boxShadow: "-4px 0 16px rgba(0, 0, 0, 0.5)",
       borderRadius: "var(--borderRadius-lg) 0 0 var(--borderRadius-lg)",
