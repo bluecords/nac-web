@@ -88,29 +88,6 @@ const NavItems = styled("div", {
 });
 
 /**
- * Link with an icon inside
- */
-const LinkWithIcon = styled("a", {
-  base: { height: "24px" },
-});
-
-/**
- * Middot-like bullet
- */
-const Bullet = styled("div", {
-  base: {
-    height: "5px",
-    width: "5px",
-    background: "grey",
-    borderRadius: "50%",
-
-    md: {
-      display: "none",
-    },
-  },
-});
-
-/**
  * Authentication page
  */
 export function AuthPage(props: { children: JSX.Element }) {

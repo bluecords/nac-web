@@ -13,7 +13,6 @@ import { useNavigate } from "@revolt/routing";
 import { useState } from "@revolt/state";
 import { Avatar, Column, Text, Time, Unreads, UserStatus } from "@revolt/ui";
 
-import MdAdd from "@material-design-icons/svg/filled/add.svg?component-solid";
 import MdExplore from "@material-design-icons/svg/filled/explore.svg?component-solid";
 import MdHome from "@material-design-icons/svg/filled/home.svg?component-solid";
 import MdSettings from "@material-design-icons/svg/filled/settings.svg?component-solid";
