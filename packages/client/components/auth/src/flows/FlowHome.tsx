@@ -46,21 +46,11 @@ export default function FlowHome() {
                   "text-align": "center",
                 }}
               >
-                <span>
-                  <Trans>
-                    Find your com
-                    <wbr />
-                    munity,
-                    <br />
-                    connect with the world.
-                  </Trans>
-                </span>
+                <span>NAC — Naked as Created</span>
               </b>
               <span style={{ "text-align": "center", opacity: "0.5" }}>
-                <Trans>
-                  Stoat is one of the best ways to stay connected with your
-                  friends and community, anywhere, anytime.
-                </Trans>
+                A private community of Jesus Followers built around naturism and
+                authentic human connection.
               </span>
             </Column>
 
@@ -69,13 +59,6 @@ export default function FlowHome() {
                 <Column>
                   <Button>
                     <Trans>Log In</Trans>
-                  </Button>
-                </Column>
-              </a>
-              <a href="/login/create">
-                <Column>
-                  <Button variant="tonal">
-                    <Trans>Sign Up</Trans>
                   </Button>
                 </Column>
               </a>

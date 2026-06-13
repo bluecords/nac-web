@@ -287,14 +287,7 @@ export const ServerList = (props: Props) => {
             </Tooltip>
           )}
         </Draggable>
-        <Tooltip placement="right" content={"Create or join a server"}>
-          <a
-            class={entryContainer()}
-            onClick={() => props.onCreateOrJoinServer()}
-          >
-            <Avatar size={42} fallback={<MdAdd />} />
-          </a>
-        </Tooltip>
+        {/* Create server hidden — restricted to admin accounts server-side */}
         <Show when={CONFIGURATION.IS_STOAT}>
           <Tooltip placement="right" content={"Find new servers to join"}>
             <a

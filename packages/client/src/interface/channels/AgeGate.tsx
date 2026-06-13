@@ -50,6 +50,7 @@ export function AgeGate(props: {
       <Switch fallback={props.children}>
         <Match
           when={
+            false &&
             props.enabled &&
             (geoQuery.isLoading ||
               geoQuery.error ||
@@ -78,7 +79,7 @@ export function AgeGate(props: {
             </Button>
           </Base>
         </Match>
-        <Match when={props.enabled && (!confirmed() || !allowed())}>
+        <Match when={false && props.enabled && (!confirmed() || !allowed())}>
           <Base>
             <MdWarning {...iconSize("8em")} />
             <Text class="headline" size="large">
