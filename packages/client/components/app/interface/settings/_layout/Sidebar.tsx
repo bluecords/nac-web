@@ -27,10 +27,11 @@ export function SettingsSidebar(props: {
   const { navigate } = useSettingsNavigation();
 
   /**
-   * Select first page on load
+   * Select first page on load (desktop only — mobile starts at the list)
    */
   onMount(() => {
-    if (!props.page()) {
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    if (!props.page() && !isMobile) {
       props.setPage(props.list().entries[0].entries[0].id);
     }
   });
