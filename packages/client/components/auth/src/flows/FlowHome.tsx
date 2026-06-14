@@ -65,6 +65,13 @@ export default function FlowHome() {
                   </Button>
                 </Column>
               </a>
+              <a href="/login/create">
+                <Column>
+                  <Button variant="plain">
+                    <Trans>Create Account</Trans>
+                  </Button>
+                </Column>
+              </a>
             </Column>
           </Column>
         </>

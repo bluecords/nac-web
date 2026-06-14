@@ -71,12 +71,25 @@ function SettingsRedirect() {
 }
 
 /**
- * Open invite and redirect to last active path
+ * Open invite and redirect to last active path.
+ * If not authenticated, send to registration with code pre-filled.
  */
 function InviteRedirect() {
   const params = useParams();
   const client = useClient();
   const { openModal, showError } = useModals();
+
+  const isAuthed = () => {
+    try {
+      return !!client()?.user;
+    } catch {
+      return false;
+    }
+  };
+
+  if (!isAuthed() && params.code) {
+    return <Navigate href={`/login/create/${params.code}`} />;
+  }
 
   onMount(() => {
     if (params.code) {
