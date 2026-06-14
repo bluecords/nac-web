@@ -7,7 +7,7 @@ import {
   ChannelContextMenu,
   ServerSidebarContextMenu,
 } from "@revolt/app";
-import { useClient } from "@revolt/client";
+import { useClient, useUser } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { useNavigate, useSmartParams } from "@revolt/routing";
 import { Avatar, UserStatus } from "@revolt/ui";
@@ -27,6 +27,7 @@ export function MobileNav(_props: {
   const { openModal } = useModals();
   const params = useSmartParams();
   const client = useClient();
+  const user = useUser();
   const navigate = useNavigate();
   const favorites = getFavorites();
 
@@ -120,6 +121,63 @@ export function MobileNav(_props: {
               overflow: "hidden",
             }}
           >
+            {/* User bar — tap to open profile/settings/logout */}
+            <button
+              onClick={() => { closeNav(); openModal({ type: "settings", config: "user" }); }}
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "10px",
+                padding: "10px 14px",
+                background: "var(--md-sys-color-surface-container)",
+                border: "none",
+                "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
+                cursor: "pointer",
+                "text-align": "left",
+                "flex-shrink": "0",
+              }}
+            >
+              <div style={{ position: "relative", "flex-shrink": "0" }}>
+                <Avatar
+                  size={36}
+                  src={user()?.animatedAvatarURL ?? undefined}
+                  fallback={user()?.username}
+                />
+                <div style={{ position: "absolute", bottom: "-1px", right: "-1px" }}>
+                  <UserStatus.Graphic status={user()?.presence} size="10px" />
+                </div>
+              </div>
+              <div style={{ "min-width": "0", flex: "1" }}>
+                <div style={{
+                  "font-size": "14px",
+                  "font-weight": "600",
+                  color: "var(--md-sys-color-on-surface)",
+                  overflow: "hidden",
+                  "text-overflow": "ellipsis",
+                  "white-space": "nowrap",
+                }}>
+                  {user()?.displayName ?? user()?.username}
+                </div>
+                <div style={{
+                  "font-size": "12px",
+                  color: "var(--md-sys-color-on-surface-variant)",
+                  overflow: "hidden",
+                  "text-overflow": "ellipsis",
+                  "white-space": "nowrap",
+                }}>
+                  {user()?.username}
+                </div>
+              </div>
+              <span style={{
+                "font-family": "Material Symbols Outlined",
+                "font-size": "18px",
+                color: "var(--md-sys-color-on-surface-variant)",
+                "flex-shrink": "0",
+              }}>
+                manage_accounts
+              </span>
+            </button>
+
             <Show when={server()} fallback={
               <HomeNav
                 servers={orderedServers()}
