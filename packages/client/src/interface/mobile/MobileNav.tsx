@@ -23,7 +23,7 @@ import { useMobileNav } from "./MobileNavContext";
 export function MobileNav(_props: {
   menuGenerator: (t: ServerI | Channel) => JSX.Directives["floating"];
 }) {
-  const { navOpen, closeNav, openMembers } = useMobileNav();
+  const { navOpen, openNav, closeNav, openMembers } = useMobileNav();
   const { openModal } = useModals();
   const params = useSmartParams();
   const client = useClient();
