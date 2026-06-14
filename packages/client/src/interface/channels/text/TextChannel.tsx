@@ -30,6 +30,7 @@ import { VoiceChannelCallCardMount } from "@revolt/ui/components/features/voice/
 
 import { ChannelHeader } from "../ChannelHeader";
 import { ChannelPageProps } from "../ChannelPage";
+import { MobileSearchOverlay } from "../mobile/MobileSearchOverlay";
 
 import { MessageComposition } from "./Composition";
 import { MemberSidebar } from "./MemberSidebar";
@@ -163,6 +164,7 @@ export function TextChannel(props: ChannelPageProps) {
 
   return (
     <>
+      <MobileSearchOverlay channel={props.channel} />
       <Header placement="primary">
         <ChannelHeader
           channel={props.channel}

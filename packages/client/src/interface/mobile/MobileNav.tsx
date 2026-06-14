@@ -218,62 +218,89 @@ export function MobileNav(_props: {
 
                 <div style={{
                   display: "flex",
+                  "flex-direction": "column",
                   "flex-shrink": "0",
                   "border-top": "1px solid var(--md-sys-color-outline-variant)",
                   background: "var(--md-sys-color-surface-container)",
                 }}>
-                  <button
-                    style={{
-                      display: "flex",
-                      "align-items": "center",
-                      gap: "12px",
-                      padding: "14px 16px",
-                      background: "none",
-                      border: "none",
-                      color: "var(--md-sys-color-on-surface)",
-                      cursor: "pointer",
-                      "font-size": "15px",
-                      "text-align": "left",
-                      flex: "1",
-                    }}
-                    onClick={() => {
-                      closeNav();
-                      openMembers();
-                    }}
-                  >
-                    <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>group</span>
-                    Members
-                  </button>
-
-                  <Show when={server()?.havePermission("ManageChannel")}>
+                  {/* Members + Edit row */}
+                  <div style={{ display: "flex" }}>
                     <button
                       style={{
                         display: "flex",
                         "align-items": "center",
-                        gap: "6px",
+                        gap: "12px",
                         padding: "14px 16px",
-                        background: editMode()
-                          ? "var(--md-sys-color-primary)"
-                          : "none",
+                        background: "none",
                         border: "none",
-                        color: editMode()
-                          ? "var(--md-sys-color-on-primary)"
-                          : "var(--md-sys-color-on-surface-variant)",
+                        color: "var(--md-sys-color-on-surface)",
                         cursor: "pointer",
-                        "font-size": "13px",
-                        "font-weight": "600",
-                        "flex-shrink": "0",
-                        "border-radius": editMode() ? "8px" : "0",
-                        margin: editMode() ? "6px" : "0",
+                        "font-size": "15px",
+                        "text-align": "left",
+                        flex: "1",
                       }}
-                      onClick={() => setEditMode(!editMode())}
+                      onClick={() => { closeNav(); openMembers(); }}
                     >
-                      <span style={{ "font-size": "18px", "font-family": "Material Symbols Outlined" }}>
-                        {editMode() ? "check" : "edit"}
-                      </span>
-                      {editMode() ? "Done" : "Edit"}
+                      <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>group</span>
+                      Members
                     </button>
-                  </Show>
+
+                    <Show when={server()?.havePermission("ManageChannel")}>
+                      <button
+                        style={{
+                          display: "flex",
+                          "align-items": "center",
+                          gap: "6px",
+                          padding: "14px 16px",
+                          background: editMode() ? "var(--md-sys-color-primary)" : "none",
+                          border: "none",
+                          color: editMode() ? "var(--md-sys-color-on-primary)" : "var(--md-sys-color-on-surface-variant)",
+                          cursor: "pointer",
+                          "font-size": "13px",
+                          "font-weight": "600",
+                          "flex-shrink": "0",
+                          "border-radius": editMode() ? "8px" : "0",
+                          margin: editMode() ? "6px" : "0",
+                        }}
+                        onClick={() => setEditMode(!editMode())}
+                      >
+                        <span style={{ "font-size": "18px", "font-family": "Material Symbols Outlined" }}>
+                          {editMode() ? "check" : "edit"}
+                        </span>
+                        {editMode() ? "Done" : "Edit"}
+                      </button>
+                    </Show>
+                  </div>
+
+                  {/* Settings row */}
+                  <div style={{
+                    display: "flex",
+                    "border-top": "1px solid var(--md-sys-color-outline-variant)",
+                  }}>
+                    <Show when={server()?.orPermission("ManageServer", "ManageCustomisation", "ManageRole", "ManagePermissions")}>
+                      <button
+                        style={{
+                          display: "flex",
+                          "align-items": "center",
+                          gap: "10px",
+                          padding: "12px 16px",
+                          background: "none",
+                          border: "none",
+                          color: "var(--md-sys-color-on-surface-variant)",
+                          cursor: "pointer",
+                          "font-size": "14px",
+                          flex: "1",
+                        }}
+                        onClick={() => {
+                          closeNav();
+                          openModal({ type: "settings", config: "server", context: server()! });
+                        }}
+                      >
+                        <span style={{ "font-size": "18px", "font-family": "Material Symbols Outlined" }}>settings</span>
+                        Server Settings
+                      </button>
+                    </Show>
+                  </div>
                 </div>
 
                 <Show when={favorites().length > 0}>

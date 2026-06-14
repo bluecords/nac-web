@@ -58,21 +58,17 @@ export function ChannelHeader(props: Props) {
   const { t } = useLingui();
   const state = useState();
   const voice = useVoice();
-  const { isMobile, openNav, openMembers } = useMobileNav();
+  const { isMobile, openMembers, openSearch } = useMobileNav();
 
   const searchValue = () => {
     if (!props.sidebarState) return null;
-
-    const state = props.sidebarState();
-    if (state.state === "search") {
-      return state.query;
-    } else {
-      return "";
-    }
+    const s = props.sidebarState();
+    return s.state === "search" ? s.query : "";
   };
 
   return (
     <>
+      {/* Channel icon + name — left-padded on mobile to clear the FAB */}
       <Switch>
         <Match
           when={
@@ -80,7 +76,7 @@ export function ChannelHeader(props: Props) {
             props.channel.type === "Group"
           }
         >
-          <HeaderIcon>
+          <HeaderIcon style={isMobile() ? { "margin-left": "48px" } : {}}>
             <Symbol>grid_3x3</Symbol>
           </HeaderIcon>
           <NonBreakingText
@@ -94,7 +90,7 @@ export function ChannelHeader(props: Props) {
           >
             <TextWithEmoji content={props.channel.name!} />
           </NonBreakingText>
-          <Show when={props.channel.description}>
+          <Show when={props.channel.description && !isMobile()}>
             <Divider />
             <a
               class={descriptionLink}
@@ -138,6 +134,7 @@ export function ChannelHeader(props: Props) {
 
       <Spacer />
 
+      {/* Voice join — visible on all viewports */}
       <Show when={props.channel.isVoice && !voice.showCard(props.channel)}>
         <IconButton
           onPress={() => voice.connect(props.channel)}
@@ -152,130 +149,135 @@ export function ChannelHeader(props: Props) {
         </IconButton>
       </Show>
 
-      <Show
-        when={
-          (props.channel.type === "Group" || props.channel.serverId) &&
-          props.channel.orPermission("ManageChannel", "ManagePermissions")
-        }
-      >
-        <IconButton
-          onPress={() =>
-            openModal({
-              type: "settings",
-              config: "channel",
-              context: props.channel,
-            })
-          }
-          use:floating={{
-            tooltip: {
-              placement: "bottom",
-              content: t`Channel Settings`,
-            },
-          }}
-        >
-          <MdSettings />
-        </IconButton>
-      </Show>
-
-      <Show when={props.channel.type === "Group"}>
-        <Button
-          variant="text"
-          size="icon"
-          onPress={() =>
-            openModal({
-              type: "add_members_to_group",
-              group: props.channel,
-              client: client(),
-            })
-          }
-          use:floating={{
-            tooltip: {
-              placement: "bottom",
-              content: t`Add friends to group`,
-            },
-          }}
-        >
-          <MdPersonAdd />
-        </Button>
-      </Show>
-
-      <Show when={props.sidebarState}>
-        <IconButton
-          use:floating={{
-            tooltip: {
-              placement: "bottom",
-              content: t`View pinned messages`,
-            },
-          }}
-          onPress={() =>
-            props.sidebarState!().state === "pins"
-              ? props.setSidebarState!({
-                  state: "default",
-                })
-              : props.setSidebarState!({
-                  state: "pins",
-                })
+      {/* Desktop-only icons — all moved to hamburger on mobile */}
+      <Show when={!isMobile()}>
+        <Show
+          when={
+            (props.channel.type === "Group" || props.channel.serverId) &&
+            props.channel.orPermission("ManageChannel", "ManagePermissions")
           }
         >
-          <MdKeep />
-        </IconButton>
-      </Show>
-
-      <Show when={props.sidebarState && props.channel.type !== "SavedMessages"}>
-        <IconButton
-          onPress={() => {
-            if (isMobile()) {
-              openMembers();
-            } else if (props.sidebarState!().state === "default") {
-              state.layout.toggleSectionState(
-                LAYOUT_SECTIONS.MEMBER_SIDEBAR,
-                true,
-              );
-            } else {
-              state.layout.setSectionState(
-                LAYOUT_SECTIONS.MEMBER_SIDEBAR,
-                true,
-                true,
-              );
-
-              props.setSidebarState!({
-                state: "default",
-              });
+          <IconButton
+            onPress={() =>
+              openModal({
+                type: "settings",
+                config: "channel",
+                context: props.channel,
+              })
             }
-          }}
-          use:floating={{
-            tooltip: {
-              placement: "bottom",
-              content: t`View members`,
-            },
-          }}
-        >
-          <MdGroup />
-        </IconButton>
+            use:floating={{
+              tooltip: {
+                placement: "bottom",
+                content: t`Channel Settings`,
+              },
+            }}
+          >
+            <MdSettings />
+          </IconButton>
+        </Show>
+
+        <Show when={props.channel.type === "Group"}>
+          <Button
+            variant="text"
+            size="icon"
+            onPress={() =>
+              openModal({
+                type: "add_members_to_group",
+                group: props.channel,
+                client: client(),
+              })
+            }
+            use:floating={{
+              tooltip: {
+                placement: "bottom",
+                content: t`Add friends to group`,
+              },
+            }}
+          >
+            <MdPersonAdd />
+          </Button>
+        </Show>
+
+        <Show when={props.sidebarState}>
+          <IconButton
+            use:floating={{
+              tooltip: {
+                placement: "bottom",
+                content: t`View pinned messages`,
+              },
+            }}
+            onPress={() =>
+              props.sidebarState!().state === "pins"
+                ? props.setSidebarState!({ state: "default" })
+                : props.setSidebarState!({ state: "pins" })
+            }
+          >
+            <MdKeep />
+          </IconButton>
+        </Show>
+
+        <Show when={props.sidebarState && props.channel.type !== "SavedMessages"}>
+          <IconButton
+            onPress={() => {
+              if (props.sidebarState!().state === "default") {
+                state.layout.toggleSectionState(
+                  LAYOUT_SECTIONS.MEMBER_SIDEBAR,
+                  true,
+                );
+              } else {
+                state.layout.setSectionState(
+                  LAYOUT_SECTIONS.MEMBER_SIDEBAR,
+                  true,
+                  true,
+                );
+                props.setSidebarState!({ state: "default" });
+              }
+            }}
+            use:floating={{
+              tooltip: {
+                placement: "bottom",
+                content: t`View members`,
+              },
+            }}
+          >
+            <MdGroup />
+          </IconButton>
+        </Show>
+
+        {/* Desktop inline search input */}
+        <Show when={searchValue() !== null}>
+          <input
+            class={css({
+              height: "40px",
+              width: "240px",
+              paddingInline: "16px",
+              borderRadius: "var(--borderRadius-full)",
+              background: "var(--md-sys-color-surface-container-high)",
+            })}
+            placeholder="Search messages..."
+            value={searchValue()!}
+            onChange={(e) =>
+              e.currentTarget.value
+                ? props.setSidebarState!({
+                    state: "search",
+                    query: e.currentTarget.value,
+                  })
+                : props.setSidebarState!({ state: "default" })
+            }
+          />
+        </Show>
       </Show>
 
-      <Show when={searchValue() !== null}>
-        <input
-          class={css({
-            height: "40px",
-            width: "240px",
-            paddingInline: "16px",
-            borderRadius: "var(--borderRadius-full)",
-            background: "var(--md-sys-color-surface-container-high)",
-          })}
-          placeholder="Search messages..."
-          value={searchValue()!}
-          onChange={(e) =>
-            e.currentTarget.value
-              ? props.setSidebarState!({
-                  state: "search",
-                  query: e.currentTarget.value,
-                })
-              : props.setSidebarState!({
-                  state: "default",
-                })
-          }
-        />
+      {/* Mobile-only search icon */}
+      <Show when={isMobile() && searchValue() !== null}>
+        <IconButton
+          onPress={openSearch}
+          use:floating={{
+            tooltip: { placement: "bottom", content: t`Search messages` },
+          }}
+        >
+          <Symbol>search</Symbol>
+        </IconButton>
       </Show>
     </>
   );
