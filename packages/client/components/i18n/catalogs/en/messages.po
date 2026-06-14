@@ -3388,3 +3388,7 @@ msgstr "Stream End"
 #: components/app/interface/settings/user/notifications/Sounds.tsx
 msgid "Play sound"
 msgstr "Play sound"
+
+#: components/app/interface/settings/user/voice/VoiceSettings.tsx
+msgid "Select video input"
+msgstr "Select video input"
