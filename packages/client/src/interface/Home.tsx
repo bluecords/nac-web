@@ -95,23 +95,18 @@ export function HomePage() {
   const { openModal } = useModals();
   const navigate = useNavigate();
   const client = useClient();
-  const { isMobile } = useMobileNav();
+  const { isMobile, openNav } = useMobileNav();
 
-  // On mobile, skip the home screen and go straight to the first server
+  // On mobile, skip the home screen — go to the server and open the nav
+  // so users see the channels they have access to and tap in themselves.
   createEffect(() => {
     if (!isMobile()) return;
     const c = client();
     if (!c) return;
     const server = [...c.servers.values()][0];
     if (!server) return;
-    const firstChannel = [...server.channels.values()].find(
-      (ch) => ch.type === "TextChannel",
-    );
-    if (firstChannel) {
-      navigate(`/server/${server.id}/channel/${firstChannel.id}`);
-    } else {
-      navigate(`/server/${server.id}`);
-    }
+    navigate(`/server/${server.id}`);
+    openNav();
   });
 
   // check if we're stoat.chat; if so, check if the user is in the Lounge
