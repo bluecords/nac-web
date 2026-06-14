@@ -87,7 +87,7 @@ export function Settings(props: SettingsProps & SettingsConfiguration<never>) {
     typeof window !== "undefined" &&
     window.matchMedia("(max-width: 768px)").matches;
 
-  const contentEl = (
+  const ContentEl = () => (
     <Presence exitBeforeEnter>
       <Rerun on={page}>
         <Motion.div
@@ -138,7 +138,7 @@ export function Settings(props: SettingsProps & SettingsConfiguration<never>) {
                   title={props.title}
                   onClose={props.onClose}
                 >
-                  {contentEl}
+                  <ContentEl />
                 </SettingsContent>
               </>
             }
@@ -209,7 +209,7 @@ export function Settings(props: SettingsProps & SettingsConfiguration<never>) {
                   list={list}
                   title={props.title}
                 >
-                  {contentEl}
+                  <ContentEl />
                 </SettingsContent>
               </div>
             </Show>
