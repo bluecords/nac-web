@@ -44,7 +44,7 @@ export function Feedback() {
           </CategoryButton>
         </Link> */}
         <Link
-          href="https://github.com/orgs/stoatchat/discussions/categories/feature-suggestions"
+          href="https://github.com/bluecords/nac-web/discussions"
           target="_blank"
         >
           <CategoryButton
@@ -52,27 +52,27 @@ export function Feedback() {
             icon={<MdStar {...iconSize(22)} />}
             onClick={() => void 0}
             description={
-              <Trans>Suggest new Stoat features on GitHub discussions.</Trans>
+              <Trans>Suggest new NAC features on GitHub discussions.</Trans>
             }
           >
             <Trans>Submit feature suggestion</Trans>
           </CategoryButton>
         </Link>
         <Link
-          href="https://github.com/orgs/stoatchat/discussions/categories/feedback"
+          href="https://github.com/bluecords/nac-web/discussions"
           target="_blank"
         >
           <CategoryButton
             action="external"
             icon={<MdFormatListNumbered {...iconSize(22)} />}
             onClick={() => void 0}
-            description={<Trans>Submit feedback</Trans>}
+            description={<Trans>Submit feedback on GitHub discussions.</Trans>}
           >
             <Trans>Feedback</Trans>
           </CategoryButton>
         </Link>
         <Link
-          href="https://github.com/stoatchat/for-web/issues?q=is%3Aissue%20state%3Aopen%20type%3ABug"
+          href="https://github.com/bluecords/nac-web/issues"
           target="_blank"
         >
           <CategoryButton
@@ -84,44 +84,7 @@ export function Feedback() {
             <Trans>Bug Tracker</Trans>
           </CategoryButton>
         </Link>
-        <Switch fallback={null}>
-          <Match when={showLoungeButton && isInLounge}>
-            <CategoryButton
-              onClick={() => {
-                navigate("/server/01F7ZSBSFHQ8TA81725KQCSDDP");
-                pop();
-              }}
-              description={
-                <Trans>
-                  You can report issues and discuss improvements with us
-                  directly here.
-                </Trans>
-              }
-              icon={<MdGroups3 />}
-            >
-              <Trans>Go to the Stoat Lounge</Trans>
-            </CategoryButton>
-          </Match>
-          <Match when={showLoungeButton && !isInLounge}>
-            <CategoryButton
-              onClick={() => {
-                client()
-                  .api.get("/invites/Testers")
-                  .then((invite) => PublicChannelInvite.from(client(), invite))
-                  .then((invite) => openModal({ type: "invite", invite }));
-              }}
-              description={
-                <Trans>
-                  You can report issues and discuss improvements with us
-                  directly here.
-                </Trans>
-              }
-              icon={<MdGroups3 />}
-            >
-              <Trans>Join the Stoat Lounge</Trans>
-            </CategoryButton>
-          </Match>
-        </Switch>
+        {null}
       </CategoryButton.Group>
     </Column>
   );
