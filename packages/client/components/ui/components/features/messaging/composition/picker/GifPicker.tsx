@@ -1,5 +1,7 @@
 import {
+  For,
   Match,
+  Show,
   Suspense,
   Switch,
   createContext,
@@ -9,7 +11,6 @@ import {
 } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { VirtualContainer } from "@minht11/solid-virtual-container";
 import { useQuery } from "@tanstack/solid-query";
 import { styled } from "styled-system/jsx";
 
@@ -77,6 +78,16 @@ const Stack = styled("div", {
   },
 });
 
+const Grid = styled("div", {
+  base: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "3px",
+    padding: "3px",
+    overflowY: "auto",
+  },
+});
+
 type CategoryItem =
   | { t: 0; category: GifCategory }
   | { t: 1; gif: GifResult | null };
@@ -99,7 +110,7 @@ function mapGif(g: Record<string, never>): GifResult {
 }
 
 function Categories() {
-  let targetElement!: HTMLDivElement;
+  const setFilter = useContext(FilterContext);
 
   const trendingCategories = useQuery<GifCategory[]>(() => ({
     queryKey: ["giphyCategories"],
@@ -150,62 +161,41 @@ function Categories() {
   );
 
   return (
-    <div ref={targetElement} use:invisibleScrollable>
-      <VirtualContainer
-        items={items()}
-        scrollTarget={targetElement}
-        itemSize={{ height: 120, width: 200 }}
-        crossAxisCount={(measurements) =>
-          Math.floor(measurements.container.cross / measurements.itemSize.cross)
-        }
-      >
-        {CategoryItem}
-      </VirtualContainer>
-    </div>
+    <Grid use:invisibleScrollable>
+      <For each={items()}>
+        {(item) => (
+          <Category
+            style={{
+              "background-image": `linear-gradient(to right, #0006, #0006), url("${item.t === 0 ? item.category.image : (item.gif?.previewMp4 ?? "")}")`,
+            }}
+            role="listitem"
+            onClick={() =>
+              setFilter!(item.t === 0 ? item.category.title : "trending")
+            }
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+            }}
+          >
+            <Switch fallback={<Trans>Trending GIFs</Trans>}>
+              <Match when={item.t === 0}>
+                {(item as CategoryItem & { t: 0 }).category.title}
+              </Match>
+            </Switch>
+          </Category>
+        )}
+      </For>
+    </Grid>
   );
 }
-
-const CategoryItem = (props: {
-  style: unknown;
-  tabIndex: number;
-  item: CategoryItem;
-}) => {
-  const setFilter = useContext(FilterContext);
-
-  return (
-    <Category
-      style={{
-        ...(props.style as object),
-        "background-image": `linear-gradient(to right, #0006, #0006), url("${props.item.t === 0 ? props.item.category.image : (props.item.gif?.previewMp4 ?? "")}")`,
-      }}
-      tabIndex={props.tabIndex}
-      role="listitem"
-      onClick={() =>
-        setFilter!(
-          props.item.t === 0 ? props.item.category.title : "trending",
-        )
-      }
-      onMouseDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      }}
-    >
-      <Switch fallback={<Trans>Trending GIFs</Trans>}>
-        <Match when={props.item.t === 0}>
-          {(props.item as CategoryItem & { t: 0 }).category.title}
-        </Match>
-      </Switch>
-    </Category>
-  );
-};
 
 const Category = styled("div", {
   base: {
     ...typography.raw({ class: "title", size: "small" }),
 
-    width: "200px",
-    height: "120px",
+    width: "100%",
+    height: "100px",
     backgroundSize: "cover",
     backgroundPosition: "center",
 
@@ -217,12 +207,11 @@ const Category = styled("div", {
     justifyContent: "end",
 
     cursor: "pointer",
+    borderRadius: "4px",
   },
 });
 
 function GifSearch(props: { query: string }) {
-  let targetElement!: HTMLDivElement;
-
   const search = useQuery<GifResult[]>(() => ({
     queryKey: ["giphySearch", props.query],
     queryFn: () =>
@@ -240,26 +229,17 @@ function GifSearch(props: { query: string }) {
   }));
 
   return (
-    <div ref={targetElement} use:invisibleScrollable>
-      <VirtualContainer
-        items={search.data as never}
-        scrollTarget={targetElement}
-        itemSize={{ height: 120, width: 200 }}
-        crossAxisCount={(measurements) =>
-          Math.floor(measurements.container.cross / measurements.itemSize.cross)
-        }
-      >
-        {GifItem}
-      </VirtualContainer>
-    </div>
+    <Grid use:invisibleScrollable>
+      <For each={search.data ?? []}>
+        {(gif) => (
+          <GifItem gif={gif} />
+        )}
+      </For>
+    </Grid>
   );
 }
 
-const GifItem = (props: {
-  style: unknown;
-  tabIndex: number;
-  item: GifResult;
-}) => {
+function GifItem(props: { gif: GifResult }) {
   const { onMessage } = useContext(CompositionMediaPickerContext);
 
   return (
@@ -269,19 +249,19 @@ const GifItem = (props: {
       muted
       preload="auto"
       role="listitem"
-      style={props.style as string}
-      tabIndex={props.tabIndex}
-      src={props.item.previewMp4}
-      onClick={() => onMessage(props.item.url)}
+      src={props.gif.previewMp4}
+      onClick={() => onMessage(props.gif.url)}
     />
   );
-};
+}
 
 const Gif = styled("video", {
   base: {
-    width: "200px",
-    height: "120px",
+    width: "100%",
+    height: "100px",
     cursor: "pointer",
     objectFit: "cover",
+    borderRadius: "4px",
+    display: "block",
   },
 });
