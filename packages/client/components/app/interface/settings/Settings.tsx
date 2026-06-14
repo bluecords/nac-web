@@ -197,11 +197,21 @@ export function Settings(props: SettingsProps & SettingsConfiguration<never>) {
                       background: "none", border: "none", cursor: "pointer",
                       display: "flex", "align-items": "center", gap: "6px",
                       color: "var(--md-sys-color-on-surface)", "font-size": "16px",
-                      "font-weight": "600", padding: "0",
+                      "font-weight": "600", padding: "0", flex: "1",
                     }}
                   >
                     <span style={{ "font-family": "Material Symbols Outlined", "font-size": "22px" }}>arrow_back</span>
                     Settings
+                  </button>
+                  <button
+                    onClick={props.onClose}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      display: "flex", "align-items": "center",
+                      color: "var(--md-sys-color-on-surface-variant)", padding: "0",
+                    }}
+                  >
+                    <span style={{ "font-family": "Material Symbols Outlined", "font-size": "22px" }}>close</span>
                   </button>
                 </div>
                 <SettingsContent
