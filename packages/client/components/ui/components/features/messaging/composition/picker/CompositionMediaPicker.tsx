@@ -163,7 +163,7 @@ function Picker(
 const Base = styled("div", {
   base: {
     width: "min(400px, 96vw)",
-    height: "min(400px, 60vh)",
+    height: "min(500px, 75vh)",
     // paddingInlineEnd: "5px",
   },
 });
