@@ -1,6 +1,7 @@
 import {
   type JSX,
   Accessor,
+  Show,
   createContext,
   createMemo,
   createSignal,
@@ -82,69 +83,137 @@ export function Settings(props: SettingsProps & SettingsConfiguration<never>) {
     setPage(id);
   }
 
+  const isMobile = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 768px)").matches;
+
+  const contentEl = (
+    <Presence exitBeforeEnter>
+      <Rerun on={page}>
+        <Motion.div
+          style={
+            untrack(transition) === "normal"
+              ? {}
+              : { visibility: "hidden" }
+          }
+          ref={(el) =>
+            untrack(transition) !== "normal" &&
+            setTimeout(() => (el.style.visibility = "visible"), 250)
+          }
+          initial={
+            transition() === "normal"
+              ? { opacity: 0, y: 50 }
+              : transition() === "to-child"
+                ? { x: "100vw" }
+                : { x: "-100vw" }
+          }
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          exit={
+            transition() === "normal"
+              ? undefined
+              : transition() === "to-child"
+                ? { x: "-100vw" }
+                : { x: "100vw" }
+          }
+          transition={{ duration: 0.2, easing: [0.17, 0.67, 0.58, 0.98] }}
+        >
+          {props.render({ page }, props.context)}
+        </Motion.div>
+      </Rerun>
+    </Presence>
+  );
+
   return (
-    <SettingsNavigationContext.Provider
-      value={{
-        page,
-        navigate,
-      }}
-    >
+    <SettingsNavigationContext.Provider value={{ page, navigate }}>
       <MemoisedList context={props.context} list={props.list}>
         {(list) => (
-          <>
-            <SettingsSidebar list={list} page={page} setPage={setPage} />
-            <SettingsContent
-              page={page}
-              list={list}
-              title={props.title}
-              onClose={props.onClose}
+          <Show
+            when={isMobile()}
+            fallback={
+              <>
+                <SettingsSidebar list={list} page={page} setPage={setPage} />
+                <SettingsContent
+                  page={page}
+                  list={list}
+                  title={props.title}
+                  onClose={props.onClose}
+                >
+                  {contentEl}
+                </SettingsContent>
+              </>
+            }
+          >
+            {/* Mobile: sidebar list OR content page, never both */}
+            <Show
+              when={page()}
+              fallback={
+                <div style={{ width: "100%", "overflow-y": "auto" }}>
+                  {/* Back / close row */}
+                  <div style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "8px",
+                    padding: "12px 16px",
+                    "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
+                    background: "var(--md-sys-color-surface-container)",
+                    position: "sticky",
+                    top: "0",
+                    "z-index": "1",
+                  }}>
+                    <button
+                      onClick={props.onClose}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        display: "flex", "align-items": "center", gap: "6px",
+                        color: "var(--md-sys-color-on-surface)", "font-size": "16px",
+                        "font-weight": "600", padding: "0",
+                      }}
+                    >
+                      <span style={{ "font-family": "Material Symbols Outlined", "font-size": "22px" }}>close</span>
+                      Settings
+                    </button>
+                  </div>
+                  <SettingsSidebar list={list} page={page} setPage={setPage} />
+                </div>
+              }
             >
-              <Presence exitBeforeEnter>
-                <Rerun on={page}>
-                  <Motion.div
-                    style={
-                      untrack(transition) === "normal"
-                        ? {}
-                        : { visibility: "hidden" }
-                    }
-                    ref={(el) =>
-                      untrack(transition) !== "normal" &&
-                      setTimeout(() => (el.style.visibility = "visible"), 250)
-                    }
-                    initial={
-                      transition() === "normal"
-                        ? { opacity: 0, y: 50 }
-                        : transition() === "to-child"
-                          ? {
-                              x: "100vw",
-                            }
-                          : { x: "-100vw" }
-                    }
-                    animate={{
-                      opacity: 1,
-                      x: 0,
-                      y: 0,
-                    }}
-                    exit={
-                      transition() === "normal"
-                        ? undefined
-                        : transition() === "to-child"
-                          ? {
-                              x: "-100vw",
-                            }
-                          : { x: "100vw" }
-                    }
-                    transition={{
-                      duration: 0.2,
-                      easing: [0.17, 0.67, 0.58, 0.98],
+              <div style={{ width: "100%", display: "flex", "flex-direction": "column" }}>
+                {/* Back row */}
+                <div style={{
+                  display: "flex",
+                  "align-items": "center",
+                  gap: "8px",
+                  padding: "12px 16px",
+                  "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
+                  background: "var(--md-sys-color-surface-container)",
+                  "flex-shrink": "0",
+                  position: "sticky",
+                  top: "0",
+                  "z-index": "1",
+                }}>
+                  <button
+                    onClick={() => setPage(undefined)}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      display: "flex", "align-items": "center", gap: "6px",
+                      color: "var(--md-sys-color-on-surface)", "font-size": "16px",
+                      "font-weight": "600", padding: "0",
                     }}
                   >
-                    {props.render({ page }, props.context)}
-                  </Motion.div>
-                </Rerun>
-              </Presence>
-            </SettingsContent>
-          </>
+                    <span style={{ "font-family": "Material Symbols Outlined", "font-size": "22px" }}>arrow_back</span>
+                    Settings
+                  </button>
+                </div>
+                <SettingsContent
+                  page={page}
+                  list={list}
+                  title={props.title}
+                >
+                  {contentEl}
+                </SettingsContent>
+              </div>
+            </Show>
+          </Show>
         )}
       </MemoisedList>
     </SettingsNavigationContext.Provider>
