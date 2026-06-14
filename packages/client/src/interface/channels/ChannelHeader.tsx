@@ -76,7 +76,7 @@ export function ChannelHeader(props: Props) {
             props.channel.type === "Group"
           }
         >
-          <HeaderIcon style={isMobile() ? { "margin-left": "48px" } : {}}>
+          <HeaderIcon>
             <Symbol>grid_3x3</Symbol>
           </HeaderIcon>
           <NonBreakingText

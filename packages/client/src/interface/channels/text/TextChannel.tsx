@@ -165,7 +165,7 @@ export function TextChannel(props: ChannelPageProps) {
   return (
     <>
       <MobileSearchOverlay channel={props.channel} />
-      <Header placement="primary">
+      <Header placement="primary" style={isMobile() ? { "padding-left": "56px" } : {}}>
         <ChannelHeader
           channel={props.channel}
           sidebarState={sidebarState}
