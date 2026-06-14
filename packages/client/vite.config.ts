@@ -34,9 +34,9 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4000000,
       },
       manifest: {
-        name: "Stoat",
-        short_name: "Stoat",
-        description: "User-first open source chat platform.",
+        name: "NAC Social",
+        short_name: "NAC",
+        description: "Naked as Created community chat.",
         categories: ["communication", "chat", "messaging"],
         start_url: base,
         orientation: "portrait",
