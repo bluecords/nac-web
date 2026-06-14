@@ -67,6 +67,11 @@ interface Props {
    * Menu generator
    */
   menuGenerator: (target: Server | Channel) => JSX.Directives["floating"];
+
+  /**
+   * When true, drag-to-reorder is disabled (mobile edit-mode lock)
+   */
+  lockReorder?: boolean;
 }
 
 /**
@@ -146,7 +151,8 @@ export const ServerSidebar = (props: Props) => {
     }
   });
 
-  const noOrdering = () => !props.server.havePermission("ManageChannel");
+  const noOrdering = () =>
+    !props.server.havePermission("ManageChannel") || !!props.lockReorder;
 
   let heldEvent: OrderingEvent & { type: "category" } = null!;
   function handleOrdering(event: OrderingEvent) {
