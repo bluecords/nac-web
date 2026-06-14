@@ -3392,3 +3392,79 @@ msgstr "Play sound"
 #: components/app/interface/settings/user/voice/VoiceSettings.tsx
 msgid "Select video input"
 msgstr "Select video input"
+
+#: components/app/interface/settings/user/appearance
+msgid "1 minute"
+msgstr "1 minute"
+
+msgid "10 minutes"
+msgstr "10 minutes"
+
+msgid "10 seconds"
+msgstr "10 seconds"
+
+msgid "2 hours"
+msgstr "2 hours"
+
+msgid "30 minutes"
+msgstr "30 minutes"
+
+msgid "30 seconds"
+msgstr "30 seconds"
+
+msgid "5 minutes"
+msgstr "5 minutes"
+
+msgid "5 seconds"
+msgstr "5 seconds"
+
+msgid "Content"
+msgstr "Content"
+
+msgid "Enable RTL layout"
+msgstr "Enable RTL layout"
+
+msgid "Experiments"
+msgstr "Experiments"
+
+msgid "Expressive"
+msgstr "Expressive"
+
+msgid "Fidelity"
+msgstr "Fidelity"
+
+msgid "Flip the user interface right to left"
+msgstr "Flip the user interface right to left"
+
+msgid "Force LTR layout"
+msgstr "Force LTR layout"
+
+msgid "Keep the user interface left to right"
+msgstr "Keep the user interface left to right"
+
+msgid "Material You"
+msgstr "Material You"
+
+msgid "Rainbow"
+msgstr "Rainbow"
+
+msgid "Reduced Motion"
+msgstr "Reduced Motion"
+
+msgid "Roadmap"
+msgstr "Roadmap"
+
+msgid "See what we're currently working on."
+msgstr "See what we're currently working on."
+
+msgid "Slowmode off"
+msgstr "Slowmode off"
+
+msgid "Submit feedback on GitHub discussions."
+msgstr "Submit feedback on GitHub discussions."
+
+msgid "Suggest new NAC features on GitHub discussions."
+msgstr "Suggest new NAC features on GitHub discussions."
+
+msgid "Vibrant"
+msgstr "Vibrant"
