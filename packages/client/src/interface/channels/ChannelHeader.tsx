@@ -23,7 +23,6 @@ import {
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 
 import MdGroup from "@material-design-icons/svg/outlined/group.svg?component-solid";
-import MdMenu from "@material-design-icons/svg/outlined/menu.svg?component-solid";
 import MdPersonAdd from "@material-design-icons/svg/outlined/person_add.svg?component-solid";
 import MdSettings from "@material-design-icons/svg/outlined/settings.svg?component-solid";
 
@@ -74,11 +73,6 @@ export function ChannelHeader(props: Props) {
 
   return (
     <>
-      <Show when={isMobile()}>
-        <IconButton onPress={openNav} aria-label="Open navigation">
-          <MdMenu />
-        </IconButton>
-      </Show>
       <Switch>
         <Match
           when={

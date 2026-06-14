@@ -34,6 +34,12 @@ export function MobileNav(_props: {
     params().serverId ? client()?.servers.get(params().serverId!) : undefined,
   );
 
+  const orderedServers = createMemo(() => {
+    const c = client();
+    if (!c) return [];
+    return [...c.servers.values()];
+  });
+
   function openServerInfo() {
     if (!server()) return;
     openModal({ type: "server_info", server: server()! });
@@ -57,6 +63,33 @@ export function MobileNav(_props: {
 
   return (
     <>
+      {/* Persistent hamburger — always visible on mobile so home screen has nav access */}
+      <Show when={!navOpen()}>
+        <button
+          aria-label="Open navigation"
+          style={{
+            position: "fixed",
+            top: "8px",
+            left: "8px",
+            "z-index": "350",
+            background: "var(--md-sys-color-surface-container-high)",
+            border: "none",
+            "border-radius": "8px",
+            width: "40px",
+            height: "40px",
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "center",
+            cursor: "pointer",
+            "box-shadow": "0 2px 8px rgba(0,0,0,0.3)",
+            color: "var(--md-sys-color-on-surface)",
+          }}
+          onClick={openNav}
+        >
+          <span style={{ "font-family": "Material Symbols Outlined", "font-size": "22px" }}>menu</span>
+        </button>
+      </Show>
+
       <Show when={navOpen()}>
         <div
           style={{
@@ -87,8 +120,74 @@ export function MobileNav(_props: {
               overflow: "hidden",
             }}
           >
-            <Show when={server()} fallback={<HomeNav />}>
+            <Show when={server()} fallback={
+              <HomeNav
+                servers={orderedServers()}
+                onSelect={(s) => {
+                  const firstChannel = [...s.channels.values()].find(
+                    (ch) => ch.type === "TextChannel",
+                  );
+                  if (firstChannel) {
+                    navigate(`/server/${s.id}/channel/${firstChannel.id}`);
+                  } else {
+                    navigate(`/server/${s.id}`);
+                  }
+                  closeNav();
+                }}
+              />
+            }>
               <div style={{ flex: "1", "min-height": "0", display: "flex", "flex-direction": "column" }}>
+                {/* Compact server switcher row */}
+                <div
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "8px",
+                    padding: "8px 12px",
+                    "overflow-x": "auto",
+                    "flex-shrink": "0",
+                    background: "var(--md-sys-color-surface-container)",
+                    "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
+                    scrollbarWidth: "none",
+                  }}
+                >
+                  <For each={orderedServers()}>
+                    {(s) => (
+                      <button
+                        title={s.name}
+                        style={{
+                          "flex-shrink": "0",
+                          background: s.id === params().serverId
+                            ? "var(--md-sys-color-primary-container)"
+                            : "none",
+                          border: s.id === params().serverId
+                            ? "2px solid var(--md-sys-color-primary)"
+                            : "2px solid transparent",
+                          "border-radius": "12px",
+                          padding: "2px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          const firstChannel = [...s.channels.values()].find(
+                            (ch) => ch.type === "TextChannel",
+                          );
+                          if (firstChannel) {
+                            navigate(`/server/${s.id}/channel/${firstChannel.id}`);
+                          } else {
+                            navigate(`/server/${s.id}`);
+                          }
+                        }}
+                      >
+                        <Avatar
+                          size={36}
+                          src={s.iconURL ?? undefined}
+                          fallback={s.name}
+                        />
+                      </button>
+                    )}
+                  </For>
+                </div>
+
                 <div style={{ flex: "1", "min-height": "0", overflow: "hidden" }}>
                   <ServerSidebar
                     server={server()!}
@@ -223,10 +322,49 @@ export function MobileNav(_props: {
   );
 }
 
-function HomeNav() {
+function HomeNav(props: { servers: ServerI[]; onSelect: (s: ServerI) => void }) {
   return (
-    <div style={{ padding: "16px", color: "var(--md-sys-color-on-surface)" }}>
-      Naked as Created
+    <div style={{ display: "flex", "flex-direction": "column", height: "100%", overflow: "hidden" }}>
+      <div
+        style={{
+          padding: "16px",
+          "font-size": "13px",
+          "font-weight": "600",
+          "letter-spacing": "0.06em",
+          "text-transform": "uppercase",
+          color: "var(--md-sys-color-on-surface-variant)",
+          "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
+        }}
+      >
+        Your Servers
+      </div>
+      <div style={{ flex: "1", "overflow-y": "auto" }}>
+        <For each={props.servers}>
+          {(s) => (
+            <button
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "12px",
+                padding: "10px 16px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                width: "100%",
+                "text-align": "left",
+                color: "var(--md-sys-color-on-surface)",
+                "font-size": "15px",
+              }}
+              onClick={() => props.onSelect(s)}
+            >
+              <Avatar size={36} src={s.iconURL ?? undefined} fallback={s.name} />
+              <span style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+                {s.name}
+              </span>
+            </button>
+          )}
+        </For>
+      </div>
     </div>
   );
 }
