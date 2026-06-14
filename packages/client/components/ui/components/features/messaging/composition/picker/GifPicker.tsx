@@ -13,7 +13,6 @@ import { VirtualContainer } from "@minht11/solid-virtual-container";
 import { useQuery } from "@tanstack/solid-query";
 import { styled } from "styled-system/jsx";
 
-import { useClient } from "@revolt/client";
 import env from "@revolt/common/lib/env";
 import {
   CircularProgress,
@@ -23,11 +22,13 @@ import {
 
 import { CompositionMediaPickerContext } from "./CompositionMediaPicker";
 
+const GIPHY_BASE = "https://api.giphy.com/v1/gifs";
+
 type GifCategory = { title: string; image: string };
 
 type GifResult = {
   url: string;
-  media_formats: Record<"webm" | "tinywebm", { url: string }>;
+  previewMp4: string;
 };
 
 const FilterContext = createContext<(value: string) => void>();
@@ -35,7 +36,7 @@ const FilterContext = createContext<(value: string) => void>();
 export function GifPicker() {
   const [filter, setFilter] = createSignal("");
 
-  const fliterLowercase = () => filter().toLowerCase();
+  const filterLowercase = () => filter().toLowerCase();
 
   return (
     <Stack>
@@ -59,8 +60,8 @@ export function GifPicker() {
             </FilterContext.Provider>
           }
         >
-          <Match when={fliterLowercase()}>
-            <GifSearch query={fliterLowercase()} />
+          <Match when={filterLowercase()}>
+            <GifSearch query={filterLowercase()} />
           </Match>
         </Switch>
       </Suspense>
@@ -77,69 +78,76 @@ const Stack = styled("div", {
 });
 
 type CategoryItem =
-  | {
-      /**
-       * Category entry
-       */
-      t: 0;
-      category: GifCategory;
-    }
-  | {
-      /**
-       * Trending entry
-       */
-      t: 1;
-      gif: GifResult | null;
-    };
+  | { t: 0; category: GifCategory }
+  | { t: 1; gif: GifResult | null };
+
+function giphyUrl(path: string, extra = "") {
+  return `${GIPHY_BASE}${path}?api_key=${encodeURIComponent(env.GIPHY_KEY)}&rating=pg-13&limit=20${extra}`;
+}
+
+function mapGif(g: Record<string, never>): GifResult {
+  const images = g.images as Record<string, Record<string, string>>;
+  return {
+    url: images.original?.url ?? images.fixed_height?.url ?? "",
+    previewMp4:
+      images.fixed_height_small?.mp4 ??
+      images.fixed_height?.mp4 ??
+      images.original?.mp4 ??
+      images.original?.url ??
+      "",
+  };
+}
 
 function Categories() {
   let targetElement!: HTMLDivElement;
 
-  const client = useClient();
-
   const trendingCategories = useQuery<GifCategory[]>(() => ({
-    queryKey: ["trendingGifCategories"],
-    queryFn: () => {
-      const [authHeader, authHeaderValue] = client()!.authenticationHeader;
-
-      return fetch(`${env.DEFAULT_GIFBOX_URL}/categories?locale=en_US`, {
-        headers: {
-          [authHeader]: authHeaderValue,
-        },
-      }).then((r) => r.json());
-    },
+    queryKey: ["giphyCategories"],
+    queryFn: () =>
+      fetch(
+        `https://api.giphy.com/v1/gifs/categories?api_key=${encodeURIComponent(env.GIPHY_KEY)}`,
+      )
+        .then((r) => r.json())
+        .then((resp) =>
+          (resp.data as Record<string, never>[]).map((c) => ({
+            title: (c.name as string)
+              .replace(/-/g, " ")
+              .replace(/\b\w/g, (l) => l.toUpperCase()),
+            image:
+              (
+                (c.gif as Record<string, never>)
+                  ?.images as Record<string, Record<string, string>>
+              )?.fixed_height?.url ?? "",
+          })),
+        ),
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   }));
 
   const trendingGif = useQuery<GifResult | null>(() => ({
-    queryKey: ["trendingGif1"],
-    queryFn: () => {
-      const [authHeader, authHeaderValue] = client()!.authenticationHeader;
-
-      return fetch(`${env.DEFAULT_GIFBOX_URL}/trending?locale=en_US&limit=1`, {
-        headers: {
-          [authHeader]: authHeaderValue,
-        },
-      })
+    queryKey: ["giphyTrending1"],
+    queryFn: () =>
+      fetch(giphyUrl("/trending", "&limit=1"))
         .then((r) => r.json())
-        .then((resp) => resp.results[0]);
-    },
+        .then((resp) => {
+          const g = (resp.data as Record<string, never>[])[0];
+          return g ? mapGif(g) : null;
+        }),
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
     initialData: null,
   }));
 
-  const items = createMemo(() => {
-    return [
-      {
-        t: 1,
-        gif: trendingGif.data,
-      },
-      ...(trendingCategories.data?.map((category) => ({ t: 0, category })) ??
-        []),
-    ] as CategoryItem[];
-  });
+  const items = createMemo(
+    () =>
+      [
+        { t: 1, gif: trendingGif.data },
+        ...(trendingCategories.data?.map((category) => ({
+          t: 0,
+          category,
+        })) ?? []),
+      ] as CategoryItem[],
+  );
 
   return (
     <div ref={targetElement} use:invisibleScrollable>
@@ -168,12 +176,14 @@ const CategoryItem = (props: {
     <Category
       style={{
         ...(props.style as object),
-        "background-image": `linear-gradient(to right, #0006, #0006), url("${props.item.t === 0 ? props.item.category.image : props.item.gif?.url}")`,
+        "background-image": `linear-gradient(to right, #0006, #0006), url("${props.item.t === 0 ? props.item.category.image : (props.item.gif?.previewMp4 ?? "")}")`,
       }}
       tabIndex={props.tabIndex}
       role="listitem"
       onClick={() =>
-        setFilter!(props.item.t === 0 ? props.item.category.title : "trending")
+        setFilter!(
+          props.item.t === 0 ? props.item.category.title : "trending",
+        )
       }
       onMouseDown={(e) => {
         e.preventDefault();
@@ -213,27 +223,18 @@ const Category = styled("div", {
 function GifSearch(props: { query: string }) {
   let targetElement!: HTMLDivElement;
 
-  const client = useClient();
-
   const search = useQuery<GifResult[]>(() => ({
-    queryKey: ["gifs", props.query],
-    queryFn: () => {
-      const [authHeader, authHeaderValue] = client()!.authenticationHeader;
-
-      return fetch(
-        `${env.DEFAULT_GIFBOX_URL}/` +
-          (props.query === "trending"
-            ? `trending?locale=en_US`
-            : `search?locale=en_US&query=${encodeURIComponent(props.query)}`),
-        {
-          headers: {
-            [authHeader]: authHeaderValue,
-          },
-        },
+    queryKey: ["giphySearch", props.query],
+    queryFn: () =>
+      fetch(
+        props.query === "trending"
+          ? giphyUrl("/trending")
+          : giphyUrl("/search", `&q=${encodeURIComponent(props.query)}`),
       )
         .then((r) => r.json())
-        .then((resp) => resp.results);
-    },
+        .then((resp) =>
+          (resp.data as Record<string, never>[]).map(mapGif),
+        ),
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   }));
@@ -241,7 +242,7 @@ function GifSearch(props: { query: string }) {
   return (
     <div ref={targetElement} use:invisibleScrollable>
       <VirtualContainer
-        items={search.data as never /* resource */}
+        items={search.data as never}
         scrollTarget={targetElement}
         itemSize={{ height: 120, width: 200 }}
         crossAxisCount={(measurements) =>
@@ -270,7 +271,7 @@ const GifItem = (props: {
       role="listitem"
       style={props.style as string}
       tabIndex={props.tabIndex}
-      src={props.item.media_formats.tinywebm.url}
+      src={props.item.previewMp4}
       onClick={() => onMessage(props.item.url)}
     />
   );
