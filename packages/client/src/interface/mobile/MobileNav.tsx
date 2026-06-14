@@ -23,7 +23,7 @@ import { useMobileNav } from "./MobileNavContext";
 export function MobileNav(_props: {
   menuGenerator: (t: ServerI | Channel) => JSX.Directives["floating"];
 }) {
-  const { navOpen, openNav, closeNav, openMembers } = useMobileNav();
+  const { navOpen, openNav, closeNav, openMembers, editMode, setEditMode } = useMobileNav();
   const { openModal } = useModals();
   const params = useSmartParams();
   const client = useClient();
@@ -188,40 +188,93 @@ export function MobileNav(_props: {
                   </For>
                 </div>
 
-                <div style={{ flex: "1", "min-height": "0", overflow: "hidden" }}>
+                <div style={{ flex: "1", "min-height": "0", overflow: "hidden", position: "relative" }}>
                   <ServerSidebar
                     server={server()!}
                     channelId={params().channelId}
                     openServerInfo={openServerInfo}
                     openServerSettings={openServerSettings}
                     menuGenerator={menuGenerator}
+                    lockReorder={!editMode()}
                   />
+                  {/* Edit mode overlay banner */}
+                  <Show when={editMode()}>
+                    <div style={{
+                      position: "absolute",
+                      bottom: "0",
+                      left: "0",
+                      right: "0",
+                      background: "var(--md-sys-color-primary-container)",
+                      color: "var(--md-sys-color-on-primary-container)",
+                      padding: "8px 16px",
+                      "font-size": "12px",
+                      "text-align": "center",
+                      "font-weight": "500",
+                    }}>
+                      Drag channels to reorder
+                    </div>
+                  </Show>
                 </div>
 
-                <button
-                  style={{
-                    display: "flex",
-                    "align-items": "center",
-                    gap: "12px",
-                    padding: "14px 16px",
-                    background: "var(--md-sys-color-surface-container)",
-                    border: "none",
-                    "border-top": "1px solid var(--md-sys-color-outline-variant)",
-                    color: "var(--md-sys-color-on-surface)",
-                    cursor: "pointer",
-                    "font-size": "15px",
-                    "text-align": "left",
-                    width: "100%",
-                    "flex-shrink": "0",
-                  }}
-                  onClick={() => {
-                    closeNav();
-                    openMembers();
-                  }}
-                >
-                  <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>group</span>
-                  Members
-                </button>
+                <div style={{
+                  display: "flex",
+                  "flex-shrink": "0",
+                  "border-top": "1px solid var(--md-sys-color-outline-variant)",
+                  background: "var(--md-sys-color-surface-container)",
+                }}>
+                  <button
+                    style={{
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "12px",
+                      padding: "14px 16px",
+                      background: "none",
+                      border: "none",
+                      color: "var(--md-sys-color-on-surface)",
+                      cursor: "pointer",
+                      "font-size": "15px",
+                      "text-align": "left",
+                      flex: "1",
+                    }}
+                    onClick={() => {
+                      closeNav();
+                      openMembers();
+                    }}
+                  >
+                    <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>group</span>
+                    Members
+                  </button>
+
+                  <Show when={server()?.havePermission("ManageChannel")}>
+                    <button
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        padding: "14px 16px",
+                        background: editMode()
+                          ? "var(--md-sys-color-primary)"
+                          : "none",
+                        border: "none",
+                        color: editMode()
+                          ? "var(--md-sys-color-on-primary)"
+                          : "var(--md-sys-color-on-surface-variant)",
+                        cursor: "pointer",
+                        "font-size": "13px",
+                        "font-weight": "600",
+                        "flex-shrink": "0",
+                        "border-radius": editMode() ? "8px" : "0",
+                        margin: editMode() ? "6px" : "0",
+                      }}
+                      onClick={() => setEditMode(!editMode())}
+                    >
+                      <span style={{ "font-size": "18px", "font-family": "Material Symbols Outlined" }}>
+                        {editMode() ? "check" : "edit"}
+                      </span>
+                      {editMode() ? "Done" : "Edit"}
+                    </button>
+                  </Show>
+                </div>
 
                 <Show when={favorites().length > 0}>
                   <div

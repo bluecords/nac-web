@@ -103,12 +103,18 @@ function Picker(
     middleware: [offset(5), flip(), shift()],
   });
 
-  function onMouseDown() {
+  function onDismiss() {
     props.setShow();
   }
 
-  onMount(() => document.addEventListener("mousedown", onMouseDown));
-  onCleanup(() => document.removeEventListener("mousedown", onMouseDown));
+  onMount(() => {
+    document.addEventListener("mousedown", onDismiss);
+    document.addEventListener("touchstart", onDismiss, { passive: true });
+  });
+  onCleanup(() => {
+    document.removeEventListener("mousedown", onDismiss);
+    document.removeEventListener("touchstart", onDismiss);
+  });
 
   return (
     <Base

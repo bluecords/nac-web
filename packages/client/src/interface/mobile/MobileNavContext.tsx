@@ -8,6 +8,8 @@ interface MobileNavContextValue {
   membersOpen: Accessor<boolean>;
   openMembers: () => void;
   closeMembers: () => void;
+  editMode: Accessor<boolean>;
+  setEditMode: (v: boolean) => void;
 }
 
 const MobileNavContext = createContext<MobileNavContextValue>();
@@ -21,6 +23,7 @@ export function MobileNavProvider(props: { children: JSX.Element }) {
   const [isMobile, setIsMobile] = createSignal(mq?.matches ?? false);
   const [navOpen, setNavOpen] = createSignal(false);
   const [membersOpen, setMembersOpen] = createSignal(false);
+  const [editMode, setEditMode] = createSignal(false);
 
   if (mq) {
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
@@ -41,6 +44,11 @@ export function MobileNavProvider(props: { children: JSX.Element }) {
           setNavOpen(false);
         },
         closeMembers: () => setMembersOpen(false),
+        editMode,
+        setEditMode: (v: boolean) => {
+          setEditMode(v);
+          if (!v) setNavOpen(true); // keep nav open after exiting edit mode
+        },
       }}
     >
       {props.children}
