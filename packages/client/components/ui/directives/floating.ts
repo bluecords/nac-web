@@ -164,13 +164,16 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
               ? tooltip.content
               : tooltip!.aria!;
 
-          element.addEventListener("mouseenter", onMouseEnter);
-          element.addEventListener("mouseleave", onMouseLeave);
+          // Tooltips are hover-only — skip on touch devices
+          if (navigator.maxTouchPoints === 0) {
+            element.addEventListener("mouseenter", onMouseEnter);
+            element.addEventListener("mouseleave", onMouseLeave);
 
-          onCleanup(() => {
-            element.removeEventListener("mouseenter", onMouseEnter);
-            element.removeEventListener("mouseleave", onMouseLeave);
-          });
+            onCleanup(() => {
+              element.removeEventListener("mouseenter", onMouseEnter);
+              element.removeEventListener("mouseleave", onMouseLeave);
+            });
+          }
         }
       },
     ),
