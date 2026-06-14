@@ -10,7 +10,8 @@ import {
 import { useClient, useUser } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { useNavigate, useSmartParams } from "@revolt/routing";
-import { Avatar, UserStatus } from "@revolt/ui";
+import { useState } from "@revolt/state";
+import { Avatar, Unreads, UserStatus } from "@revolt/ui";
 
 import { ServerSidebar } from "../navigation/channels/ServerSidebar";
 import { getFavorites } from "./MobileFavorites";
@@ -30,6 +31,11 @@ export function MobileNav(_props: {
   const user = useUser();
   const navigate = useNavigate();
   const favorites = getFavorites();
+  const state = useState();
+
+  const unreadDMCount = createMemo(() =>
+    state.ordering.orderedConversations(client()).filter((ch) => ch.unread).length,
+  );
 
   const server = createMemo(() =>
     params().serverId ? client()?.servers.get(params().serverId!) : undefined,
@@ -142,6 +148,12 @@ export function MobileNav(_props: {
                   size={36}
                   src={user()?.animatedAvatarURL ?? undefined}
                   fallback={user()?.username}
+                  holepunch={unreadDMCount() > 0 ? "top-right" : "none"}
+                  overlay={
+                    <Show when={unreadDMCount() > 0}>
+                      <Unreads.Graphic count={unreadDMCount()} unread />
+                    </Show>
+                  }
                 />
                 <div style={{ position: "absolute", bottom: "-1px", right: "-1px" }}>
                   <UserStatus.Graphic status={user()?.presence} size="10px" />
@@ -240,6 +252,12 @@ export function MobileNav(_props: {
                           size={36}
                           src={s.iconURL ?? undefined}
                           fallback={s.name}
+                          holepunch={s.mentions.length ? "top-right" : "none"}
+                          overlay={
+                            <Show when={s.mentions.length}>
+                              <Unreads.Graphic count={s.mentions.length} unread />
+                            </Show>
+                          }
                         />
                       </button>
                     )}
@@ -495,10 +513,34 @@ function HomeNav(props: { servers: ServerI[]; onSelect: (s: ServerI) => void }) 
               }}
               onClick={() => props.onSelect(s)}
             >
-              <Avatar size={36} src={s.iconURL ?? undefined} fallback={s.name} />
-              <span style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+              <Avatar
+                size={36}
+                src={s.iconURL ?? undefined}
+                fallback={s.name}
+                holepunch={s.mentions.length ? "top-right" : "none"}
+                overlay={
+                  <Show when={s.mentions.length}>
+                    <Unreads.Graphic count={s.mentions.length} unread />
+                  </Show>
+                }
+              />
+              <span style={{
+                flex: "1",
+                overflow: "hidden",
+                "text-overflow": "ellipsis",
+                "white-space": "nowrap",
+              }}>
                 {s.name}
               </span>
+              <Show when={s.unread && !s.mentions.length}>
+                <div style={{
+                  width: "8px",
+                  height: "8px",
+                  "border-radius": "50%",
+                  background: "var(--md-sys-color-on-surface-variant)",
+                  "flex-shrink": "0",
+                }} />
+              </Show>
             </button>
           )}
         </For>
