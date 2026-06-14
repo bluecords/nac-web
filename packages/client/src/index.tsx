@@ -79,27 +79,21 @@ function InviteRedirect() {
   const client = useClient();
   const { openModal, showError } = useModals();
 
-  const isAuthed = () => {
-    try {
-      return !!client()?.user;
-    } catch {
-      return false;
-    }
-  };
-
-  if (!isAuthed() && params.code) {
-    return <Navigate href={`/login/create/${params.code}`} />;
-  }
-
   onMount(() => {
-    if (params.code) {
-      client()
-        // TODO: add a helper to stoat.js for this
-        .api.get(`/invites/${params.code as ""}`)
-        .then((invite) => PublicChannelInvite.from(client(), invite))
-        .then((invite) => openModal({ type: "invite", invite }))
-        .catch(showError);
+    if (!params.code) return;
+    let authed = false;
+    try { authed = !!client()?.user; } catch { /* not logged in */ }
+
+    if (!authed) {
+      window.location.replace(`/login/create/${params.code}`);
+      return;
     }
+
+    client()
+      .api.get(`/invites/${params.code as ""}`)
+      .then((invite) => PublicChannelInvite.from(client(), invite))
+      .then((invite) => openModal({ type: "invite", invite }))
+      .catch(showError);
   });
 
   return <PWARedirect />;
