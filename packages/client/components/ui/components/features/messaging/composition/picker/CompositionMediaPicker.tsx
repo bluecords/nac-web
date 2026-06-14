@@ -103,7 +103,8 @@ function Picker(
     middleware: [offset(5), flip(), shift()],
   });
 
-  function onDismiss() {
+  function onDismiss(e: Event) {
+    if (floating()?.contains(e.target as Node)) return;
     props.setShow();
   }
 
@@ -161,8 +162,8 @@ function Picker(
  */
 const Base = styled("div", {
   base: {
-    width: "400px",
-    height: "400px",
+    width: "min(400px, 96vw)",
+    height: "min(400px, 60vh)",
     // paddingInlineEnd: "5px",
   },
 });
