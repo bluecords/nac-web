@@ -9,7 +9,7 @@ import { Navigate } from "@revolt/routing";
 import { Button, Column } from "@revolt/ui";
 
 import { useState } from "@revolt/state";
-import Wordmark from "../../../../public/assets/web/wordmark.svg?component-solid";
+import nacIcon from "../../../../scripts/assets_fallback/web/android-chrome-192x192.png";
 
 /**
  * Flow for logging into an account
@@ -27,11 +27,14 @@ export default function FlowHome() {
           </Show>
 
           <Column gap="xl">
-            <Wordmark
+            <img
+              src={nacIcon}
+              alt="NAC"
               class={css({
-                width: "60%",
+                width: "96px",
+                height: "96px",
                 margin: "auto",
-                fill: "var(--md-sys-color-on-surface)",
+                borderRadius: "20px",
               })}
             />
 
