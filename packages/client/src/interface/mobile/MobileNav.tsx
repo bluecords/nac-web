@@ -188,7 +188,7 @@ export function MobileNav(_props: {
                   </For>
                 </div>
 
-                <div style={{ flex: "1", "min-height": "0", overflow: "hidden", position: "relative" }}>
+                <div style={{ flex: "1", "min-height": "0", "overflow-y": "auto", position: "relative" }}>
                   <ServerSidebar
                     server={server()!}
                     channelId={params().channelId}
