@@ -186,13 +186,70 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
             onContextMenu,
           );
 
-          // TODO: iOS events for touch
+          // Long-press for touch devices (replaces right-click)
+          let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+          let startX = 0;
+          let startY = 0;
+          let longPressFired = false;
+
+          function onPointerDown(e: PointerEvent) {
+            if (e.pointerType !== "touch") return;
+            startX = e.clientX;
+            startY = e.clientY;
+            longPressFired = false;
+            longPressTimer = setTimeout(() => {
+              longPressFired = true;
+              trigger("contextMenu");
+              // Vibrate briefly if supported (haptic feedback)
+              if (navigator.vibrate) navigator.vibrate(30);
+            }, 500);
+          }
+
+          function onPointerMove(e: PointerEvent) {
+            if (e.pointerType !== "touch" || !longPressTimer) return;
+            // Cancel if finger moves more than 8px
+            if (
+              Math.abs(e.clientX - startX) > 8 ||
+              Math.abs(e.clientY - startY) > 8
+            ) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          }
+
+          function onPointerUp(e: PointerEvent) {
+            if (e.pointerType !== "touch") return;
+            if (longPressTimer) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          }
+
+          function onTouchContextMenu(e: Event) {
+            // Suppress browser context menu if our long-press already fired
+            if (longPressFired) {
+              e.preventDefault();
+              longPressFired = false;
+            }
+          }
+
+          element.addEventListener("pointerdown", onPointerDown);
+          element.addEventListener("pointermove", onPointerMove);
+          element.addEventListener("pointerup", onPointerUp);
+          element.addEventListener("pointercancel", onPointerUp);
+          element.addEventListener("contextmenu", onTouchContextMenu);
 
           onCleanup(() => {
             element.removeEventListener(
               config.contextMenuHandler ?? "contextmenu",
               onContextMenu,
             );
+            element.removeEventListener("pointerdown", onPointerDown);
+            element.removeEventListener("pointermove", onPointerMove);
+            element.removeEventListener("pointerup", onPointerUp);
+            element.removeEventListener("pointercancel", onPointerUp);
+            element.removeEventListener("contextmenu", onTouchContextMenu);
+            if (longPressTimer) clearTimeout(longPressTimer);
           });
         }
       },
