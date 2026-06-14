@@ -1,4 +1,4 @@
-import { Match, Show, Switch } from "solid-js";
+import { Match, Show, Switch, createEffect } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { PublicChannelInvite } from "stoat.js";
@@ -9,6 +9,7 @@ import { IS_DEV, useClient } from "@revolt/client";
 import { CONFIGURATION } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import { useNavigate } from "@revolt/routing";
+import { useMobileNav } from "./mobile/MobileNavContext";
 import {
   Button,
   CategoryButton,
@@ -94,6 +95,24 @@ export function HomePage() {
   const { openModal } = useModals();
   const navigate = useNavigate();
   const client = useClient();
+  const { isMobile } = useMobileNav();
+
+  // On mobile, skip the home screen and go straight to the first server
+  createEffect(() => {
+    if (!isMobile()) return;
+    const c = client();
+    if (!c) return;
+    const server = [...c.servers.values()][0];
+    if (!server) return;
+    const firstChannel = [...server.channels.values()].find(
+      (ch) => ch.type === "TextChannel",
+    );
+    if (firstChannel) {
+      navigate(`/server/${server.id}/channel/${firstChannel.id}`);
+    } else {
+      navigate(`/server/${server.id}`);
+    }
+  });
 
   // check if we're stoat.chat; if so, check if the user is in the Lounge
   const showLoungeButton = CONFIGURATION.IS_STOAT;
