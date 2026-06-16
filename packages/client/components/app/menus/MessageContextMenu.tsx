@@ -24,6 +24,7 @@ import MdShare from "@material-design-icons/svg/outlined/share.svg?component-sol
 import MdShield from "@material-design-icons/svg/outlined/shield.svg?component-solid";
 
 import MdSentimentContent from "@material-symbols/svg-400/outlined/sentiment_content.svg?component-solid";
+import MdDriveFileMove from "@material-symbols/svg-400/outlined/drive_file_move.svg?component-solid";
 
 import {
   ContextMenu,
@@ -70,6 +71,16 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
       type: "report_content",
       target: props.message!,
       client: client(),
+    });
+  }
+
+  /**
+   * Move the message to another channel
+   */
+  function moveMessage() {
+    openModal({
+      type: "move_message",
+      message: props.message!,
     });
   }
 
@@ -238,6 +249,16 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
             destructive
           >
             <Trans>Remove all reactions</Trans>
+          </ContextMenuButton>
+        </Show>
+        <Show
+          when={
+            props.message!.server &&
+            props.message!.channel?.havePermission("ManageMessages")
+          }
+        >
+          <ContextMenuButton symbol={MdDriveFileMove} onClick={moveMessage}>
+            <Trans>Move to channel</Trans>
           </ContextMenuButton>
         </Show>
         <Show

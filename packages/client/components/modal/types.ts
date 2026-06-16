@@ -347,4 +347,8 @@ export type Modals =
         image?: string;
       }[];
       onCancel: () => void;
+    }
+  | {
+      type: "move_message";
+      message: Message;
     };

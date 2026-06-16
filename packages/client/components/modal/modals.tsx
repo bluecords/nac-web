@@ -41,6 +41,7 @@ import { KickMemberModal } from "./modals/KickMember";
 import { LeaveServerModal } from "./modals/LeaveServer";
 import { LinkWarningModal } from "./modals/LinkWarning";
 import { MFAEnableTOTPModal } from "./modals/MFAEnableTOTP";
+import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { MFAFlowModal } from "./modals/MFAFlow";
 import { MFARecoveryModal } from "./modals/MFARecovery";
 import { OnboardingModal } from "./modals/Onboarding";
@@ -188,6 +189,8 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <EditCategoryModal {...modalProps} />;
     case "remove_member":
       return <RemoveMemberModal {...modalProps} />;
+    case "move_message":
+      return <MoveToChannelModal {...modalProps} />;
 
     case "screen_share_settings":
       return <ScreenShareSettingsModal {...modalProps} />;
