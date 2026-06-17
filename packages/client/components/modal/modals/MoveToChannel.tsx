@@ -43,7 +43,7 @@ export function MoveToChannelModal(
     setLoading(true);
     try {
       const res = await fetch(
-        "https://community.nac.social:3210/api/move-message",
+        "https://community.nac.social/bot/api/move-message",
         {
           method: "POST",
           headers: {
