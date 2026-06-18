@@ -8,7 +8,10 @@ import { Button, Row, iconSize } from "@revolt/ui";
 
 import MdArrowBack from "@material-design-icons/svg/filled/arrow_back.svg?component-solid";
 
-import { Show } from "solid-js";
+import { Show, onMount } from "solid-js";
+
+import { useState } from "@revolt/state";
+
 import { FlowTitle } from "./Flow";
 import { setFlowCheckEmail } from "./FlowCheck";
 import { Fields, Form } from "./Form";
@@ -23,6 +26,16 @@ export default function FlowCreate() {
   const { code } = useParams();
   const modals = useModals();
   const { login } = useClientLifecycle();
+  const state = useState();
+
+  // When arriving from an invite link (/invite/:code → /login/create/:code),
+  // remember the invite so that after authenticating — whether the user creates
+  // a new account here or switches to logging in — they resume at /invite/:code
+  // and the join modal fires its POST. Without this, account creation lands the
+  // user on /app, authenticated but never joined to the server.
+  onMount(() => {
+    if (code) state.layout.setNextPath(`/invite/${code}`);
+  });
 
   /**
    * Create an account
