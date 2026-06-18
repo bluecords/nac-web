@@ -7,11 +7,17 @@ import { JSX, onMount } from "solid-js";
 import { render } from "solid-js/web";
 
 import { attachDevtoolsOverlay } from "@solid-devtools/overlay";
-import { Navigate, Route, Router, useParams } from "@solidjs/router";
+import {
+  Navigate,
+  Route,
+  Router,
+  useNavigate,
+  useParams,
+} from "@solidjs/router";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import "material-symbols";
 import "mdui/mdui.css";
-import { PublicBot, PublicChannelInvite } from "stoat.js";
+import { PublicBot } from "stoat.js";
 
 import FlowCheck from "@revolt/auth/src/flows/FlowCheck";
 import FlowConfirmReset from "@revolt/auth/src/flows/FlowConfirmReset";
@@ -71,28 +77,47 @@ function SettingsRedirect() {
 }
 
 /**
- * Open invite and redirect to last active path.
- * If not authenticated, send to registration with code pre-filled.
+ * Open an invite link (/invite/:code).
+ *
+ * - Logged out: carry the code through the auth flow via the URL (state writes
+ *   are debounced, so storing it in app state would race the page reload). The
+ *   login home reads ?invite= and returns the user here after they log in OR
+ *   create an account.
+ * - Logged in: auto-join the server and drop straight in — no "Join" modal. If
+ *   they are already a member, the join no-ops and we still land them inside.
  */
 function InviteRedirect() {
   const params = useParams();
   const client = useClient();
-  const { openModal, showError } = useModals();
+  const navigate = useNavigate();
+  const { showError } = useModals();
 
   onMount(() => {
     if (!params.code) return;
     let authed = false;
-    try { authed = !!client()?.user; } catch { /* not logged in */ }
+    try {
+      authed = !!client()?.user;
+    } catch {
+      /* not logged in */
+    }
 
     if (!authed) {
-      window.location.replace(`/login/create/${params.code}`);
+      window.location.replace(`/login?invite=${params.code}`);
       return;
     }
 
     client()
       .api.get(`/invites/${params.code as ""}`)
-      .then((invite) => PublicChannelInvite.from(client(), invite))
-      .then((invite) => openModal({ type: "invite", invite }))
+      .then(async (invite) => {
+        try {
+          await client().api.post(`/invites/${params.code as ""}`);
+        } catch {
+          /* already a member (or transient) — fall through to the server */
+        }
+        navigate(
+          `/server/${(invite as unknown as { server_id: string }).server_id}`,
+        );
+      })
       .catch(showError);
   });
 
