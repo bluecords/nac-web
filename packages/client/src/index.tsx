@@ -77,14 +77,21 @@ function SettingsRedirect() {
 }
 
 /**
- * Open an invite link (/invite/:code).
+ * Open an invite link (/invite/:code) — handles the AUTHENTICATED case.
  *
- * - Logged out: carry the code through the auth flow via the URL (state writes
- *   are debounced, so storing it in app state would race the page reload). The
- *   login home reads ?invite= and returns the user here after they log in OR
- *   create an account.
- * - Logged in: auto-join the server and drop straight in — no "Join" modal. If
- *   they are already a member, the join no-ops and we still land them inside.
+ * Unauthenticated visitors never actually reach the body of this component:
+ * `/invite/:code` is a child route of <Interface>, and Interface's own gate
+ * (`<Match when={!isLoggedIn()}><Navigate href="/login"/></Match>`) redirects
+ * before `props.children` (this component) ever mounts. Interface's generic
+ * "remember where I was" effect already records this exact path as
+ * `layout.nextPath` as part of that same redirect, so after the user logs in
+ * or creates an account, `popNextPath()` (FlowLogin/FlowHome) brings them
+ * straight back here — now authenticated. No separate carry-the-code-via-URL
+ * mechanism is needed; a prior version of this added one (`?invite=`) and it
+ * was redundant dead code on the primary path.
+ *
+ * The `if (!authed) return` below is a defensive no-op for the edge case of
+ * a session expiring while this component is already mounted.
  */
 function InviteRedirect() {
   const params = useParams();
@@ -93,24 +100,34 @@ function InviteRedirect() {
   const { showError } = useModals();
 
   onMount(() => {
-    if (!params.code) return;
+    // Capture the code ONCE, synchronously, and reuse this local everywhere
+    // below. Do NOT re-read `params.code` inside the async .then() — useParams()
+    // returns a reactive proxy tied to the current route match, and reading it
+    // again after an await can come back undefined if the route has since
+    // changed. That exact mismatch previously produced `POST /invites/undefined`.
+    const code = params.code;
+    if (!code || code === "undefined" || code === "null") {
+      if (import.meta.env.DEV) {
+        console.warn("[InviteRedirect] invalid invite code:", code);
+      }
+      navigate("/app", { replace: true });
+      return;
+    }
+
     let authed = false;
     try {
       authed = !!client()?.user;
     } catch {
-      /* not logged in */
+      /* not logged in — Interface already redirected before we got here */
     }
 
-    if (!authed) {
-      window.location.replace(`/login?invite=${params.code}`);
-      return;
-    }
+    if (!authed) return;
 
     client()
-      .api.get(`/invites/${params.code as ""}`)
+      .api.get(`/invites/${code}`)
       .then(async (invite) => {
         try {
-          await client().api.post(`/invites/${params.code as ""}`);
+          await client().api.post(`/invites/${code}`);
         } catch {
           /* already a member (or transient) — fall through to the server */
         }
