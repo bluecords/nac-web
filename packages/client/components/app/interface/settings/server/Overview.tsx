@@ -5,7 +5,7 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import type { API } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, uploadFile } from "@revolt/common";
 import {
   CircularProgress,
   Column,
@@ -137,15 +137,27 @@ export default function ServerOverview(props: ServerSettingsProps) {
       }
     }
 
+    // Each upload is isolated: previously an icon/banner upload failure
+    // (oversized file, proxy error, etc.) threw immediately, aborting the
+    // submission before name/description/system-message changes — already
+    // collected above — were ever sent. Now we still apply everything that
+    // succeeded, and surface the upload failure afterward.
+    let uploadError: unknown;
+
     if (editGroup.controls.icon.isDirty) {
       if (!editGroup.controls.icon.value) {
         changes.remove!.push("Icon");
       } else if (Array.isArray(editGroup.controls.icon.value)) {
-        changes.icon = await client().uploadFile(
-          "icons",
-          editGroup.controls.icon.value[0],
-          CONFIGURATION.DEFAULT_MEDIA_URL,
-        );
+        try {
+          changes.icon = await uploadFile(
+            client(),
+            "icons",
+            editGroup.controls.icon.value[0],
+            CONFIGURATION.DEFAULT_MEDIA_URL,
+          );
+        } catch (error) {
+          uploadError = error;
+        }
       }
     }
 
@@ -153,11 +165,16 @@ export default function ServerOverview(props: ServerSettingsProps) {
       if (!editGroup.controls.banner.value) {
         changes.remove!.push("Banner");
       } else if (Array.isArray(editGroup.controls.banner.value)) {
-        changes.banner = await client().uploadFile(
-          "banners",
-          editGroup.controls.banner.value[0],
-          CONFIGURATION.DEFAULT_MEDIA_URL,
-        );
+        try {
+          changes.banner = await uploadFile(
+            client(),
+            "banners",
+            editGroup.controls.banner.value[0],
+            CONFIGURATION.DEFAULT_MEDIA_URL,
+          );
+        } catch (error) {
+          uploadError = error;
+        }
       }
     }
 
@@ -210,6 +227,8 @@ export default function ServerOverview(props: ServerSettingsProps) {
     }
 
     await props.server.edit(changes);
+
+    if (uploadError) throw uploadError;
   }
 
   const submit = Form2.useSubmitHandler(editGroup, onSubmit, onReset);

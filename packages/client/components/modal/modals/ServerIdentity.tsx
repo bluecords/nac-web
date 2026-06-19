@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { API } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, uploadFile } from "@revolt/common";
 import { Column, Dialog, DialogProps, Form2 } from "@revolt/ui";
 
 import { useModals } from "..";
@@ -30,38 +30,55 @@ export function ServerIdentityModal(
   /* eslint-enable solid/reactivity */
 
   async function onSubmit() {
-    try {
-      const changes: API.DataMemberEdit = {
-        remove: [],
-      };
+    // Build up `changes` and apply whatever succeeds rather than aborting the
+    // whole submission the moment one step throws. Previously, a failed
+    // avatar upload (e.g. an oversized file, a proxy error) threw BEFORE
+    // member.edit() ever ran — silently discarding a nickname change made in
+    // the same save, with no indication which field actually failed.
+    const changes: API.DataMemberEdit = {
+      remove: [],
+    };
+    let uploadError: unknown;
 
-      if (group.controls.nickname.isDirty) {
-        const nickname = group.controls.nickname.value.trim();
-        if (nickname) {
-          changes.nickname = nickname;
-        } else {
-          changes.remove!.push("Nickname");
-        }
+    if (group.controls.nickname.isDirty) {
+      const nickname = group.controls.nickname.value.trim();
+      if (nickname) {
+        changes.nickname = nickname;
+      } else {
+        changes.remove!.push("Nickname");
       }
+    }
 
-      if (group.controls.avatar.isDirty) {
-        if (!group.controls.avatar.value) {
-          changes.remove!.push("Avatar");
-        } else if (Array.isArray(group.controls.avatar.value)) {
-          changes.avatar = await client().uploadFile(
+    if (group.controls.avatar.isDirty) {
+      if (!group.controls.avatar.value) {
+        changes.remove!.push("Avatar");
+      } else if (Array.isArray(group.controls.avatar.value)) {
+        try {
+          changes.avatar = await uploadFile(
+            client(),
             "avatars",
             group.controls.avatar.value[0],
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
+        } catch (error) {
+          uploadError = error; // avatar left untouched; still try the rest below
         }
       }
+    }
 
+    try {
       await props.member.edit(changes);
-
-      props.onClose();
     } catch (error) {
       showError(error);
+      return;
     }
+
+    if (uploadError) {
+      showError(uploadError);
+      return; // other changes saved; modal stays open so the user can retry the avatar
+    }
+
+    props.onClose();
   }
 
   const submit = Form2.useSubmitHandler(group, onSubmit);
