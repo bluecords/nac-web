@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { API, User } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, uploadFile } from "@revolt/common";
 import {
   CategoryButton,
   CircularProgress,
@@ -95,15 +95,26 @@ export function UserProfileEditor(props: Props) {
       changes.display_name = editGroup.controls.displayName.value.trim();
     }
 
+    // Each upload is isolated so a failure (oversized file, proxy error,
+    // etc.) doesn't throw before displayName/bio changes above are ever
+    // sent — previously the whole submission aborted on the first failed
+    // upload with no indication which field actually failed.
+    let uploadError: unknown;
+
     if (editGroup.controls.avatar.isDirty) {
       if (!editGroup.controls.avatar.value) {
         changes.remove!.push("Avatar");
       } else if (Array.isArray(editGroup.controls.avatar.value)) {
-        changes.avatar = await client().uploadFile(
-          "avatars",
-          editGroup.controls.avatar.value[0],
-          CONFIGURATION.DEFAULT_MEDIA_URL,
-        );
+        try {
+          changes.avatar = await uploadFile(
+            client(),
+            "avatars",
+            editGroup.controls.avatar.value[0],
+            CONFIGURATION.DEFAULT_MEDIA_URL,
+          );
+        } catch (error) {
+          uploadError = error;
+        }
       }
     }
 
@@ -122,20 +133,27 @@ export function UserProfileEditor(props: Props) {
       if (!editGroup.controls.banner.value) {
         changes.remove!.push("ProfileBackground");
       } else if (Array.isArray(editGroup.controls.banner.value)) {
-        changes.profile ??= {};
-        changes.profile.background = await client().uploadFile(
-          "backgrounds",
-          editGroup.controls.banner.value[0],
-          CONFIGURATION.DEFAULT_MEDIA_URL,
-        );
+        try {
+          changes.profile ??= {};
+          changes.profile.background = await uploadFile(
+            client(),
+            "backgrounds",
+            editGroup.controls.banner.value[0],
+            CONFIGURATION.DEFAULT_MEDIA_URL,
+          );
 
-        newBannerUrl = `${CONFIGURATION.DEFAULT_MEDIA_URL}/backgrounds/${changes.profile.background}`;
+          newBannerUrl = `${CONFIGURATION.DEFAULT_MEDIA_URL}/backgrounds/${changes.profile.background}`;
+        } catch (error) {
+          uploadError = error;
+        }
       } else {
         newBannerUrl = editGroup.controls.banner.value;
       }
     }
 
     await props.user.edit(changes);
+
+    if (uploadError) throw uploadError;
 
     if (editGroup.controls.banner.isDirty && profile.data) {
       queryClient.setQueryData(["profile", props.user.id], {

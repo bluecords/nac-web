@@ -3,7 +3,7 @@ import MdContentCopy from "@material-design-icons/svg/outlined/content_copy.svg?
 import MdDelete from "@material-design-icons/svg/outlined/delete.svg?component-solid";
 import MDPalette from "@material-design-icons/svg/outlined/palette.svg?component-solid";
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, uploadFile } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import {
   Button,
@@ -58,15 +58,22 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
       changes.name = editGroup.controls.name.value.trim();
     }
 
+    let uploadError: unknown;
+
     if (editGroup.controls.icon.isDirty) {
       if (!editGroup.controls.icon.value) {
         changes.remove!.push("Icon");
       } else if (Array.isArray(editGroup.controls.icon.value)) {
-        changes.icon = await client().uploadFile(
-          "icons",
-          editGroup.controls.icon.value[0],
-          CONFIGURATION.DEFAULT_MEDIA_URL,
-        );
+        try {
+          changes.icon = await uploadFile(
+            client(),
+            "icons",
+            editGroup.controls.icon.value[0],
+            CONFIGURATION.DEFAULT_MEDIA_URL,
+          );
+        } catch (error) {
+          uploadError = error;
+        }
       }
     }
 
@@ -79,6 +86,8 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
     }
 
     await props.context.editRole(props.roleId, changes);
+
+    if (uploadError) throw uploadError;
   }
 
   function onReset() {
