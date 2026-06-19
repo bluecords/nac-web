@@ -77,18 +77,30 @@ export function Message(props: Props) {
   const [isHovering, setIsHovering] = createSignal(false);
 
   /**
-   * Determine whether this message only contains a GIF
+   * Determine whether this message only contains a GIF / sole media link.
+   *
+   * Hides the raw URL text when the whole message is just a media link:
+   *  - tenor / giphy "Website" GIF embeds, or
+   *  - direct image/GIF URLs (e.g. giphy `media*.giphy.com/.../giphy.gif`,
+   *    which January embeds as type "Image"). Without the "Image" case these
+   *    leaked the long giphy URL above the rendered GIF.
    */
-  const isOnlyGIF = () =>
-    props.message.embeds &&
-    props.message.embeds.length === 1 &&
-    props.message.embeds[0].type === "Website" &&
-    ((props.message.embeds[0] as WebsiteEmbed).specialContent?.type === "GIF" ||
-      (props.message.embeds[0] as WebsiteEmbed).originalUrl?.startsWith(
-        "https://tenor.com",
-      )) &&
-    props.message.content &&
-    !props.message.content.replace(RE_URL, "").length;
+  const isOnlyGIF = () => {
+    const embed = props.message.embeds?.[0];
+    if (!embed || props.message.embeds!.length !== 1) return false;
+
+    const isMedia =
+      embed.type === "Image" ||
+      (embed.type === "Website" &&
+        ((embed as WebsiteEmbed).specialContent?.type === "GIF" ||
+          (embed as WebsiteEmbed).originalUrl?.startsWith("https://tenor.com")));
+
+    return (
+      !!isMedia &&
+      !!props.message.content &&
+      !props.message.content.replace(RE_URL, "").length
+    );
+  };
 
   /**
    * React with an emoji
