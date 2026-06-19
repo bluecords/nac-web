@@ -46,9 +46,27 @@ const Interface = (props: { children: JSX.Element }) => {
   createEffect(() => {
     if (!isLoggedIn()) {
       state.layout.setNextPath(pathname);
-      console.debug("WAITING... currently", lifecycle.state());
+      console.debug(
+        "[Interface] not logged in — recorded nextPath:",
+        pathname,
+        "currently",
+        lifecycle.state(),
+      );
     }
   });
+
+  // Belt-and-suspenders: also record nextPath synchronously as part of
+  // deciding to redirect, in the SAME expression that gates <Navigate>. This
+  // removes any dependency on createEffect firing before the redirect — the
+  // write happens in the exact tick the redirect is decided, no race possible.
+  const recordNextPathAndRedirect = () => {
+    state.layout.setNextPath(pathname);
+    console.info(
+      "[Interface] redirecting to /login, recorded nextPath:",
+      pathname,
+    );
+    return true;
+  };
 
   function isDisconnected() {
     return [
@@ -71,7 +89,7 @@ const Interface = (props: { children: JSX.Element }) => {
       >
         <Titlebar />
         <Switch fallback={<CircularProgress />}>
-          <Match when={!isLoggedIn()}>
+          <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>
             <Navigate href="/login" />
           </Match>
           <Match when={lifecycle.loadedOnce()}>
