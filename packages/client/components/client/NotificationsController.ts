@@ -136,7 +136,9 @@ async function setUpServiceWorkerSubscription(client: Client) {
     throw "Client not configured";
   }
 
-  const registration = await navigator.serviceWorker.getRegistration();
+  const registration = await navigator.serviceWorker.getRegistration(
+    import.meta.env.BASE_URL ?? undefined,
+  );
   if (!registration) {
     throw "Failed to get service worker";
   }
@@ -179,7 +181,9 @@ export async function killServiceWorkerSubscription(client: Client) {
     return;
   }
 
-  const registration = await navigator.serviceWorker.getRegistration();
+  const registration = await navigator.serviceWorker.getRegistration(
+    import.meta.env.BASE_URL ?? undefined,
+  );
   if (!registration) return;
   const subscription = await registration.pushManager.getSubscription();
   if (await subscription?.unsubscribe()) {
