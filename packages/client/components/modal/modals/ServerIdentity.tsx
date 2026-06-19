@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { API } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION, uploadFile } from "@revolt/common";
+import { CONFIGURATION } from "@revolt/common";
 import { Column, Dialog, DialogProps, Form2 } from "@revolt/ui";
 
 import { useModals } from "..";
@@ -54,8 +54,7 @@ export function ServerIdentityModal(
         changes.remove!.push("Avatar");
       } else if (Array.isArray(group.controls.avatar.value)) {
         try {
-          changes.avatar = await uploadFile(
-            client(),
+          changes.avatar = await client().uploadFile(
             "avatars",
             group.controls.avatar.value[0],
             CONFIGURATION.DEFAULT_MEDIA_URL,
