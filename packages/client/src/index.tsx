@@ -3,7 +3,7 @@
  */
 import "./sentry";
 
-import { JSX, onMount } from "solid-js";
+import { JSX, createEffect, createSignal, onMount } from "solid-js";
 import { render } from "solid-js/web";
 
 import { attachDevtoolsOverlay } from "@solid-devtools/overlay";
@@ -28,7 +28,12 @@ import FlowLogin from "@revolt/auth/src/flows/FlowLogin";
 import FlowResend from "@revolt/auth/src/flows/FlowResend";
 import FlowReset from "@revolt/auth/src/flows/FlowReset";
 import FlowVerify from "@revolt/auth/src/flows/FlowVerify";
-import { ClientContext, SoundContext, useClient } from "@revolt/client";
+import {
+  ClientContext,
+  SoundContext,
+  useClient,
+  useClientLifecycle,
+} from "@revolt/client";
 import { DeviceContext } from "@revolt/common";
 import { I18nProvider } from "@revolt/i18n";
 import { KeybindContext } from "@revolt/keybinds";
@@ -86,56 +91,87 @@ function SettingsRedirect() {
  * "remember where I was" effect already records this exact path as
  * `layout.nextPath` as part of that same redirect, so after the user logs in
  * or creates an account, `popNextPath()` (FlowLogin/FlowHome) brings them
- * straight back here — now authenticated. No separate carry-the-code-via-URL
- * mechanism is needed; a prior version of this added one (`?invite=`) and it
- * was redundant dead code on the primary path.
+ * straight back here — now authenticated.
  *
- * The `if (!authed) return` below is a defensive no-op for the edge case of
- * a session expiring while this component is already mounted.
+ * This uses createEffect (not onMount) gated on isLoggedIn(), and retries
+ * automatically rather than checking once and giving up: a one-shot onMount
+ * check that ran before the user was fully ready would silently do nothing
+ * forever (this happened — a test produced zero join attempts at all, no
+ * error, nothing). Logged via console.info so a retest is verifiable from
+ * the browser console even when nothing visibly happens.
  */
 function InviteRedirect() {
   const params = useParams();
   const client = useClient();
+  const { isLoggedIn } = useClientLifecycle();
   const navigate = useNavigate();
   const { showError } = useModals();
+  const [attempted, setAttempted] = createSignal(false);
 
-  onMount(() => {
-    // Capture the code ONCE, synchronously, and reuse this local everywhere
-    // below. Do NOT re-read `params.code` inside the async .then() — useParams()
-    // returns a reactive proxy tied to the current route match, and reading it
-    // again after an await can come back undefined if the route has since
-    // changed. That exact mismatch previously produced `POST /invites/undefined`.
+  createEffect(() => {
+    if (attempted()) return;
+
+    // Capture the code ONCE per attempt, synchronously, and reuse this local
+    // everywhere below. Do NOT re-read `params.code` inside the async .then()
+    // — useParams() returns a reactive proxy tied to the current route match,
+    // and reading it again after an await can come back undefined if the
+    // route has since changed. That exact mismatch previously produced
+    // `POST /invites/undefined`.
     const code = params.code;
     if (!code || code === "undefined" || code === "null") {
-      if (import.meta.env.DEV) {
-        console.warn("[InviteRedirect] invalid invite code:", code);
-      }
+      console.warn("[InviteRedirect] invalid invite code:", code);
+      setAttempted(true);
       navigate("/app", { replace: true });
       return;
     }
 
-    let authed = false;
-    try {
-      authed = !!client()?.user;
-    } catch {
-      /* not logged in — Interface already redirected before we got here */
+    if (!isLoggedIn()) {
+      console.info(
+        "[InviteRedirect] not logged in yet, waiting — code:",
+        code,
+      );
+      return; // effect re-runs automatically when isLoggedIn() flips true
     }
 
-    if (!authed) return;
+    let user;
+    try {
+      user = client()?.user;
+    } catch {
+      user = undefined;
+    }
+
+    if (!user) {
+      console.info(
+        "[InviteRedirect] logged in but client.user not ready yet, waiting — code:",
+        code,
+      );
+      return; // effect re-runs when this scope's reactive deps change
+    }
+
+    setAttempted(true);
+    console.info("[InviteRedirect] attempting join — code:", code);
 
     client()
       .api.get(`/invites/${code}`)
       .then(async (invite) => {
         try {
           await client().api.post(`/invites/${code}`);
-        } catch {
-          /* already a member (or transient) — fall through to the server */
+          console.info("[InviteRedirect] join succeeded — code:", code);
+        } catch (err) {
+          console.info(
+            "[InviteRedirect] join POST failed (likely already a member) — code:",
+            code,
+            err,
+          );
         }
         navigate(
           `/server/${(invite as unknown as { server_id: string }).server_id}`,
         );
       })
-      .catch(showError);
+      .catch((err) => {
+        console.error("[InviteRedirect] GET /invites failed — code:", code, err);
+        showError(err);
+      });
   });
 
   return <PWARedirect />;
