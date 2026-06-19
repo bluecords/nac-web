@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { API, User } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION, uploadFile } from "@revolt/common";
+import { CONFIGURATION } from "@revolt/common";
 import {
   CategoryButton,
   CircularProgress,
@@ -106,8 +106,7 @@ export function UserProfileEditor(props: Props) {
         changes.remove!.push("Avatar");
       } else if (Array.isArray(editGroup.controls.avatar.value)) {
         try {
-          changes.avatar = await uploadFile(
-            client(),
+          changes.avatar = await client().uploadFile(
             "avatars",
             editGroup.controls.avatar.value[0],
             CONFIGURATION.DEFAULT_MEDIA_URL,
@@ -135,8 +134,7 @@ export function UserProfileEditor(props: Props) {
       } else if (Array.isArray(editGroup.controls.banner.value)) {
         try {
           changes.profile ??= {};
-          changes.profile.background = await uploadFile(
-            client(),
+          changes.profile.background = await client().uploadFile(
             "backgrounds",
             editGroup.controls.banner.value[0],
             CONFIGURATION.DEFAULT_MEDIA_URL,
