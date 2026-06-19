@@ -1,4 +1,12 @@
-import { Component, JSX, Match, Show, Switch, createMemo } from "solid-js";
+import {
+  Component,
+  JSX,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+} from "solid-js";
 
 import { Channel, Server as ServerI } from "stoat.js";
 
@@ -34,6 +42,32 @@ export const Sidebar = (props: {
 
   const params = useParams<{ server: string }>();
   const location = useLocation();
+
+  // Backfill the full member roster via REST. The WS Ready payload is the
+  // only thing that ever populates client.serverMembers, and it can come
+  // back incomplete for a given connection (confirmed: a member present and
+  // correct via GET /servers/:id/members and in the DB was simply absent
+  // from one user's local autocomplete/mention search space). fetchMembers()
+  // already exists in stoat.js and hydrates the same collections the Ready
+  // handler does — it was just never called anywhere in this app. Guarded by
+  // a per-session Set so each server is only backfilled once, not on every
+  // render.
+  const fetchedMemberLists = new Set<string>();
+  createEffect(() => {
+    const serverId = params.server;
+    if (!serverId || fetchedMemberLists.has(serverId)) return;
+    fetchedMemberLists.add(serverId);
+
+    const server = client()?.servers.get(serverId);
+    server?.fetchMembers().catch((err) => {
+      console.warn(
+        "[Sidebar] fetchMembers backfill failed for server",
+        serverId,
+        err,
+      );
+      fetchedMemberLists.delete(serverId); // allow a retry on next visit
+    });
+  });
 
   return (
     <>
