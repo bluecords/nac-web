@@ -1,7 +1,6 @@
-import { Match, Show, Switch, onMount } from "solid-js";
+import { Match, Show, Switch } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { useSearchParams } from "@solidjs/router";
 import { css } from "styled-system/css";
 
 import { useClientLifecycle } from "@revolt/client";
@@ -14,22 +13,17 @@ import nacIcon from "../../../../scripts/assets_fallback/web/android-chrome-192x
 
 /**
  * Flow for logging into an account
+ *
+ * Note: no special invite-code handling is needed here. When an invite link
+ * (/invite/:code) bounces an unauthenticated visitor to /login, Interface's
+ * own effect (src/Interface.tsx) has already stored that path as
+ * `layout.nextPath` — the <Show when={isLoggedIn()}> below picks it back up
+ * via popNextPath() once the user logs in or creates an account. See
+ * src/index.tsx's InviteRedirect for the full explanation.
  */
 export default function FlowHome() {
   const state = useState();
-  const [search] = useSearchParams();
   const { lifecycle, isLoggedIn, isError } = useClientLifecycle();
-
-  // Arrived from an invite link (/invite/:code → /login?invite=code): remember
-  // to return to the invite after the user logs in OR creates an account, so the
-  // join completes automatically. Set in-memory here (post-reload, same SPA
-  // session), so no debounced-disk-write race.
-  onMount(() => {
-    const code = search.invite;
-    if (typeof code === "string" && code) {
-      state.layout.setNextPath(`/invite/${code}`);
-    }
-  });
 
   return (
     <Switch
