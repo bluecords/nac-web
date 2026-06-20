@@ -21,7 +21,6 @@ import MdPin from "@material-design-icons/svg/outlined/pin_invoke.svg?component-
 import MdReply from "@material-design-icons/svg/outlined/reply.svg?component-solid";
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
 import MdShare from "@material-design-icons/svg/outlined/share.svg?component-solid";
-import MdShield from "@material-design-icons/svg/outlined/shield.svg?component-solid";
 
 import MdSentimentContent from "@material-symbols/svg-400/outlined/sentiment_content.svg?component-solid";
 import MdDriveFileMove from "@material-symbols/svg-400/outlined/drive_file_move.svg?component-solid";
@@ -96,16 +95,6 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
         message: props.message!,
       });
     }
-  }
-
-  /**
-   * Open message in Stoat Admin Panel
-   */
-  function openAdminPanel() {
-    window.open(
-      `https://old-admin.stoatinternal.com/panel/inspect/message/${props.message!.id}`,
-      "_blank",
-    );
   }
 
   /**
@@ -281,11 +270,6 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
           </ContextMenuButton>
         </Show>
         <ContextMenuDivider />
-        <Show when={state.settings.getValue("advanced:admin_panel")}>
-          <ContextMenuButton icon={MdShield} onClick={openAdminPanel}>
-            <Trans>Admin Panel</Trans>
-          </ContextMenuButton>
-        </Show>
         <ContextMenuButton icon={MdShare} onClick={copyLink}>
           <Trans>Copy link</Trans>
         </ContextMenuButton>

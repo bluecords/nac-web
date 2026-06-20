@@ -11,7 +11,6 @@ import { dismissFloatingElements, Slider, Text } from "@revolt/ui";
 
 import MdAccountCircle from "@material-design-icons/svg/outlined/account_circle.svg?component-solid";
 import MdAddCircleOutline from "@material-design-icons/svg/outlined/add_circle_outline.svg?component-solid";
-import MdAdminPanelSettings from "@material-design-icons/svg/outlined/admin_panel_settings.svg?component-solid";
 import MdAlternateEmail from "@material-design-icons/svg/outlined/alternate_email.svg?component-solid";
 import MdAssignmentInd from "@material-design-icons/svg/outlined/assignment_ind.svg?component-solid";
 import MdBadge from "@material-design-icons/svg/outlined/badge.svg?component-solid";
@@ -196,16 +195,6 @@ export function UserContextMenu(props: {
    */
   function unblockUser() {
     props.user.unblockUser();
-  }
-
-  /**
-   * Open user in Stoat Admin Panel
-   */
-  function openAdminPanel() {
-    window.open(
-      `https://old-admin.stoatinternal.com/panel/inspect/user/${props.user.id}`,
-      "_blank",
-    );
   }
 
   /**
@@ -532,20 +521,8 @@ export function UserContextMenu(props: {
       </Show>
 
       {/* Developer tools */}
-      <Show
-        when={
-          state.settings.getValue("advanced:admin_panel") ||
-          state.settings.getValue("advanced:copy_id")
-        }
-      >
-        <ContextMenuDivider />
-      </Show>
-      <Show when={state.settings.getValue("advanced:admin_panel")}>
-        <ContextMenuButton icon={MdAdminPanelSettings} onClick={openAdminPanel}>
-          <Trans>Admin Panel</Trans>
-        </ContextMenuButton>
-      </Show>
       <Show when={state.settings.getValue("advanced:copy_id")}>
+        <ContextMenuDivider />
         <ContextMenuButton icon={MdBadge} onClick={copyId}>
           <Trans>Copy user ID</Trans>
         </ContextMenuButton>
