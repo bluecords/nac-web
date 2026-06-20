@@ -2,12 +2,15 @@ import { For, Show, createMemo } from "solid-js";
 
 import { ServerMember } from "stoat.js";
 
-import { useClient } from "@revolt/client";
+import {
+  addFavorite,
+  isFavorite,
+  removeFavorite,
+  useClient,
+} from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { useNavigate } from "@revolt/routing";
 import { Avatar, UserStatus } from "@revolt/ui";
-
-import { addFavorite, isFavorite, removeFavorite } from "./MobileFavorites";
 
 interface Props {
   member: ServerMember;

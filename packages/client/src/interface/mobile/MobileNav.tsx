@@ -7,14 +7,13 @@ import {
   ChannelContextMenu,
   ServerSidebarContextMenu,
 } from "@revolt/app";
-import { useClient, useUser } from "@revolt/client";
+import { getFavorites, useClient, useUser } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { useNavigate, useSmartParams } from "@revolt/routing";
 import { useState } from "@revolt/state";
 import { Avatar, Unreads, UserStatus } from "@revolt/ui";
 
 import { ServerSidebar } from "../navigation/channels/ServerSidebar";
-import { getFavorites } from "./MobileFavorites";
 import { useMobileNav } from "./MobileNavContext";
 
 /**
