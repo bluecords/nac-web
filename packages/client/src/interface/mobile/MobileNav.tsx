@@ -244,61 +244,163 @@ export function MobileNav(_props: {
               />
             }>
               <div style={{ flex: "1", "min-height": "0", display: "flex", "flex-direction": "column" }}>
-                {/* Compact server switcher row */}
+                {/* Server switcher row — split into a scrollable server-icon
+                    strip plus a fixed cluster of quick-action icons, so
+                    Members/Server Settings/Favorites/Edit don't eat into
+                    space meant for seeing channels. */}
                 <div
                   style={{
                     display: "flex",
                     "align-items": "center",
-                    gap: "8px",
-                    padding: "8px 12px",
-                    "overflow-x": "auto",
                     "flex-shrink": "0",
                     background: "var(--md-sys-color-surface-container)",
                     "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
-                    scrollbarWidth: "none",
                   }}
                 >
-                  <For each={orderedServers()}>
-                    {(s) => (
+                  <div
+                    style={{
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "8px",
+                      padding: "8px 12px",
+                      "overflow-x": "auto",
+                      "min-width": "0",
+                      flex: "1",
+                      scrollbarWidth: "none",
+                    }}
+                  >
+                    <For each={orderedServers()}>
+                      {(s) => (
+                        <button
+                          title={s.name}
+                          style={{
+                            "flex-shrink": "0",
+                            background: s.id === params().serverId
+                              ? "var(--md-sys-color-primary-container)"
+                              : "none",
+                            border: s.id === params().serverId
+                              ? "2px solid var(--md-sys-color-primary)"
+                              : "2px solid transparent",
+                            "border-radius": "12px",
+                            padding: "2px",
+                            cursor: "pointer",
+                          }}
+                          onClick={() => {
+                            const firstChannel = [...s.channels.values()].find(
+                              (ch) => ch.type === "TextChannel",
+                            );
+                            if (firstChannel) {
+                              navigate(`/server/${s.id}/channel/${firstChannel.id}`);
+                            } else {
+                              navigate(`/server/${s.id}`);
+                            }
+                          }}
+                        >
+                          <Avatar
+                            size={36}
+                            src={s.iconURL ?? undefined}
+                            fallback={s.name}
+                            holepunch={s.mentions.length ? "top-right" : "none"}
+                            overlay={
+                              <Show when={s.mentions.length}>
+                                <Unreads.Graphic count={s.mentions.length} unread />
+                              </Show>
+                            }
+                          />
+                        </button>
+                      )}
+                    </For>
+                  </div>
+
+                  {/* Quick-action icon cluster — pinned, doesn't scroll away */}
+                  <div
+                    style={{
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "2px",
+                      padding: "0 8px",
+                      "flex-shrink": "0",
+                      "border-left": "1px solid var(--md-sys-color-outline-variant)",
+                    }}
+                  >
+                    <button
+                      title="Members"
+                      aria-label="Members"
+                      onClick={() => { closeNav(); openMembers(); }}
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        "justify-content": "center",
+                        padding: "8px",
+                        background: "none",
+                        border: "none",
+                        color: "var(--md-sys-color-on-surface-variant)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>group</span>
+                    </button>
+                    <Show when={favorites().length > 0}>
                       <button
-                        title={s.name}
+                        title="Favorites"
+                        aria-label="Favorites"
+                        onClick={() => { closeNav(); openModal({ type: "favorites_list" }); }}
                         style={{
-                          "flex-shrink": "0",
-                          background: s.id === params().serverId
-                            ? "var(--md-sys-color-primary-container)"
-                            : "none",
-                          border: s.id === params().serverId
-                            ? "2px solid var(--md-sys-color-primary)"
-                            : "2px solid transparent",
-                          "border-radius": "12px",
-                          padding: "2px",
+                          display: "flex",
+                          "align-items": "center",
+                          "justify-content": "center",
+                          padding: "8px",
+                          background: "none",
+                          border: "none",
+                          color: "var(--md-sys-color-on-surface-variant)",
                           cursor: "pointer",
                         }}
-                        onClick={() => {
-                          const firstChannel = [...s.channels.values()].find(
-                            (ch) => ch.type === "TextChannel",
-                          );
-                          if (firstChannel) {
-                            navigate(`/server/${s.id}/channel/${firstChannel.id}`);
-                          } else {
-                            navigate(`/server/${s.id}`);
-                          }
+                      >
+                        <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>star</span>
+                      </button>
+                    </Show>
+                    <Show when={server()?.orPermission("ManageServer", "ManageCustomisation", "ManageRole", "ManagePermissions")}>
+                      <button
+                        title="Server Settings"
+                        aria-label="Server Settings"
+                        onClick={() => { closeNav(); openModal({ type: "settings", config: "server", context: server()! }); }}
+                        style={{
+                          display: "flex",
+                          "align-items": "center",
+                          "justify-content": "center",
+                          padding: "8px",
+                          background: "none",
+                          border: "none",
+                          color: "var(--md-sys-color-on-surface-variant)",
+                          cursor: "pointer",
                         }}
                       >
-                        <Avatar
-                          size={36}
-                          src={s.iconURL ?? undefined}
-                          fallback={s.name}
-                          holepunch={s.mentions.length ? "top-right" : "none"}
-                          overlay={
-                            <Show when={s.mentions.length}>
-                              <Unreads.Graphic count={s.mentions.length} unread />
-                            </Show>
-                          }
-                        />
+                        <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>settings</span>
                       </button>
-                    )}
-                  </For>
+                    </Show>
+                    <Show when={server()?.havePermission("ManageChannel")}>
+                      <button
+                        title={editMode() ? "Done reordering" : "Reorder channels"}
+                        aria-label={editMode() ? "Done reordering" : "Reorder channels"}
+                        onClick={() => setEditMode(!editMode())}
+                        style={{
+                          display: "flex",
+                          "align-items": "center",
+                          "justify-content": "center",
+                          padding: "8px",
+                          background: editMode() ? "var(--md-sys-color-primary)" : "none",
+                          border: "none",
+                          color: editMode() ? "var(--md-sys-color-on-primary)" : "var(--md-sys-color-on-surface-variant)",
+                          cursor: "pointer",
+                          "border-radius": editMode() ? "8px" : "0",
+                        }}
+                      >
+                        <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>
+                          {editMode() ? "check" : "edit"}
+                        </span>
+                      </button>
+                    </Show>
+                  </div>
                 </div>
 
                 <div style={{ flex: "1", "min-height": "0", "overflow-y": "auto", position: "relative" }}>
@@ -329,183 +431,6 @@ export function MobileNav(_props: {
                   </Show>
                 </div>
 
-                <div style={{
-                  display: "flex",
-                  "flex-direction": "column",
-                  "flex-shrink": "0",
-                  "border-top": "1px solid var(--md-sys-color-outline-variant)",
-                  background: "var(--md-sys-color-surface-container)",
-                }}>
-                  {/* Members + Edit row */}
-                  <div style={{ display: "flex" }}>
-                    <button
-                      style={{
-                        display: "flex",
-                        "align-items": "center",
-                        gap: "12px",
-                        padding: "14px 16px",
-                        background: "none",
-                        border: "none",
-                        color: "var(--md-sys-color-on-surface)",
-                        cursor: "pointer",
-                        "font-size": "15px",
-                        "text-align": "left",
-                        flex: "1",
-                      }}
-                      onClick={() => { closeNav(); openMembers(); }}
-                    >
-                      <span style={{ "font-size": "20px", "font-family": "Material Symbols Outlined" }}>group</span>
-                      Members
-                    </button>
-
-                    <Show when={server()?.havePermission("ManageChannel")}>
-                      <button
-                        style={{
-                          display: "flex",
-                          "align-items": "center",
-                          gap: "6px",
-                          padding: "14px 16px",
-                          background: editMode() ? "var(--md-sys-color-primary)" : "none",
-                          border: "none",
-                          color: editMode() ? "var(--md-sys-color-on-primary)" : "var(--md-sys-color-on-surface-variant)",
-                          cursor: "pointer",
-                          "font-size": "13px",
-                          "font-weight": "600",
-                          "flex-shrink": "0",
-                          "border-radius": editMode() ? "8px" : "0",
-                          margin: editMode() ? "6px" : "0",
-                        }}
-                        onClick={() => setEditMode(!editMode())}
-                      >
-                        <span style={{ "font-size": "18px", "font-family": "Material Symbols Outlined" }}>
-                          {editMode() ? "check" : "edit"}
-                        </span>
-                        {editMode() ? "Done" : "Edit"}
-                      </button>
-                    </Show>
-                  </div>
-
-                  {/* Settings row */}
-                  <div style={{
-                    display: "flex",
-                    "border-top": "1px solid var(--md-sys-color-outline-variant)",
-                  }}>
-                    <Show when={server()?.orPermission("ManageServer", "ManageCustomisation", "ManageRole", "ManagePermissions")}>
-                      <button
-                        style={{
-                          display: "flex",
-                          "align-items": "center",
-                          gap: "10px",
-                          padding: "12px 16px",
-                          background: "none",
-                          border: "none",
-                          color: "var(--md-sys-color-on-surface-variant)",
-                          cursor: "pointer",
-                          "font-size": "14px",
-                          flex: "1",
-                        }}
-                        onClick={() => {
-                          closeNav();
-                          openModal({ type: "settings", config: "server", context: server()! });
-                        }}
-                      >
-                        <span style={{ "font-size": "18px", "font-family": "Material Symbols Outlined" }}>settings</span>
-                        Server Settings
-                      </button>
-                    </Show>
-                  </div>
-                </div>
-
-                <Show when={favorites().length > 0}>
-                  <div
-                    style={{
-                      "flex-shrink": "0",
-                      "border-top": "1px solid var(--md-sys-color-outline-variant)",
-                      background: "var(--md-sys-color-surface-container)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "8px 16px 4px",
-                        "font-size": "11px",
-                        "font-weight": "600",
-                        "letter-spacing": "0.08em",
-                        "text-transform": "uppercase",
-                        color: "var(--md-sys-color-on-surface-variant)",
-                      }}
-                    >
-                      Favorites
-                    </div>
-                    <For each={favorites()}>
-                      {(fav) => {
-                        const dmChannel = createMemo(() =>
-                          [...(client()?.channels.values() ?? [])].find(
-                            (ch) =>
-                              ch.type === "DirectMessage" &&
-                              ch.recipient?.id === fav.userId,
-                          ),
-                        );
-
-                        const user = createMemo(() =>
-                          client()?.users.get(fav.userId),
-                        );
-
-                        return (
-                          <button
-                            style={{
-                              display: "flex",
-                              "align-items": "center",
-                              gap: "10px",
-                              padding: "8px 16px",
-                              background: "none",
-                              border: "none",
-                              color: "var(--md-sys-color-on-surface)",
-                              cursor: "pointer",
-                              width: "100%",
-                              "text-align": "left",
-                              "font-size": "14px",
-                            }}
-                            onClick={async () => {
-                              closeNav();
-                              if (dmChannel()) {
-                                navigate(`/channel/${dmChannel()!.id}`);
-                              } else {
-                                const u = user();
-                                if (u) {
-                                  const ch = await u.openDM();
-                                  navigate(`/channel/${ch.id}`);
-                                }
-                              }
-                            }}
-                          >
-                            <div style={{ position: "relative", "flex-shrink": "0" }}>
-                              <Avatar
-                                size={32}
-                                src={fav.avatarURL ?? undefined}
-                                fallback={fav.username}
-                              />
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  bottom: "-1px",
-                                  right: "-1px",
-                                }}
-                              >
-                                <UserStatus.Graphic
-                                  status={user()?.presence}
-                                  size="10px"
-                                />
-                              </div>
-                            </div>
-                            <span style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-                              {fav.username}
-                            </span>
-                          </button>
-                        );
-                      }}
-                    </For>
-                  </div>
-                </Show>
               </div>
             </Show>
           </div>

@@ -174,6 +174,9 @@ export type Modals =
       file?: File;
     }
   | {
+      type: "favorites_list";
+    }
+  | {
       type: "join_server";
       client: Client;
     }
