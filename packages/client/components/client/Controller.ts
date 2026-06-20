@@ -117,6 +117,28 @@ class Lifecycle {
 
     this.client = null!;
     this.dispose();
+
+    // Mobile browsers (Safari especially) suspend the tab and drop the
+    // WebSocket when backgrounded/locked/switching networks — reported as
+    // ResetWithoutClosingHandshake server-side, harmless on its own. The
+    // problem was the uncapped exponential backoff below: after a handful of
+    // drops (common on flaky mobile data) the wait between retries balloons
+    // past a minute, so returning to the tab could mean waiting out a long
+    // stale timer instead of reconnecting — looking permanently stuck. Force
+    // an immediate retry whenever the tab regains focus or the device comes
+    // back online, instead of waiting out whatever backoff was already
+    // ticking.
+    const forceRetryNow = () => {
+      if (this.#retryTimeout && this.state() === State.Disconnected) {
+        clearTimeout(this.#retryTimeout);
+        this.#retryTimeout = undefined;
+        this.transition({ type: TransitionType.Retry });
+      }
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") forceRetryNow();
+    });
+    window.addEventListener("online", forceRetryNow);
   }
 
   private dispose() {
@@ -219,9 +241,15 @@ class Lifecycle {
             type: TransitionType.DeviceOffline,
           });
         } else {
-          const retryIn =
+          // Capped: previously unbounded, so a handful of consecutive drops
+          // (common on flaky mobile connections) made the wait balloon past
+          // a minute — feeling permanently stuck rather than reconnecting.
+          const MAX_RETRY_SECONDS = 30;
+          const retryIn = Math.min(
             (Math.pow(2, this.#connectionFailures) - 1) *
-            (0.8 + Math.random() * 0.4);
+              (0.8 + Math.random() * 0.4),
+            MAX_RETRY_SECONDS,
+          );
 
           console.info(
             "Will try to reconnect in",
