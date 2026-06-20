@@ -92,6 +92,8 @@ class Lifecycle {
   #connectionFailures = 0;
   #permanentError: string | undefined;
   #retryTimeout: number | undefined;
+  #visibilityListener: () => void = () => {};
+  #onlineListener: () => void = () => {};
 
   constructor(controller: ClientController) {
     this.#controller = controller;
@@ -135,10 +137,24 @@ class Lifecycle {
         this.transition({ type: TransitionType.Retry });
       }
     };
-    document.addEventListener("visibilitychange", () => {
+    this.#visibilityListener = () => {
       if (document.visibilityState === "visible") forceRetryNow();
-    });
+    };
+    document.addEventListener("visibilitychange", this.#visibilityListener);
     window.addEventListener("online", forceRetryNow);
+    this.#onlineListener = forceRetryNow;
+  }
+
+  /**
+   * Tear down global listeners registered by this instance. Without this,
+   * every time a new Lifecycle is constructed (e.g. ClientContext
+   * remounting) the previous instance's visibilitychange/online listeners
+   * stayed attached to document/window forever, so each remount added
+   * another set of handlers reacting to the same events.
+   */
+  destroy() {
+    document.removeEventListener("visibilitychange", this.#visibilityListener);
+    window.removeEventListener("online", this.#onlineListener);
   }
 
   private dispose() {
@@ -206,15 +222,27 @@ class Lifecycle {
 
     switch (nextState) {
       case State.LoggingIn:
-        this.client.api.get("/onboard/hello").then(({ onboarding }) => {
-          if (onboarding) {
+        this.client.api
+          .get("/onboard/hello")
+          .then(({ onboarding }) => {
+            if (onboarding) {
+              this.transition({
+                type: TransitionType.NoUser,
+              });
+            } else {
+              this.client.connect();
+            }
+          })
+          .catch((err) => {
+            // Without this, a failed /onboard/hello call (expired/invalid
+            // session, network error, etc.) left the state machine stuck in
+            // LoggingIn forever — no error, no retry, just a permanent
+            // spinner with no way out except a manual reload.
+            console.error("Failed to check onboarding status:", err);
             this.transition({
-              type: TransitionType.NoUser,
+              type: TransitionType.TemporaryFailure,
             });
-          } else {
-            this.client.connect();
-          }
-        });
+          });
 
         break;
       case State.Connecting:
@@ -638,5 +666,6 @@ export default class ClientController {
     this.lifecycle.transition({
       type: TransitionType.DisposeOnly,
     });
+    this.lifecycle.destroy();
   }
 }

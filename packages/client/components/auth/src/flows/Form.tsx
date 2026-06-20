@@ -148,6 +148,7 @@ interface Props {
  */
 export function Form(props: Props) {
   const [error, setError] = createSignal();
+  const [submitting, setSubmitting] = createSignal(false);
   const err = useError();
   let hcaptcha: HCaptchaFunctions | undefined;
 
@@ -158,26 +159,40 @@ export function Form(props: Props) {
   async function onSubmit(event: Event) {
     event.preventDefault();
 
+    // Guard against double-submission: without this, tapping the submit
+    // button more than once before a response arrives (e.g. while a hung
+    // request gives no visible feedback) fires multiple concurrent
+    // submissions — each one its own login/signup attempt.
+    if (submitting()) return;
+    setSubmitting(true);
+
     const formData = new FormData(event.currentTarget as HTMLFormElement);
 
-    if (props.captcha) {
-      if (!hcaptcha) return alert("hCaptcha not loaded!");
-      const response = await hcaptcha.execute();
-      formData.set("captcha", response!.response);
-    }
-
     try {
+      if (props.captcha) {
+        if (!hcaptcha) return alert("hCaptcha not loaded!");
+        const response = await hcaptcha.execute();
+        formData.set("captcha", response!.response);
+      }
+
       await props.onSubmit(formData);
     } catch (err) {
       console.error(err);
       setError(err);
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <form onSubmit={onSubmit}>
       <Column gap="lg">
-        {props.children}
+        <fieldset
+          disabled={submitting()}
+          style={{ border: "none", padding: 0, margin: 0 }}
+        >
+          {props.children}
+        </fieldset>
         <Show when={error()}>
           <ErrorContainer>
             <MdError
