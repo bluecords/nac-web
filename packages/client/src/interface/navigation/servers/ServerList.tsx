@@ -13,6 +13,7 @@ import { useNavigate } from "@revolt/routing";
 import { useState } from "@revolt/state";
 import { Avatar, Column, Text, Time, Unreads, UserStatus } from "@revolt/ui";
 
+import MdChat from "@material-design-icons/svg/filled/chat.svg?component-solid";
 import MdExplore from "@material-design-icons/svg/filled/explore.svg?component-solid";
 import MdHome from "@material-design-icons/svg/filled/home.svg?component-solid";
 import MdSettings from "@material-design-icons/svg/filled/settings.svg?component-solid";
@@ -110,6 +111,13 @@ export const ServerList = (props: Props) => {
       .length;
   });
 
+  const messageNotifications = createMemo(
+    () =>
+      state.ordering
+        .orderedConversations(client())
+        .filter((ch) => ch.unread).length,
+  );
+
   // Ref for floating menu
   const [menuButton, setMenuButton] = createSignal<HTMLDivElement>();
 
@@ -137,6 +145,30 @@ export const ServerList = (props: Props) => {
                 <Unreads.Graphic
                   unread={homeNotifications() !== 0}
                   count={homeNotifications()}
+                />
+              </Show>
+            }
+          />
+        </a>
+        <a
+          class={entryContainer({})}
+          onClick={() => openModal({ type: "messages_list" })}
+          use:floating={{
+            tooltip: {
+              content: `You have ${messageNotifications()} unread conversations.`,
+              placement: "right",
+            },
+          }}
+        >
+          <Avatar
+            size={42}
+            fallback={<MdChat />}
+            holepunch={messageNotifications() ? "top-right" : undefined}
+            overlay={
+              <Show when={messageNotifications()}>
+                <Unreads.Graphic
+                  unread={messageNotifications() !== 0}
+                  count={messageNotifications()}
                 />
               </Show>
             }

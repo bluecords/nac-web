@@ -181,6 +181,9 @@ export type Modals =
       client: Client;
     }
   | {
+      type: "messages_list";
+    }
+  | {
       type: "kick_member";
       member: ServerMember;
     }

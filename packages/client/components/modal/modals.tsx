@@ -45,6 +45,7 @@ import { MFAEnableTOTPModal } from "./modals/MFAEnableTOTP";
 import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { MFAFlowModal } from "./modals/MFAFlow";
 import { MFARecoveryModal } from "./modals/MFARecovery";
+import { MessagesListModal } from "./modals/MessagesList";
 import { OnboardingModal } from "./modals/Onboarding";
 import { PolicyChangeModal } from "./modals/PolicyChange";
 import { RemoveMemberModal } from "./modals/RemoveMember";
@@ -160,6 +161,8 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <MFAFlowModal {...modalProps} />;
     case "mfa_recovery":
       return <MFARecoveryModal {...modalProps} />;
+    case "messages_list":
+      return <MessagesListModal {...modalProps} />;
     case "onboarding":
       return <OnboardingModal {...modalProps} />;
     case "policy_change":
