@@ -1,9 +1,10 @@
 import { Trans } from "@lingui-solid/solid/macro";
 
-import { useApi } from "@revolt/client";
+import { useApi, useClient } from "@revolt/client";
 import { CONFIGURATION } from "@revolt/common";
-import { useNavigate } from "@revolt/routing";
+import { Navigate, useNavigate } from "@revolt/routing";
 import { Button } from "@revolt/ui";
+import { Show } from "solid-js";
 
 import { FlowTitle } from "./Flow";
 import { setFlowCheckEmail } from "./FlowCheck";
@@ -15,6 +16,7 @@ import { Fields, Form } from "./Form";
 export default function FlowReset() {
   const api = useApi();
   const navigate = useNavigate();
+  const getClient = useClient();
 
   /**
    * Send password reset
@@ -34,7 +36,10 @@ export default function FlowReset() {
   }
 
   return (
-    <>
+    <Show
+      when={getClient().configuration?.features.email}
+      fallback={<Navigate href="/login/auth" />}
+    >
       <FlowTitle>
         <Trans>Reset password</Trans>
       </FlowTitle>
@@ -66,6 +71,6 @@ export default function FlowReset() {
           Mock Reset Screen
         </div>
       )}
-    </>
+    </Show>
   );
 }

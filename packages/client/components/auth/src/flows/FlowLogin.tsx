@@ -1,8 +1,8 @@
-import { Match, Switch } from "solid-js";
+import { Match, Show, Switch } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
-import { useClientLifecycle } from "@revolt/client";
+import { useClient, useClientLifecycle } from "@revolt/client";
 import { State, TransitionType } from "@revolt/client/Controller";
 import { useModals } from "@revolt/modal";
 import { Navigate } from "@revolt/routing";
@@ -27,7 +27,14 @@ import { Fields, Form } from "./Form";
 export default function FlowLogin() {
   const state = useState();
   const modals = useModals();
+  const getClient = useClient();
   const { lifecycle, isLoggedIn, login, selectUsername } = useClientLifecycle();
+
+  /**
+   * Whether the server has email enabled (SMTP configured).
+   * Reset/resend flows are dead ends without it, so we hide the links.
+   */
+  const emailEnabled = () => getClient().configuration?.features.email;
 
   /**
    * Log into account
@@ -67,18 +74,20 @@ export default function FlowLogin() {
             </FlowTitle>
             <Form onSubmit={performLogin}>
               <Fields fields={["email", "password"]} />
-              <Column gap="xl" align>
-                <a href="/login/reset">
-                  <Button variant="text">
-                    <Trans>Reset password</Trans>
-                  </Button>
-                </a>
-                <a href="/login/resend">
-                  <Button variant="text">
-                    <Trans>Resend verification</Trans>
-                  </Button>
-                </a>
-              </Column>
+              <Show when={emailEnabled()}>
+                <Column gap="xl" align>
+                  <a href="/login/reset">
+                    <Button variant="text">
+                      <Trans>Reset password</Trans>
+                    </Button>
+                  </a>
+                  <a href="/login/resend">
+                    <Button variant="text">
+                      <Trans>Resend verification</Trans>
+                    </Button>
+                  </a>
+                </Column>
+              </Show>
               <Row align justify>
                 <a href="..">
                   <Button variant="text">

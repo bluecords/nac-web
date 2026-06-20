@@ -1,9 +1,10 @@
 import { Trans } from "@lingui-solid/solid/macro";
 
-import { useApi } from "@revolt/client";
+import { useApi, useClient } from "@revolt/client";
 import { CONFIGURATION } from "@revolt/common";
-import { useNavigate } from "@revolt/routing";
+import { Navigate, useNavigate } from "@revolt/routing";
 import { Button } from "@revolt/ui";
+import { Show } from "solid-js";
 
 import { FlowTitle } from "./Flow";
 import { setFlowCheckEmail } from "./FlowCheck";
@@ -15,6 +16,7 @@ import { Fields, Form } from "./Form";
 export default function FlowResend() {
   const api = useApi();
   const navigate = useNavigate();
+  const getClient = useClient();
 
   /**
    * Resend email verification
@@ -34,7 +36,10 @@ export default function FlowResend() {
   }
 
   return (
-    <>
+    <Show
+      when={getClient().configuration?.features.email}
+      fallback={<Navigate href="/login/auth" />}
+    >
       <FlowTitle>
         <Trans>Resend verification</Trans>
       </FlowTitle>
@@ -49,6 +54,6 @@ export default function FlowResend() {
           <Trans>Go back to login</Trans>
         </Button>
       </a>
-    </>
+    </Show>
   );
 }
