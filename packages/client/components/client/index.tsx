@@ -18,6 +18,14 @@ import ClientController from "./Controller";
 
 export type { default as ClientController } from "./Controller";
 
+export {
+  addFavorite,
+  getFavorites,
+  isFavorite,
+  removeFavorite,
+  toggleFavorite,
+} from "./Favorites";
+export type { Favorite } from "./Favorites";
 export { useNotifications } from "./NotificationsController";
 export { SoundContext, SoundController, useSound } from "./Sounds";
 

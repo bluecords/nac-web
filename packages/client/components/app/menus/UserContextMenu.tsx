@@ -3,7 +3,12 @@ import { useNavigate } from "@solidjs/router";
 import { type JSX, Match, Show, Switch } from "solid-js";
 import type { Channel, Message, ServerMember, User } from "stoat.js";
 
-import { useClient } from "@revolt/client";
+import {
+  addFavorite,
+  isFavorite,
+  removeFavorite,
+  useClient,
+} from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { useSmartParams } from "@revolt/routing";
 import { useState } from "@revolt/state";
@@ -24,6 +29,7 @@ import MdMicOff from "@material-design-icons/svg/outlined/mic_off.svg?component-
 import MdPersonAddAlt from "@material-design-icons/svg/outlined/person_add_alt.svg?component-solid";
 import MdPersonRemove from "@material-design-icons/svg/outlined/person_remove.svg?component-solid";
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
+import MdStar from "@material-design-icons/svg/outlined/star_outline.svg?component-solid";
 import MdChecked from "@material-symbols/svg-400/outlined/check_box.svg?component-solid";
 import MdUnchecked from "@material-symbols/svg-400/outlined/check_box_outline_blank.svg?component-solid";
 
@@ -167,6 +173,28 @@ export function UserContextMenu(props: {
       user: props.user!,
       server: client().servers.get(params().serverId!)!,
     });
+  }
+
+  /**
+   * Whether this user is favorited (personal bookmark, not a real
+   * friend/relationship — same local list used for the mobile quick-access
+   * sidebar)
+   */
+  const favorited = () => isFavorite(props.user.id);
+
+  /**
+   * Toggle favorite status for this user
+   */
+  function toggleFavoriteUser() {
+    if (favorited()) {
+      removeFavorite(props.user.id);
+    } else {
+      addFavorite({
+        userId: props.user.id,
+        username: props.user.displayName ?? props.user.username,
+        avatarURL: props.user.avatarURL ?? null,
+      });
+    }
   }
 
   /**
@@ -372,10 +400,19 @@ export function UserContextMenu(props: {
         <ContextMenuDivider />
       </Show>
 
-      {/* Quick actions: Profile, Message, Mention */}
+      {/* Quick actions: Profile, Favorite, Message, Mention */}
       <ContextMenuButton icon={MdAccountCircle} onClick={openProfile}>
         <Trans>Profile</Trans>
       </ContextMenuButton>
+      <Show when={!props.user.self}>
+        <ContextMenuButton icon={MdStar} onClick={toggleFavoriteUser}>
+          <Switch fallback={<Trans>Add to favorites</Trans>}>
+            <Match when={favorited()}>
+              <Trans>Remove from favorites</Trans>
+            </Match>
+          </Switch>
+        </ContextMenuButton>
+      </Show>
       <Show when={props.user.relationship === "Friend"}>
         <ContextMenuButton icon={MdChat} onClick={openDm}>
           <Trans>Message</Trans>
