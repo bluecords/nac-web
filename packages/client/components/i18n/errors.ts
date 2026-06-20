@@ -103,6 +103,8 @@ export function useError() {
           return t`That action had no effect.`;
         case "NotElevated":
           return t`Your role ranking is too low to take this action.`;
+        case "OperationFailed":
+          return t`That email address is already registered. Try logging in instead.`;
         case "NotFound":
           return t`Could not find what you requested.`;
         case "ReachedMaximumBots":
