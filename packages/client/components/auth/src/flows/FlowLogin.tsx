@@ -1,4 +1,4 @@
-import { Match, Show, Switch } from "solid-js";
+import { Match, Show, Switch, createMemo } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
@@ -35,6 +35,19 @@ export default function FlowLogin() {
    * Reset/resend flows are dead ends without it, so we hide the links.
    */
   const emailEnabled = () => getClient().configuration?.features.email;
+
+  /**
+   * Where to redirect once logged in — popped exactly once, memoized on the
+   * isLoggedIn() transition. popNextPath() destructively clears the stored
+   * path as a side effect of reading it; calling it inline in a JSX prop
+   * (the previous code) let Solid re-evaluate it more than once, so a
+   * second read came back undefined (already cleared) and silently fell
+   * back to "/app" — losing the original destination (e.g. an invite link)
+   * even though the user was correctly routed back here to resume it.
+   */
+  const redirectTarget = createMemo(() =>
+    isLoggedIn() ? state.layout.popNextPath() ?? "/app" : undefined,
+  );
 
   /**
    * Log into account
@@ -102,8 +115,8 @@ export default function FlowLogin() {
           </>
         }
       >
-        <Match when={isLoggedIn()}>
-          <Navigate href={state.layout.popNextPath() ?? "/app"} />
+        <Match when={redirectTarget()}>
+          <Navigate href={redirectTarget()!} />
         </Match>
         <Match when={lifecycle.state() === State.LoggingIn}>
           <CircularProgress />
