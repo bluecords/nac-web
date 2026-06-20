@@ -131,6 +131,13 @@ export function MobileMemberProfile(props: Props) {
               : "var(--md-sys-color-on-surface-variant)",
             "font-size": "24px",
             "font-family": "Material Symbols Outlined",
+            // Material Symbols is a variable font — fill state is
+            // controlled by this axis, not by swapping to a "_border"
+            // ligature like the old Material Icons font worked. Swapping
+            // text alone (the previous approach) rendered the same glyph
+            // either way, so toggling favorite only ever showed a barely
+            // visible color shift with no fill change at all.
+            "font-variation-settings": `"FILL" ${favorited() ? 1 : 0}`,
             padding: "4px",
           }}
           onClick={() => {
@@ -146,7 +153,7 @@ export function MobileMemberProfile(props: Props) {
           }}
           aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
         >
-          {favorited() ? "star" : "star_border"}
+          star
         </button>
       </div>
 
