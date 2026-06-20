@@ -8,6 +8,9 @@ interface MobileNavContextValue {
   membersOpen: Accessor<boolean>;
   openMembers: () => void;
   closeMembers: () => void;
+  messagesOpen: Accessor<boolean>;
+  openMessages: () => void;
+  closeMessages: () => void;
   editMode: Accessor<boolean>;
   setEditMode: (v: boolean) => void;
   searchOpen: Accessor<boolean>;
@@ -26,6 +29,7 @@ export function MobileNavProvider(props: { children: JSX.Element }) {
   const [isMobile, setIsMobile] = createSignal(mq?.matches ?? false);
   const [navOpen, setNavOpen] = createSignal(false);
   const [membersOpen, setMembersOpen] = createSignal(false);
+  const [messagesOpen, setMessagesOpen] = createSignal(false);
   const [editMode, setEditMode] = createSignal(false);
   const [searchOpen, setSearchOpen] = createSignal(false);
 
@@ -48,6 +52,12 @@ export function MobileNavProvider(props: { children: JSX.Element }) {
           setNavOpen(false);
         },
         closeMembers: () => setMembersOpen(false),
+        messagesOpen,
+        openMessages: () => {
+          setMessagesOpen(true);
+          setNavOpen(false);
+        },
+        closeMessages: () => setMessagesOpen(false),
         editMode,
         setEditMode: (v: boolean) => {
           setEditMode(v);
