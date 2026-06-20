@@ -16,6 +16,7 @@ import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
 import { CircularProgress } from "@revolt/ui";
 
 import { MobileMembersOverlay } from "./interface/mobile/MobileMembersOverlay";
+import { MobileMessagesOverlay } from "./interface/mobile/MobileMessagesOverlay";
 import { MobileNavProvider } from "./interface/mobile/MobileNavContext";
 import { Sidebar } from "./interface/Sidebar";
 
@@ -130,6 +131,7 @@ const Interface = (props: { children: JSX.Element }) => {
 
         <NotificationsWorker />
         <MobileMembersOverlay />
+        <MobileMessagesOverlay />
       </div>
     </MessageCache>
     </MobileNavProvider>

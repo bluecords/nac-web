@@ -1,4 +1,4 @@
-import { For, JSX, Match, Show, Switch, createMemo } from "solid-js";
+import { For, JSX, Show, createMemo } from "solid-js";
 
 import { Channel, Server as ServerI } from "stoat.js";
 
@@ -23,7 +23,8 @@ import { useMobileNav } from "./MobileNavContext";
 export function MobileNav(_props: {
   menuGenerator: (t: ServerI | Channel) => JSX.Directives["floating"];
 }) {
-  const { navOpen, openNav, closeNav, openMembers, editMode, setEditMode } = useMobileNav();
+  const { navOpen, openNav, closeNav, openMembers, openMessages, editMode, setEditMode } =
+    useMobileNav();
   const { openModal } = useModals();
   const params = useSmartParams();
   const client = useClient();
@@ -130,62 +131,101 @@ export function MobileNav(_props: {
               overflow: "hidden",
             }}
           >
-            {/* User bar — tap to open profile/settings/logout */}
-            <button
-              onClick={() => { closeNav(); openModal({ type: "settings", config: "user" }); }}
+            {/* User bar — split into two tap targets: profile/settings, and messages */}
+            <div
               style={{
                 display: "flex",
                 "align-items": "center",
-                gap: "10px",
-                padding: "10px 14px",
                 background: "var(--md-sys-color-surface-container)",
-                border: "none",
                 "border-bottom": "1px solid var(--md-sys-color-outline-variant)",
-                cursor: "pointer",
-                "text-align": "left",
                 "flex-shrink": "0",
               }}
             >
-              <div style={{ position: "relative", "flex-shrink": "0" }}>
-                <Avatar
-                  size={36}
-                  src={user()?.animatedAvatarURL ?? undefined}
-                  fallback={user()?.username}
-                />
-                <div style={{ position: "absolute", bottom: "-1px", right: "-1px" }}>
-                  <UserStatus.Graphic status={user()?.presence} size="10px" />
+              <button
+                onClick={() => { closeNav(); openModal({ type: "settings", config: "user" }); }}
+                aria-label="Open settings"
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  "text-align": "left",
+                  flex: "1",
+                  "min-width": "0",
+                }}
+              >
+                <div style={{ position: "relative", "flex-shrink": "0" }}>
+                  <Avatar
+                    size={36}
+                    src={user()?.animatedAvatarURL ?? undefined}
+                    fallback={user()?.username}
+                  />
+                  <div style={{ position: "absolute", bottom: "-1px", right: "-1px" }}>
+                    <UserStatus.Graphic status={user()?.presence} size="10px" />
+                  </div>
                 </div>
-              </div>
-              <div style={{ "min-width": "0", flex: "1" }}>
-                <div style={{
-                  "font-size": "14px",
-                  "font-weight": "600",
-                  color: "var(--md-sys-color-on-surface)",
-                  overflow: "hidden",
-                  "text-overflow": "ellipsis",
-                  "white-space": "nowrap",
-                }}>
-                  {user()?.displayName ?? user()?.username}
+                <div style={{ "min-width": "0", flex: "1" }}>
+                  <div style={{
+                    "font-size": "14px",
+                    "font-weight": "600",
+                    color: "var(--md-sys-color-on-surface)",
+                    overflow: "hidden",
+                    "text-overflow": "ellipsis",
+                    "white-space": "nowrap",
+                  }}>
+                    {user()?.displayName ?? user()?.username}
+                  </div>
+                  <div style={{
+                    "font-size": "12px",
+                    color: "var(--md-sys-color-on-surface-variant)",
+                    overflow: "hidden",
+                    "text-overflow": "ellipsis",
+                    "white-space": "nowrap",
+                  }}>
+                    {user()?.username}
+                  </div>
                 </div>
-                <div style={{
-                  "font-size": "12px",
+                <span style={{
+                  "font-family": "Material Symbols Outlined",
+                  "font-size": "18px",
                   color: "var(--md-sys-color-on-surface-variant)",
-                  overflow: "hidden",
-                  "text-overflow": "ellipsis",
-                  "white-space": "nowrap",
+                  "flex-shrink": "0",
                 }}>
-                  {user()?.username}
-                </div>
-              </div>
-              <span style={{
-                "font-family": "Material Symbols Outlined",
-                "font-size": "18px",
-                color: "var(--md-sys-color-on-surface-variant)",
-                "flex-shrink": "0",
-              }}>
-                manage_accounts
-              </span>
-            </button>
+                  manage_accounts
+                </span>
+              </button>
+              <button
+                onClick={() => { closeNav(); openMessages(); }}
+                aria-label="Open messages"
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "center",
+                  padding: "10px 14px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  "flex-shrink": "0",
+                }}
+              >
+                <span style={{
+                  "font-family": "Material Symbols Outlined",
+                  "font-size": "22px",
+                  color: "var(--md-sys-color-on-surface-variant)",
+                }}>
+                  chat_bubble
+                </span>
+                <Show when={unreadDMCount() > 0}>
+                  <div style={{ position: "absolute", top: "4px", right: "4px" }}>
+                    <Unreads.Graphic count={unreadDMCount()} unread />
+                  </div>
+                </Show>
+              </button>
+            </div>
 
             <Show when={server()} fallback={
               <HomeNav
@@ -375,106 +415,6 @@ export function MobileNav(_props: {
                     </Show>
                   </div>
                 </div>
-
-                <Show when={conversations().length > 0}>
-                  <div
-                    style={{
-                      "flex-shrink": "0",
-                      "border-top": "1px solid var(--md-sys-color-outline-variant)",
-                      background: "var(--md-sys-color-surface-container)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        "align-items": "center",
-                        gap: "6px",
-                        padding: "8px 16px 4px",
-                        "font-size": "11px",
-                        "font-weight": "600",
-                        "letter-spacing": "0.08em",
-                        "text-transform": "uppercase",
-                        color: "var(--md-sys-color-on-surface-variant)",
-                      }}
-                    >
-                      Messages
-                      <Show when={unreadDMCount() > 0}>
-                        <Unreads.Graphic count={unreadDMCount()} unread />
-                      </Show>
-                    </div>
-                    <For each={conversations()}>
-                      {(ch) => (
-                        <button
-                          style={{
-                            display: "flex",
-                            "align-items": "center",
-                            gap: "10px",
-                            padding: "8px 16px",
-                            background: "none",
-                            border: "none",
-                            color: "var(--md-sys-color-on-surface)",
-                            cursor: "pointer",
-                            width: "100%",
-                            "text-align": "left",
-                            "font-size": "14px",
-                          }}
-                          onClick={() => {
-                            closeNav();
-                            navigate(`/channel/${ch.id}`);
-                          }}
-                        >
-                          <div style={{ position: "relative", "flex-shrink": "0" }}>
-                            <Avatar
-                              size={32}
-                              src={
-                                ch.type === "DirectMessage"
-                                  ? ch.recipient?.avatarURL ?? undefined
-                                  : ch.iconURL ?? undefined
-                              }
-                              fallback={
-                                ch.type === "DirectMessage"
-                                  ? ch.recipient?.username
-                                  : ch.name
-                              }
-                            />
-                            <Show when={ch.type === "DirectMessage"}>
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  bottom: "-1px",
-                                  right: "-1px",
-                                }}
-                              >
-                                <UserStatus.Graphic
-                                  status={ch.recipient?.presence}
-                                  size="10px"
-                                />
-                              </div>
-                            </Show>
-                          </div>
-                          <span
-                            style={{
-                              overflow: "hidden",
-                              "text-overflow": "ellipsis",
-                              "white-space": "nowrap",
-                              "font-weight": ch.unread ? "600" : "400",
-                            }}
-                          >
-                            <Switch>
-                              <Match when={ch.type === "Group"}>
-                                {ch.name}
-                              </Match>
-                              <Match when={ch.type === "DirectMessage"}>
-                                {ch.recipient?.serverNickname ??
-                                  ch.recipient?.displayName}
-                              </Match>
-                            </Switch>
-                          </span>
-                        </button>
-                      )}
-                    </For>
-                  </div>
-                </Show>
 
                 <Show when={favorites().length > 0}>
                   <div
