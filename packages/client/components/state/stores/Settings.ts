@@ -75,11 +75,6 @@ interface SettingsDefinition {
    * Whether to include 'copy ID' in context menus
    */
   "advanced:copy_id": boolean;
-
-  /**
-   * Whether to include admin panel links in context menus
-   */
-  "advanced:admin_panel": boolean;
 }
 
 /**
@@ -107,7 +102,6 @@ const EXPECTED_TYPES: { [K in keyof SettingsDefinition]: ValueType<K> } = {
   "appearance:show_send_button": "boolean",
   "appearance:compact_mode": "boolean",
   "advanced:copy_id": "boolean",
-  "advanced:admin_panel": "boolean",
 };
 
 /**
@@ -150,7 +144,6 @@ export class Settings extends AbstractStore<"settings", TypeSettings> {
       "appearance:show_send_button": true,
       "appearance:compact_mode": false,
       "advanced:copy_id": false,
-      "advanced:admin_panel": false,
     };
   }
 

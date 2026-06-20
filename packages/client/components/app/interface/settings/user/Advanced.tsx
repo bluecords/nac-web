@@ -35,17 +35,6 @@ export default function AdvancedSettings() {
         >
           Show 'copy ID' in context menus
         </Checkbox>
-        <Checkbox
-          checked={state.settings.getValue("advanced:admin_panel")}
-          onChange={(e) =>
-            state.settings.setValue(
-              "advanced:admin_panel",
-              e.currentTarget.checked,
-            )
-          }
-        >
-          Show admin panel shortcuts in context menus
-        </Checkbox>
       </Column>
       <CategoryButton.Group>
         <For each={AVAILABLE_EXPERIMENTS}>
