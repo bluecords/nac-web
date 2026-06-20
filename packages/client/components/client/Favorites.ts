@@ -18,7 +18,17 @@ function load(): Favorite[] {
 }
 
 function save(favs: Favorite[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(favs));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(favs));
+  } catch (err) {
+    // localStorage can throw (blocked site data, quota exceeded, managed
+    // browser policy, etc). Without this catch, the throw happened before
+    // the reactive signal update below it in addFavorite/removeFavorite,
+    // so the star never even changed color — looked like the click did
+    // nothing at all. Still update the in-memory signal so favoriting at
+    // least works for the current session even if it can't persist.
+    console.error("Failed to save favorites to localStorage:", err);
+  }
 }
 
 const [favorites, setFavorites] = createSignal<Favorite[]>(load());
