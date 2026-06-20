@@ -1,4 +1,4 @@
-import { For, JSX, Show, createMemo } from "solid-js";
+import { For, JSX, Match, Show, Switch, createMemo } from "solid-js";
 
 import { Channel, Server as ServerI } from "stoat.js";
 
@@ -32,8 +32,12 @@ export function MobileNav(_props: {
   const favorites = getFavorites();
   const state = useState();
 
-  const unreadDMCount = createMemo(() =>
-    state.ordering.orderedConversations(client()).filter((ch) => ch.unread).length,
+  const conversations = createMemo(() =>
+    state.ordering.orderedConversations(client()),
+  );
+
+  const unreadDMCount = createMemo(
+    () => conversations().filter((ch) => ch.unread).length,
   );
 
   const server = createMemo(() =>
@@ -147,12 +151,6 @@ export function MobileNav(_props: {
                   size={36}
                   src={user()?.animatedAvatarURL ?? undefined}
                   fallback={user()?.username}
-                  holepunch={unreadDMCount() > 0 ? "top-right" : "none"}
-                  overlay={
-                    <Show when={unreadDMCount() > 0}>
-                      <Unreads.Graphic count={unreadDMCount()} unread />
-                    </Show>
-                  }
                 />
                 <div style={{ position: "absolute", bottom: "-1px", right: "-1px" }}>
                   <UserStatus.Graphic status={user()?.presence} size="10px" />
@@ -377,6 +375,106 @@ export function MobileNav(_props: {
                     </Show>
                   </div>
                 </div>
+
+                <Show when={conversations().length > 0}>
+                  <div
+                    style={{
+                      "flex-shrink": "0",
+                      "border-top": "1px solid var(--md-sys-color-outline-variant)",
+                      background: "var(--md-sys-color-surface-container)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        padding: "8px 16px 4px",
+                        "font-size": "11px",
+                        "font-weight": "600",
+                        "letter-spacing": "0.08em",
+                        "text-transform": "uppercase",
+                        color: "var(--md-sys-color-on-surface-variant)",
+                      }}
+                    >
+                      Messages
+                      <Show when={unreadDMCount() > 0}>
+                        <Unreads.Graphic count={unreadDMCount()} unread />
+                      </Show>
+                    </div>
+                    <For each={conversations()}>
+                      {(ch) => (
+                        <button
+                          style={{
+                            display: "flex",
+                            "align-items": "center",
+                            gap: "10px",
+                            padding: "8px 16px",
+                            background: "none",
+                            border: "none",
+                            color: "var(--md-sys-color-on-surface)",
+                            cursor: "pointer",
+                            width: "100%",
+                            "text-align": "left",
+                            "font-size": "14px",
+                          }}
+                          onClick={() => {
+                            closeNav();
+                            navigate(`/channel/${ch.id}`);
+                          }}
+                        >
+                          <div style={{ position: "relative", "flex-shrink": "0" }}>
+                            <Avatar
+                              size={32}
+                              src={
+                                ch.type === "DirectMessage"
+                                  ? ch.recipient?.avatarURL ?? undefined
+                                  : ch.iconURL ?? undefined
+                              }
+                              fallback={
+                                ch.type === "DirectMessage"
+                                  ? ch.recipient?.username
+                                  : ch.name
+                              }
+                            />
+                            <Show when={ch.type === "DirectMessage"}>
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: "-1px",
+                                  right: "-1px",
+                                }}
+                              >
+                                <UserStatus.Graphic
+                                  status={ch.recipient?.presence}
+                                  size="10px"
+                                />
+                              </div>
+                            </Show>
+                          </div>
+                          <span
+                            style={{
+                              overflow: "hidden",
+                              "text-overflow": "ellipsis",
+                              "white-space": "nowrap",
+                              "font-weight": ch.unread ? "600" : "400",
+                            }}
+                          >
+                            <Switch>
+                              <Match when={ch.type === "Group"}>
+                                {ch.name}
+                              </Match>
+                              <Match when={ch.type === "DirectMessage"}>
+                                {ch.recipient?.serverNickname ??
+                                  ch.recipient?.displayName}
+                              </Match>
+                            </Switch>
+                          </span>
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </Show>
 
                 <Show when={favorites().length > 0}>
                   <div
