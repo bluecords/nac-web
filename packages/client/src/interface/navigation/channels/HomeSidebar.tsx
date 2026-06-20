@@ -373,7 +373,8 @@ function Entry(
             </Match>
             <Match when={local.channel.type === "DirectMessage"}>
               <OverflowingText>
-                {local.channel?.recipient?.displayName}
+                {local.channel?.recipient?.serverNickname ??
+                  local.channel?.recipient?.displayName}
               </OverflowingText>
               <Show when={status()}>
                 <Tooltip
