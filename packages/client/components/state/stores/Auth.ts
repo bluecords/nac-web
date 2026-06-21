@@ -41,6 +41,41 @@ export class Auth extends AbstractStore<"auth", TypeAuth> {
         userId: CONFIGURATION.DEVELOPMENT_USER_ID,
         valid: true,
       });
+      return;
+    }
+
+    // One-time session bootstrap for native WebViews (e.g. Android's
+    // ServerSettingsActivity), which carry their own already-valid session
+    // token but have no normal login flow to obtain one in-browser. This
+    // runs during hydrate(), before the router decides logged-in vs.
+    // logged-out, so it replaces a previous approach that hand-wrote the
+    // localforage IndexedDB record directly (fragile: depends on guessing
+    // localforage's internal DB/store names and key shape) with the same
+    // setSession() path a real login uses. See nac-web#41.
+    if (!this.getSession()?.valid) {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("webview_token");
+      const userId = params.get("webview_user");
+
+      if (token && userId) {
+        this.setSession({
+          _id: "webview",
+          token,
+          userId,
+          valid: true,
+        });
+
+        // Strip credentials from the URL/history immediately — they've
+        // already been consumed into the session store.
+        params.delete("webview_token");
+        params.delete("webview_user");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + (query ? `?${query}` : ""),
+        );
+      }
     }
   }
 
