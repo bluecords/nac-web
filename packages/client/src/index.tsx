@@ -127,7 +127,7 @@ function ServerSettingsRedirect() {
 function InviteRedirect() {
   const params = useParams();
   const client = useClient();
-  const { isLoggedIn } = useClientLifecycle();
+  const { isLoggedIn, lifecycle } = useClientLifecycle();
   const navigate = useNavigate();
   const { showError } = useModals();
   const [attempted, setAttempted] = createSignal(false);
@@ -157,19 +157,29 @@ function InviteRedirect() {
       return; // effect re-runs automatically when isLoggedIn() flips true
     }
 
-    let user;
-    try {
-      user = client()?.user;
-    } catch {
-      user = undefined;
-    }
-
-    if (!user) {
+    // Gate on loadedOnce() (a real tracked signal, flips true only at
+    // State.Connected) rather than reading client()?.user directly. A brand
+    // new account's isLoggedIn() flips true earlier, at State.Connecting --
+    // before the websocket sync has populated client().user -- so a plain
+    // untracked read here would see no user, log "waiting", and then never
+    // re-run (none of this effect's tracked deps change again), silently
+    // dropping the join. Returning users don't hit this because their
+    // client().user is already populated from cache by the time this effect
+    // first runs. See nac-web#44 (regression of #10/#33).
+    if (!lifecycle.loadedOnce()) {
       console.info(
-        "[InviteRedirect] logged in but client.user not ready yet, waiting — code:",
+        "[InviteRedirect] logged in but client not fully loaded yet, waiting — code:",
         code,
       );
-      return; // effect re-runs when this scope's reactive deps change
+      return;
+    }
+
+    if (!client()?.user) {
+      console.warn(
+        "[InviteRedirect] loadedOnce but client.user still missing — code:",
+        code,
+      );
+      return;
     }
 
     setAttempted(true);
