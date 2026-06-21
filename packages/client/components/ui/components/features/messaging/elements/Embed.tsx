@@ -70,6 +70,9 @@ export function Embed(props: { embed: MessageEmbed }) {
             loop={isGIF()}
             muted={isGIF()}
             autoplay={isGIF()}
+            // iOS Safari forces autoplaying <video> into native fullscreen
+            // without this -- same issue as the GIF picker, nac-web#43.
+            playsInline
             controls={!isGIF()}
             preload="metadata"
             // bypass proxy for known GIF providers
