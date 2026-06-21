@@ -36,8 +36,16 @@ export function SettingsModal(
                 height: "100%",
                 "pointer-events": "all",
                 display: "flex",
-                color: "var(--md-sys-color-on-surface)",
-                background: "var(--md-sys-color-surface-container-highest)",
+                // Fallback values matter here specifically: this modal can
+                // open before LoadTheme has finished applying the dynamic
+                // Material You CSS variables to :root (e.g. a cold direct
+                // load of /server/:id/settings via ServerSettingsRedirect,
+                // see nac-web#39) -- an unresolved var() with no fallback
+                // renders as fully transparent, not a default color, which
+                // is what produced the see-through backdrop.
+                color: "var(--md-sys-color-on-surface, #e3e2e6)",
+                background:
+                  "var(--md-sys-color-surface-container-highest, #2b2930)",
               }}
               initial={{ opacity: 0, scale: 1.1 }}
               animate={{ opacity: 1, scale: 1 }}
