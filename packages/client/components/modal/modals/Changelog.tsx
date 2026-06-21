@@ -20,7 +20,12 @@ export interface ChangelogResponse {
   updated_at?: string;
 }
 
-const CHANGELOG_ENDPOINT = "https://changelog.stoat.chat/v1/changelogs/latest";
+// Same-origin, not upstream Stoat's changelog.stoat.chat -- this fork
+// publishes its own changelog (see nac-server/changelogs/), and pointing at
+// upstream's endpoint meant the in-app "What's New" modal was showing
+// unrelated upstream Stoat announcements instead of NAC's actual release
+// notes.
+const CHANGELOG_ENDPOINT = "/v1/changelogs/latest";
 
 export async function fetchLatestChangelog(): Promise<ChangelogResponse | null> {
   try {
