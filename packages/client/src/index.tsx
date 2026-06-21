@@ -82,6 +82,30 @@ function SettingsRedirect() {
 }
 
 /**
+ * Open server settings (/server/:server/settings) and redirect to a clean
+ * server URL so the modal doesn't reopen on every reload.
+ *
+ * Mirrors SettingsRedirect above, but for the server-scoped settings modal
+ * (ServerContextMenu's openSettings()) instead of user settings -- added so
+ * server settings is linkable/deep-linkable, not just reachable via a
+ * client-side-only openModal() call from the context menu. See nac-web#35.
+ */
+function ServerSettingsRedirect() {
+  const params = useParams();
+  const client = useClient();
+  const { openModal } = useModals();
+
+  onMount(() => {
+    const server = client()!.servers.get(params.server);
+    if (server) {
+      openModal({ type: "settings", config: "server", context: server });
+    }
+  });
+
+  return <Navigate href={`/server/${params.server}`} />;
+}
+
+/**
  * Open an invite link (/invite/:code) — handles the AUTHENTICATED case.
  *
  * Unauthenticated visitors never actually reach the body of this component:
@@ -263,6 +287,7 @@ render(
             <Route path="/friends" component={Friends} />
             <Route path="/server/:server/*">
               <Route path="/channel/:channel/*" component={ChannelPage} />
+              <Route path="/settings" component={ServerSettingsRedirect} />
               <Route path="/*" component={ServerHome} />
             </Route>
             <Route path="/channel/:channel/*" component={ChannelPage} />
