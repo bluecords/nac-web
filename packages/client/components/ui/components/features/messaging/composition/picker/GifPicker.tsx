@@ -247,6 +247,12 @@ function GifItem(props: { gif: GifResult }) {
       loop
       autoplay
       muted
+      // Without this, iOS Safari forces every autoplaying <video> into
+      // native fullscreen playback instead of rendering inline -- looks
+      // exactly like "GIFs render full-screen one at a time" and the
+      // fullscreen player swallows the tap meant to select the GIF
+      // ("gets stuck"). See nac-web#43.
+      playsInline
       preload="auto"
       role="listitem"
       src={props.gif.previewMp4}
