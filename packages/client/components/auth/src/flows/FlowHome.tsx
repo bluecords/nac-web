@@ -1,4 +1,4 @@
-import { Match, Show, Switch, createMemo } from "solid-js";
+import { Match, Show, Switch, createMemo, untrack } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { css } from "styled-system/css";
@@ -33,9 +33,19 @@ export default function FlowHome() {
    * second read came back undefined (already cleared) and silently fell
    * back to "/app" — losing the original destination (e.g. an invite link)
    * even though the user was correctly routed back here to resume it.
+   *
+   * Wrapping in createMemo() was not enough on its own: popNextPath() reads
+   * state.layout.nextPath, and a read inside a memo's computation IS a
+   * tracked dependency -- so the memo ended up depending on the very value
+   * it clears, triggering a second self-inflicted run that found nextPath
+   * already empty and fell back to "/app" before the router ever acted on
+   * the first (correct) value. untrack() stops that read from registering
+   * as a dependency. See FlowLogin.tsx (same fix, same root cause) and
+   * nac-web#44 -- this is the actual fix for the bug this comment block
+   * already thought it had fixed.
    */
   const redirectTarget = createMemo(() =>
-    isLoggedIn() ? state.layout.popNextPath() ?? "/app" : undefined,
+    isLoggedIn() ? untrack(() => state.layout.popNextPath()) ?? "/app" : undefined,
   );
 
   return (
