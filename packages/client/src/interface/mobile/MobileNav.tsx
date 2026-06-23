@@ -41,6 +41,12 @@ export function MobileNav(_props: {
     () => conversations().filter((ch) => ch.unread).length,
   );
 
+  const pendingFriendRequests = createMemo(
+    () =>
+      client()?.users.filter((u) => u.relationship === "Incoming").length ??
+      0,
+  );
+
   const server = createMemo(() =>
     params().serverId ? client()?.servers.get(params().serverId!) : undefined,
   );
@@ -196,6 +202,34 @@ export function MobileNav(_props: {
                 }}>
                   manage_accounts
                 </span>
+              </button>
+              <button
+                onClick={() => { closeNav(); navigate("/friends"); }}
+                aria-label="Open friends"
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "center",
+                  padding: "10px 14px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  "flex-shrink": "0",
+                }}
+              >
+                <span style={{
+                  "font-family": "Material Symbols Outlined",
+                  "font-size": "22px",
+                  color: "var(--md-sys-color-on-surface-variant)",
+                }}>
+                  group
+                </span>
+                <Show when={pendingFriendRequests() > 0}>
+                  <div style={{ position: "absolute", top: "4px", right: "4px" }}>
+                    <Unreads.Graphic count={pendingFriendRequests()} unread />
+                  </div>
+                </Show>
               </button>
               <button
                 onClick={() => { closeNav(); openMessages(); }}
