@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createSignal } from "solid-js";
+import { For, Match, Show, Switch, createSignal, onMount } from "solid-js";
 
 import { useLingui } from "@lingui-solid/solid/macro";
 import {
@@ -10,7 +10,16 @@ import {
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
-import { Button, Checkbox2, OverrideSwitch, Row, Text } from "@revolt/ui";
+import { useClient } from "@revolt/client";
+
+import {
+  Button,
+  Checkbox2,
+  CircularProgress,
+  OverrideSwitch,
+  Row,
+  Text,
+} from "@revolt/ui";
 
 type Props =
   | { type: "server_default"; context: Server }
@@ -26,10 +35,27 @@ type Context = API.Channel["channel_type"] | "Server";
  */
 export function ChannelPermissionsEditor(props: Props) {
   const { t } = useLingui();
+  const client = useClient();
 
   const context: Context =
     // eslint-disable-next-line solid/reactivity
     props.context instanceof Server ? "Server" : props.context.type;
+
+  /**
+   * The channel-permission editors (channel_default / channel_role / group)
+   * must never trust the locally cached Channel object as their baseline —
+   * if another client changed overrides since this client's cache was last
+   * synced, saving here full-replaces the bitmask and silently wipes those
+   * changes. Re-fetch the channel fresh on mount and use that as the source
+   * of truth instead.
+   */
+  const needsFreshChannel =
+    props.type === "channel_default" ||
+    props.type === "channel_role" ||
+    props.type === "group";
+
+  const [freshChannel, setFreshChannel] = createSignal<API.Channel>();
+  const [loadFailed, setLoadFailed] = createSignal(false);
 
   /**
    * Current permission value, normalised to [allow, deny]
@@ -44,23 +70,36 @@ export function ChannelPermissionsEditor(props: Props) {
           BigInt(props.context.roles?.get(props.roleId)?.permissions.a || 0),
           BigInt(props.context.roles?.get(props.roleId)?.permissions.d || 0),
         ];
-      case "channel_default":
-        return [
-          BigInt(props.context.defaultPermissions?.a || 0),
-          BigInt(props.context.defaultPermissions?.d || 0),
-        ];
-      case "channel_role":
-        return [
-          BigInt(props.context.rolePermissions?.[props.roleId]?.a || 0),
-          BigInt(props.context.rolePermissions?.[props.roleId]?.d || 0),
-        ];
-      case "group":
+      case "channel_default": {
+        const fresh = freshChannel() as
+          | { default_permissions?: { a: number; d: number } | null }
+          | undefined;
+        const perms =
+          fresh?.default_permissions ?? props.context.defaultPermissions;
+
+        return [BigInt(perms?.a || 0), BigInt(perms?.d || 0)];
+      }
+      case "channel_role": {
+        const fresh = freshChannel() as
+          | { role_permissions?: Record<string, { a: number; d: number }> }
+          | undefined;
+        const perms =
+          fresh?.role_permissions?.[props.roleId] ??
+          props.context.rolePermissions?.[props.roleId];
+
+        return [BigInt(perms?.a || 0), BigInt(perms?.d || 0)];
+      }
+      case "group": {
+        const fresh = freshChannel() as { permissions?: number } | undefined;
         return [
           BigInt(
-            props.context.permissions ?? DEFAULT_PERMISSION_DIRECT_MESSAGE,
+            fresh?.permissions ??
+              props.context.permissions ??
+              DEFAULT_PERMISSION_DIRECT_MESSAGE,
           ),
           BigInt(0),
         ];
+      }
     }
   }
 
@@ -68,6 +107,19 @@ export function ChannelPermissionsEditor(props: Props) {
    * Current edited values
    */
   const [value, setValue] = createSignal(currentValue());
+
+  if (needsFreshChannel) {
+    onMount(() => {
+      const channel = props.context as Channel;
+      client()
+        .api.get(`/channels/${channel.id as ""}`)
+        .then((data) => {
+          setFreshChannel(data);
+          setValue(currentValue());
+        })
+        .catch(() => setLoadFailed(true));
+    });
+  }
 
   /**
    * Whether there is a pending save
@@ -431,83 +483,105 @@ export function ChannelPermissionsEditor(props: Props) {
   }
 
   return (
-    <div class={css({ display: "flex", flexDirection: "column" })}>
-      <For each={Permissions}>
-        {(entry) => (
-          <Show when={description(entry)}>
-            <Show when={entry.heading}>
-              <span class={css({ marginTop: "var(--gap-md)" })}>
-                <Text class="label">{entry.heading}</Text>
-              </span>
-            </Show>
-
-            <Switch
-              fallback={
-                <ChannelPermissionToggle
-                  key={entry.key}
-                  title={entry.title}
-                  description={description(entry) as string}
-                  value={(value()[0] & entry.value) == entry.value}
-                  onChange={() =>
-                    setValue((v) => [v[0] ^ BigInt(entry.value), v[1]])
-                  }
-                  havePermission={
-                    (props.context.permission & entry.value) === entry.value
-                  }
-                />
-              }
+    <Show
+      when={!needsFreshChannel || freshChannel()}
+      fallback={
+        <Show
+          when={loadFailed()}
+          fallback={
+            <div
+              class={css({
+                display: "flex",
+                justifyContent: "center",
+                padding: "var(--gap-lg)",
+              })}
             >
-              <Match when={props.type.startsWith("channel_")}>
-                <ChannelPermissionOverride
-                  key={entry.key}
-                  title={entry.title}
-                  description={description(entry) as string}
-                  value={
-                    (value()[0] & entry.value) == entry.value
-                      ? "allow"
-                      : (value()[1] & entry.value) == entry.value
-                        ? "deny"
-                        : "neutral"
-                  }
-                  onChange={(target) => {
-                    let allow = value()[0] & ~entry.value;
-                    let deny = value()[1] & ~entry.value;
+              <CircularProgress />
+            </div>
+          }
+        >
+          <Text>{t`Failed to load current permissions. Try again.`}</Text>
+        </Show>
+      }
+    >
+      <div class={css({ display: "flex", flexDirection: "column" })}>
+        <For each={Permissions}>
+          {(entry) => (
+            <Show when={description(entry)}>
+              <Show when={entry.heading}>
+                <span class={css({ marginTop: "var(--gap-md)" })}>
+                  <Text class="label">{entry.heading}</Text>
+                </span>
+              </Show>
 
-                    if (target === "allow") allow |= entry.value;
-                    if (target === "deny") deny |= entry.value;
+              <Switch
+                fallback={
+                  <ChannelPermissionToggle
+                    key={entry.key}
+                    title={entry.title}
+                    description={description(entry) as string}
+                    value={(value()[0] & entry.value) == entry.value}
+                    onChange={() =>
+                      setValue((v) => [v[0] ^ BigInt(entry.value), v[1]])
+                    }
+                    havePermission={
+                      (props.context.permission & entry.value) === entry.value
+                    }
+                  />
+                }
+              >
+                <Match when={props.type.startsWith("channel_")}>
+                  <ChannelPermissionOverride
+                    key={entry.key}
+                    title={entry.title}
+                    description={description(entry) as string}
+                    value={
+                      (value()[0] & entry.value) == entry.value
+                        ? "allow"
+                        : (value()[1] & entry.value) == entry.value
+                          ? "deny"
+                          : "neutral"
+                    }
+                    onChange={(target) => {
+                      let allow = value()[0] & ~entry.value;
+                      let deny = value()[1] & ~entry.value;
 
-                    setValue([allow, deny]);
-                  }}
-                  havePermission={
-                    (props.context.permission & entry.value) === entry.value
-                  }
-                />
-              </Match>
-            </Switch>
-          </Show>
-        )}
-      </For>
+                      if (target === "allow") allow |= entry.value;
+                      if (target === "deny") deny |= entry.value;
 
-      <StickyPanel>
-        <Row>
-          <Button
-            isDisabled={!unsavedChanges()}
-            variant="text"
-            size={unsavedChanges() ? "md" : "sm"}
-            onPress={reset}
-          >
-            Reset
-          </Button>
-          <Button
-            isDisabled={!unsavedChanges()}
-            size={unsavedChanges() ? "md" : "sm"}
-            onPress={save}
-          >
-            Save permissions
-          </Button>
-        </Row>
-      </StickyPanel>
-    </div>
+                      setValue([allow, deny]);
+                    }}
+                    havePermission={
+                      (props.context.permission & entry.value) === entry.value
+                    }
+                  />
+                </Match>
+              </Switch>
+            </Show>
+          )}
+        </For>
+
+        <StickyPanel>
+          <Row>
+            <Button
+              isDisabled={!unsavedChanges()}
+              variant="text"
+              size={unsavedChanges() ? "md" : "sm"}
+              onPress={reset}
+            >
+              Reset
+            </Button>
+            <Button
+              isDisabled={!unsavedChanges()}
+              size={unsavedChanges() ? "md" : "sm"}
+              onPress={save}
+            >
+              Save permissions
+            </Button>
+          </Row>
+        </StickyPanel>
+      </div>
+    </Show>
   );
 }
 
