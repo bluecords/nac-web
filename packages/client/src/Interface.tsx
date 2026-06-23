@@ -1,4 +1,4 @@
-import { JSX, Match, Switch, createEffect } from "solid-js";
+import { JSX, Match, Show, Switch, createEffect } from "solid-js";
 
 import { Server } from "stoat.js";
 import { styled } from "styled-system/jsx";
@@ -13,12 +13,13 @@ import { useModals } from "@revolt/modal";
 import { Navigate, useBeforeLeave, useLocation } from "@revolt/routing";
 import { useState } from "@revolt/state";
 import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
-import { CircularProgress } from "@revolt/ui";
+import { Button, CircularProgress, Text } from "@revolt/ui";
 
 import { MobileMembersOverlay } from "./interface/mobile/MobileMembersOverlay";
 import { MobileMessagesOverlay } from "./interface/mobile/MobileMessagesOverlay";
 import { MobileNavProvider } from "./interface/mobile/MobileNavContext";
 import { Sidebar } from "./interface/Sidebar";
+import { pendingUpdate } from "./serviceWorkerInterface";
 
 /**
  * Application layout
@@ -89,6 +90,18 @@ const Interface = (props: { children: JSX.Element }) => {
         }}
       >
         <Titlebar />
+        <Show when={pendingUpdate()}>
+          {(applyUpdate) => (
+            <UpdateBanner>
+              <Text size="small">
+                A new version is ready — click Refresh to update.
+              </Text>
+              <Button variant="text" onPress={() => applyUpdate()()}>
+                Refresh
+              </Button>
+            </UpdateBanner>
+          )}
+        </Show>
         <Switch fallback={<CircularProgress />}>
           <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>
             <Navigate href="/login" />
@@ -137,6 +150,21 @@ const Interface = (props: { children: JSX.Element }) => {
     </MobileNavProvider>
   );
 };
+
+/**
+ * Banner shown when a new app version is ready, prompting a manual refresh
+ */
+const UpdateBanner = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "var(--gap-md)",
+    padding: "var(--gap-sm) var(--gap-md)",
+    color: "var(--md-sys-color-on-primary-container)",
+    background: "var(--md-sys-color-primary-container)",
+  },
+});
 
 /**
  * Parent container
