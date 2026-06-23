@@ -93,7 +93,9 @@ const Interface = (props: { children: JSX.Element }) => {
         <Show when={pendingUpdate()}>
           {(applyUpdate) => (
             <UpdateBanner>
-              <Text size="small">A new version of NAC is available.</Text>
+              <Text size="small">
+                A new version is ready — click Refresh to update.
+              </Text>
               <Button variant="text" onPress={() => applyUpdate()()}>
                 Refresh
               </Button>
