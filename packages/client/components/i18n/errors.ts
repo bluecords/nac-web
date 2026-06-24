@@ -79,6 +79,9 @@ export function useError() {
         case "EmptyMessage":
           return t`This message is empty and has not been sent.`;
         case "FailedValidation":
+          if (err.error.toLowerCase().includes("username")) {
+            return t`Usernames can only contain letters, numbers, underscores, periods, and hyphens (no spaces), and must be 2-32 characters long.`;
+          }
           return t`Something is wrong with your request, ${err.error}.`;
         case "FeatureDisabled":
           return t`This feature is currently disabled.`;
