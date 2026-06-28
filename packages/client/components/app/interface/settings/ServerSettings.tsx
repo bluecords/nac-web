@@ -22,6 +22,7 @@ import Overview from "./server/Overview";
 import { ListServerBans } from "./server/bans/ListBans";
 import { EmojiList } from "./server/emojis/EmojiList";
 import { ListServerInvites } from "./server/invites/ListServerInvites";
+import { RoleClassesEditor } from "./server/roles/RoleClassesEditor";
 import { ServerRoleEditor } from "./server/roles/ServerRoleEditor";
 import { ServerRoleOverview } from "./server/roles/ServerRoleOverview";
 
@@ -74,6 +75,8 @@ const Config: SettingsConfiguration<Server> = {
         return <EmojiList server={server} />;
       case "roles":
         return <ServerRoleOverview context={server} />;
+      case "role_classes":
+        return <RoleClassesEditor context={server} />;
       case "invites":
         return <ListServerInvites server={server} />;
       case "bans":
@@ -137,6 +140,12 @@ const Config: SettingsConfiguration<Server> = {
               id: "roles",
               icon: <BiSolidFlagAlt size={20} />,
               title: <Trans>Roles</Trans>,
+            },
+            {
+              hidden: !server.havePermission("ManagePermissions"),
+              id: "role_classes",
+              icon: <BiSolidFlagAlt size={20} />,
+              title: <Trans>Role Classes</Trans>,
             },
             {
               hidden: !server.havePermission("ManageServer"),
