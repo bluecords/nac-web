@@ -141,9 +141,19 @@ export function MessageComposition(props: Props) {
 
   const maxMessageLength = () => {
     const cl = client();
-    return cl.configured()
+    const instanceDefault = cl.configured()
       ? (cl.configuration?.features.limits.default.message_length ?? 2000)
       : 2000;
+
+    // Role/class-aware resolution, mirroring exactly what the server will
+    // actually enforce on send - see Server.resolveMaxMessageLength.
+    const server = props.channel.server;
+    const member = server?.member;
+    if (!server || !member) return instanceDefault;
+
+    const resolved = server.resolveMaxMessageLength(member.roles);
+    if (resolved === null) return Infinity; // Admin class - unlimited
+    return resolved ?? instanceDefault;
   };
 
   const isAlmostTooLong = () => messageLength() > maxMessageLength() - 200;
