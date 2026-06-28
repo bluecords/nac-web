@@ -26,7 +26,8 @@ type Props =
   | { type: "server_role"; context: Server; roleId: string }
   | { type: "channel_default"; context: Channel }
   | { type: "channel_role"; context: Channel; roleId: string }
-  | { type: "group"; context: Channel };
+  | { type: "group"; context: Channel }
+  | { type: "class_default"; context: Server; roleClass: "admin" | "member" | "free" };
 
 type Context = API.Channel["channel_type"] | "Server";
 
@@ -100,6 +101,10 @@ export function ChannelPermissionsEditor(props: Props) {
           BigInt(0),
         ];
       }
+      case "class_default": {
+        const classDefault = props.context.getClassDefault(props.roleClass);
+        return [classDefault.permissions.a, classDefault.permissions.d];
+      }
     }
   }
 
@@ -167,6 +172,12 @@ export function ChannelPermissionsEditor(props: Props) {
         break;
       case "group":
         props.context.setPermissions(undefined, Number(value()[0]));
+        break;
+      case "class_default":
+        props.context.setClassDefaultPermissions(props.roleClass, {
+          allow: Number(value()[0]),
+          deny: Number(value()[1]),
+        });
         break;
     }
   }

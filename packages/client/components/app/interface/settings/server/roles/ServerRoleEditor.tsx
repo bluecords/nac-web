@@ -12,6 +12,7 @@ import {
   Column,
   Form2,
   IconButton,
+  MenuItem,
   Row,
   Text,
 } from "@revolt/ui";
@@ -44,13 +45,24 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
     icon: createFormControl<string | File[] | null>(role()?.icon?.originalUrl),
     colour: createFormControl(role()?.colour || null),
     hoist: createFormControl(role()?.hoist == true),
+    class: createFormControl(role()?.class ?? "none"),
+    maxMessageLength: createFormControl(
+      role()?.maxMessageLength?.toString() ?? "",
+    ),
   });
   /* eslint-enable solid/reactivity */
 
   const [pickerRef, setPickerRef] = createSignal<HTMLDivElement>();
 
   async function onSubmit() {
-    const changes: API.DataEditRole = {
+    // `class`/`max_message_length`/the `Class`/`MaxMessageLength` remove-field
+    // variants are newer than the generated stoat-api types (see ServerRole.ts) -
+    // widen the type locally rather than waiting on a regenerated package.
+    const changes: API.DataEditRole & {
+      class?: string;
+      max_message_length?: number;
+      remove: string[];
+    } = {
       remove: [],
     };
 
@@ -84,7 +96,28 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
       changes.colour = editGroup.controls.colour.value ?? null;
     }
 
-    await props.context.editRole(props.roleId, changes);
+    if (editGroup.controls.class.isDirty) {
+      const value = editGroup.controls.class.value;
+      if (value === "none") {
+        changes.remove.push("Class");
+      } else {
+        changes.class = value;
+      }
+    }
+
+    if (editGroup.controls.maxMessageLength.isDirty) {
+      const value = editGroup.controls.maxMessageLength.value.trim();
+      if (!value) {
+        changes.remove.push("MaxMessageLength");
+      } else {
+        changes.max_message_length = Number(value);
+      }
+    }
+
+    await props.context.editRole(
+      props.roleId,
+      changes as unknown as API.DataEditRole,
+    );
 
     if (uploadError) throw uploadError;
   }
@@ -94,6 +127,10 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
     editGroup.controls.icon.setValue(role()?.icon?.originalUrl || null);
     editGroup.controls.hoist.setValue(role()?.hoist || false);
     editGroup.controls.colour.setValue(role()?.colour || null);
+    editGroup.controls.class.setValue(role()?.class ?? "none");
+    editGroup.controls.maxMessageLength.setValue(
+      role()?.maxMessageLength?.toString() ?? "",
+    );
   }
 
   const submit = Form2.useSubmitHandler(editGroup, onSubmit, onReset);
@@ -212,6 +249,43 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
               Display this role above others
             </Form2.Checkbox>
           </Column>
+
+          <Column>
+            <Form2.Select
+              label={t`Permission Class`}
+              control={editGroup.controls.class}
+            >
+              <MenuItem value="none">
+                <Trans>None (this role's permissions are self-contained)</Trans>
+              </MenuItem>
+              <MenuItem value="admin">
+                <Trans>Admin</Trans>
+              </MenuItem>
+              <MenuItem value="member">
+                <Trans>Member</Trans>
+              </MenuItem>
+              <MenuItem value="free">
+                <Trans>Free</Trans>
+              </MenuItem>
+            </Form2.Select>
+            <Text class="body">
+              <Trans>
+                Roles in a class inherit that class's default permissions and
+                message length live - editing the class's defaults (in Role
+                Classes settings) changes every role in it immediately, unless
+                this role explicitly overrides a given permission below.
+              </Trans>
+            </Text>
+          </Column>
+
+          <Form2.TextField
+            type="number"
+            min={1}
+            name="maxMessageLength"
+            control={editGroup.controls.maxMessageLength}
+            label={t`Max Message Length Override`}
+            placeholder={t`Inherit from class / instance default`}
+          />
 
           <Column>
             <Row>
