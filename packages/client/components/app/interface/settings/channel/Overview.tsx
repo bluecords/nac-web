@@ -157,18 +157,18 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
               <Text class="label">
                 <Trans>Keywords</Trans>
               </Text>
-              <Text size="small" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+              <Hint>
                 <Trans>
                   Define the tags members can apply when creating a post.
                 </Trans>
-              </Text>
+              </Hint>
               <Row wrap gap="sm">
                 <For each={allowedTags()}>
                   {(tag) => (
                     <TagChip>
                       {tag}
                       <IconButton
-                        size="x-small"
+                        size="xs"
                         onPress={() =>
                           setAllowedTags((t) => t.filter((x) => x !== tag))
                         }
@@ -315,6 +315,13 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
     </Column>
   );
 }
+
+const Hint = styled("span", {
+  base: {
+    fontSize: "12px",
+    color: "var(--md-sys-color-on-surface-variant)",
+  },
+});
 
 const TagChip = styled("span", {
   base: {

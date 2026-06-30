@@ -8,7 +8,7 @@ import { Markdown } from "@revolt/markdown";
 import { useModals } from "@revolt/modal";
 import { Avatar, Button, IconButton, Text } from "@revolt/ui";
 
-import { MessageContextMenu } from "../../../components/app/menus/MessageContextMenu";
+import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
 import MdArrowBack from "@material-design-icons/svg/outlined/arrow_back.svg?component-solid";
 
