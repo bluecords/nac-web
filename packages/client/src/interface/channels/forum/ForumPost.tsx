@@ -98,6 +98,13 @@ export function ForumPost(props: Props) {
             <Text class="label" size="large">
               {post().forumTitle}
             </Text>
+            <Show when={post().forumTags?.length}>
+              <TagRow>
+                <For each={post().forumTags}>
+                  {(tag) => <Tag>{tag}</Tag>}
+                </For>
+              </TagRow>
+            </Show>
             <Author>
               <Avatar src={post().author?.animatedAvatarURL} size={24} />
               <Text class="label" size="small">
@@ -194,6 +201,24 @@ const PostBody = styled("div", {
     padding: "var(--gap-md)",
     borderRadius: "var(--borderRadius-lg)",
     background: "var(--md-sys-color-surface-container)",
+  },
+});
+
+const TagRow = styled("div", {
+  base: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "var(--gap-xs)",
+  },
+});
+
+const Tag = styled("span", {
+  base: {
+    padding: "2px 8px",
+    borderRadius: "var(--borderRadius-full)",
+    background: "var(--md-sys-color-secondary-container)",
+    color: "var(--md-sys-color-on-secondary-container)",
+    fontSize: "12px",
   },
 });
 
