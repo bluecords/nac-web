@@ -8,6 +8,8 @@ import { Markdown } from "@revolt/markdown";
 import { useModals } from "@revolt/modal";
 import { Avatar, Button, IconButton, Text } from "@revolt/ui";
 
+import { MessageContextMenu } from "../../../components/app/menus/MessageContextMenu";
+
 import MdArrowBack from "@material-design-icons/svg/outlined/arrow_back.svg?component-solid";
 
 interface Props {
@@ -88,7 +90,11 @@ export function ForumPost(props: Props) {
 
       <Show when={post()}>
         {(post) => (
-          <PostBody>
+          <PostBody
+            use:floating={{
+              contextMenu: () => <MessageContextMenu message={post()} />,
+            }}
+          >
             <Text class="label" size="large">
               {post().forumTitle}
             </Text>
@@ -111,7 +117,12 @@ export function ForumPost(props: Props) {
 
       <For each={replies()}>
         {(reply) => (
-          <ReplyCard isSolution={reply.forumSolution}>
+          <ReplyCard
+            isSolution={reply.forumSolution}
+            use:floating={{
+              contextMenu: () => <MessageContextMenu message={reply} />,
+            }}
+          >
             <Author>
               <Avatar src={reply.author?.animatedAvatarURL} size={24} />
               <Text class="label" size="small">

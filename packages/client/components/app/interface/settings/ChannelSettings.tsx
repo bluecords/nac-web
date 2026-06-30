@@ -82,6 +82,7 @@ const Config: SettingsConfiguration<Channel> = {
           case "Group":
             return <ChannelPermissionsEditor type="group" context={channel} />;
           case "TextChannel":
+          case "ForumChannel":
             return <ChannelPermissionsOverview context={channel} />;
           default:
             return null;
