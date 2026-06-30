@@ -29,7 +29,10 @@ type Props =
   | { type: "group"; context: Channel }
   | { type: "class_default"; context: Server; roleClass: "admin" | "member" | "free" };
 
-type Context = API.Channel["channel_type"] | "Server";
+// TODO: drop the "ForumChannel" widening once stoat-api is
+// regenerated/republished with ForumChannel on the Channel schema
+// (nac-server#10) - Channel.type already carries this literal at runtime.
+type Context = API.Channel["channel_type"] | "ForumChannel" | "Server";
 
 /**
  * Generic editor for any channel permissions

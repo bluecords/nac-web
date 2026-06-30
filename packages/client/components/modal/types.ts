@@ -77,6 +77,11 @@ export type Modals =
       cb?: (channel: Channel) => void;
     }
   | {
+      type: "create_forum_post";
+      channel: Channel;
+      cb?: (message: Message) => void;
+    }
+  | {
       type: "create_group";
       client: Client;
     }
