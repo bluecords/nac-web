@@ -1,8 +1,9 @@
 import { createFormControl, createFormGroup } from "solid-forms";
-import { Match, Show, Switch } from "solid-js";
+import { For, Match, Show, Switch, createSignal } from "solid-js";
 
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import type { API } from "stoat.js";
+import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
 import { CONFIGURATION } from "@revolt/common";
@@ -12,10 +13,14 @@ import {
   CircularProgress,
   Column,
   Form2,
+  IconButton,
   MenuItem,
   Row,
   Text,
 } from "@revolt/ui";
+
+import MdAdd from "@material-design-icons/svg/outlined/add.svg?component-solid";
+import MdClose from "@material-design-icons/svg/outlined/close.svg?component-solid";
 
 import { ChannelSettingsProps } from "../ChannelSettings";
 
@@ -39,6 +44,14 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
       props.channel.slowmode.toString() ?? "0",
     ),
   });
+
+  const [allowedTags, setAllowedTags] = createSignal<string[]>(
+    props.channel.allowedTags ?? [],
+  );
+  const [solutionEnabled, setSolutionEnabled] = createSignal(
+    props.channel.solutionEnabled ?? false,
+  );
+  const [newTag, setNewTag] = createSignal("");
   /* eslint-enable solid/reactivity */
 
   function onReset() {
@@ -96,10 +109,22 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
       changes.slowmode = Number(editGroup.controls.slowmode.value);
     }
 
-    await props.channel.edit(changes);
+    const forumChanges: Record<string, unknown> = {};
+    if (props.channel.type === "ForumChannel") {
+      forumChanges.allowed_tags = allowedTags();
+      forumChanges.solution_enabled = solutionEnabled();
+    }
+
+    await props.channel.edit({ ...changes, ...forumChanges } as Parameters<typeof props.channel.edit>[0]);
   }
 
   const submit = Form2.useSubmitHandler(editGroup, onSubmit, onReset);
+
+  const isForumDirty = () =>
+    props.channel.type === "ForumChannel" &&
+    (JSON.stringify(allowedTags()) !==
+      JSON.stringify(props.channel.allowedTags ?? []) ||
+      solutionEnabled() !== (props.channel.solutionEnabled ?? false));
 
   return (
     <Column gap="xl">
@@ -127,6 +152,88 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
             label={t`Channel Description`}
             placeholder={t`This channel is about...`}
           />
+          <Show when={props.channel.type === "ForumChannel"}>
+            <Column gap="sm">
+              <Text class="label">
+                <Trans>Keywords</Trans>
+              </Text>
+              <Text size="small" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+                <Trans>
+                  Define the tags members can apply when creating a post.
+                </Trans>
+              </Text>
+              <Row wrap gap="sm">
+                <For each={allowedTags()}>
+                  {(tag) => (
+                    <TagChip>
+                      {tag}
+                      <IconButton
+                        size="x-small"
+                        onPress={() =>
+                          setAllowedTags((t) => t.filter((x) => x !== tag))
+                        }
+                      >
+                        <MdClose />
+                      </IconButton>
+                    </TagChip>
+                  )}
+                </For>
+              </Row>
+              <Row gap="sm">
+                <input
+                  style={{
+                    flex: 1,
+                    padding: "6px 12px",
+                    "border-radius": "var(--borderRadius-md)",
+                    background: "var(--md-sys-color-surface-container-highest)",
+                    color: "var(--md-sys-color-on-surface)",
+                    border: "none",
+                    font: "inherit",
+                  }}
+                  placeholder={t`Add keyword...`}
+                  value={newTag()}
+                  onInput={(e) => setNewTag(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const tag = newTag().trim();
+                      if (tag && !allowedTags().includes(tag)) {
+                        setAllowedTags((t) => [...t, tag]);
+                      }
+                      setNewTag("");
+                    }
+                  }}
+                />
+                <IconButton
+                  onPress={() => {
+                    const tag = newTag().trim();
+                    if (tag && !allowedTags().includes(tag)) {
+                      setAllowedTags((t) => [...t, tag]);
+                    }
+                    setNewTag("");
+                  }}
+                >
+                  <MdAdd />
+                </IconButton>
+              </Row>
+            </Column>
+            <Column gap="sm">
+              <Text class="label">
+                <Trans>Solution Marking</Trans>
+              </Text>
+              <Row gap="md" style={{ "align-items": "center" }}>
+                <input
+                  type="checkbox"
+                  id="solution-enabled"
+                  checked={solutionEnabled()}
+                  onChange={(e) => setSolutionEnabled(e.currentTarget.checked)}
+                />
+                <label for="solution-enabled" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+                  <Trans>Allow post authors to mark a reply as the solution</Trans>
+                </label>
+              </Row>
+            </Column>
+          </Show>
           <Show when={props.channel.type === "TextChannel"}>
             <Form2.Select
               label={t`Channel Slowmode`}
@@ -169,7 +276,7 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
           </Show>
           <Row>
             <Form2.Reset group={editGroup} onReset={onReset} />
-            <Form2.Submit group={editGroup} requireDirty>
+            <Form2.Submit group={editGroup} requireDirty={!isForumDirty()}>
               <Trans>Save</Trans>
             </Form2.Submit>
             <Show when={editGroup.isPending}>
@@ -208,3 +315,16 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
     </Column>
   );
 }
+
+const TagChip = styled("span", {
+  base: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    padding: "2px 8px 2px 10px",
+    borderRadius: "var(--borderRadius-full)",
+    background: "var(--md-sys-color-secondary-container)",
+    color: "var(--md-sys-color-on-secondary-container)",
+    fontSize: "12px",
+  },
+});

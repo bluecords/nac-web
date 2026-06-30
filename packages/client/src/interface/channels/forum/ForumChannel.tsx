@@ -27,13 +27,26 @@ export function ForumChannel(props: ChannelPageProps) {
 
   const [selectedPostId, setSelectedPostId] = createSignal<string>();
 
-  const [posts, { refetch }] = createResource(
+  const [postData, { refetch }] = createResource(
     () => props.channel.id,
     async () => {
       const messages = await props.channel.fetchMessages({ sort: "Latest" });
-      return messages.filter((message) => message.forumTitle);
+      const posts = messages.filter((message) => message.forumTitle);
+      const replyCounts = new Map<string, number>();
+      for (const message of messages) {
+        if (!message.forumTitle) {
+          for (const replyId of message.replyIds ?? []) {
+            replyCounts.set(replyId, (replyCounts.get(replyId) ?? 0) + 1);
+          }
+        }
+      }
+      return { posts, replyCounts };
     },
   );
+
+  const posts = () => postData()?.posts;
+  const replyCountFor = (postId: string) =>
+    postData()?.replyCounts.get(postId) ?? 0;
 
   function reactionCount(message: Message): number {
     let total = 0;
@@ -94,6 +107,11 @@ export function ForumChannel(props: ChannelPageProps) {
                       <Show when={reactionCount(post)}>
                         <Text class="label" size="small">
                           {reactionCount(post)} ▲
+                        </Text>
+                      </Show>
+                      <Show when={replyCountFor(post.id)}>
+                        <Text class="label" size="small">
+                          {replyCountFor(post.id)} 💬
                         </Text>
                       </Show>
                     </Meta>
