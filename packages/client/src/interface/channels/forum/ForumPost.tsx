@@ -2,6 +2,7 @@ import { For, Show, createResource, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Channel } from "stoat.js";
+import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { Markdown } from "@revolt/markdown";
@@ -11,6 +12,7 @@ import { Avatar, Button, IconButton, Text } from "@revolt/ui";
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
 import MdArrowBack from "@material-design-icons/svg/outlined/arrow_back.svg?component-solid";
+import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
 interface Props {
   channel: Channel;
@@ -90,14 +92,22 @@ export function ForumPost(props: Props) {
 
       <Show when={post()}>
         {(post) => (
-          <PostBody
-            use:floating={{
-              contextMenu: () => <MessageContextMenu message={post()} />,
-            }}
-          >
-            <Text class="label" size="large">
-              {post().forumTitle}
-            </Text>
+          <PostBody>
+            <TitleRow>
+              <Text class="label" size="large">
+                {post().forumTitle}
+              </Text>
+              <div
+                class={menuTrigger}
+                title="Post actions"
+                use:floating={{
+                  contextMenu: () => <MessageContextMenu message={post()} />,
+                  contextMenuHandler: "click",
+                }}
+              >
+                <MdMoreVert />
+              </div>
+            </TitleRow>
             <Show when={post().forumTags?.length}>
               <TagRow>
                 <For each={post().forumTags}>
@@ -124,12 +134,7 @@ export function ForumPost(props: Props) {
 
       <For each={replies()}>
         {(reply) => (
-          <ReplyCard
-            isSolution={reply.forumSolution}
-            use:floating={{
-              contextMenu: () => <MessageContextMenu message={reply} />,
-            }}
-          >
+          <ReplyCard isSolution={reply.forumSolution}>
             <Author>
               <Avatar src={reply.author?.animatedAvatarURL} size={24} />
               <Text class="label" size="small">
@@ -140,6 +145,16 @@ export function ForumPost(props: Props) {
                   <Trans>Solution</Trans>
                 </SolutionBadge>
               </Show>
+              <div
+                class={menuTrigger}
+                title="Reply actions"
+                use:floating={{
+                  contextMenu: () => <MessageContextMenu message={reply} />,
+                  contextMenuHandler: "click",
+                }}
+              >
+                <MdMoreVert />
+              </div>
             </Author>
             <Markdown content={reply.content} />
             <Show when={props.channel.solutionEnabled}>
@@ -201,6 +216,30 @@ const PostBody = styled("div", {
     padding: "var(--gap-md)",
     borderRadius: "var(--borderRadius-lg)",
     background: "var(--md-sys-color-surface-container)",
+  },
+});
+
+const TitleRow = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--gap-sm)",
+  },
+});
+
+const menuTrigger = css({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  marginLeft: "auto",
+  width: "32px",
+  height: "32px",
+  borderRadius: "var(--borderRadius-full)",
+  cursor: "pointer",
+  color: "var(--md-sys-color-on-surface-variant)",
+  "&:hover": {
+    background: "var(--md-sys-color-surface-container-highest)",
   },
 });
 

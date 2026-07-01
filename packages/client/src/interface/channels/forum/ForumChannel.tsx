@@ -2,10 +2,14 @@ import { For, Show, createResource, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Message } from "stoat.js";
+import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { useModals } from "@revolt/modal";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
+import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
+
+import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
 import { ChannelHeader } from "../ChannelHeader";
 import { ChannelPageProps } from "../ChannelPage";
@@ -116,6 +120,17 @@ export function ForumChannel(props: ChannelPageProps) {
                       </Show>
                     </Meta>
                   </PostInfo>
+                  <div
+                    class={postMenuTrigger}
+                    title="Post actions"
+                    use:floating={{
+                      contextMenu: () => <MessageContextMenu message={post} />,
+                      contextMenuHandler: "click",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MdMoreVert />
+                  </div>
                 </PostCard>
               )}
             </For>
@@ -183,6 +198,22 @@ const PostInfo = styled("div", {
     flexDirection: "column",
     gap: "var(--gap-xs)",
     minWidth: 0,
+    flexGrow: 1,
+  },
+});
+
+const postMenuTrigger = css({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  width: "32px",
+  height: "32px",
+  borderRadius: "var(--borderRadius-full)",
+  cursor: "pointer",
+  color: "var(--md-sys-color-on-surface-variant)",
+  "&:hover": {
+    background: "var(--md-sys-color-surface-container-highest)",
   },
 });
 
