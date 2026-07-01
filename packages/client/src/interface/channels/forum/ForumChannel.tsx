@@ -52,6 +52,43 @@ export function ForumChannel(props: ChannelPageProps) {
   const replyCountFor = (postId: string) =>
     postData()?.replyCounts.get(postId) ?? 0;
 
+  // Tags available to filter by: the channel's defined keywords, falling
+  // back to whatever tags actually appear on posts (covers channels whose
+  // allowed_tags were cleared but old posts still carry tags).
+  const filterableTags = () => {
+    const defined = props.channel.allowedTags ?? [];
+    if (defined.length) return defined;
+    const seen = new Set<string>();
+    for (const post of posts() ?? []) {
+      for (const tag of post.forumTags ?? []) seen.add(tag);
+    }
+    return [...seen];
+  };
+
+  const [activeFilters, setActiveFilters] = createSignal<Set<string>>(
+    new Set(),
+  );
+
+  function toggleFilter(tag: string) {
+    setActiveFilters((current) => {
+      const next = new Set(current);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  }
+
+  // A post is shown if no filter is active, or it carries at least one of
+  // the selected tags (OR / "match any").
+  const visiblePosts = () => {
+    const filters = activeFilters();
+    const all = posts() ?? [];
+    if (!filters.size) return all;
+    return all.filter((post) =>
+      post.forumTags?.some((tag) => filters.has(tag)),
+    );
+  };
+
   function reactionCount(message: Message): number {
     let total = 0;
     for (const users of message.reactions.values()) {
@@ -83,6 +120,27 @@ export function ForumChannel(props: ChannelPageProps) {
               </Button>
             </Toolbar>
 
+            <Show when={filterableTags().length}>
+              <FilterBar>
+                <FilterChip
+                  active={activeFilters().size === 0}
+                  onClick={() => setActiveFilters(new Set())}
+                >
+                  <Trans>All</Trans>
+                </FilterChip>
+                <For each={filterableTags()}>
+                  {(tag) => (
+                    <FilterChip
+                      active={activeFilters().has(tag)}
+                      onClick={() => toggleFilter(tag)}
+                    >
+                      {tag}
+                    </FilterChip>
+                  )}
+                </For>
+              </FilterBar>
+            </Show>
+
             <Show when={posts()?.length === 0}>
               <Empty>
                 <Text class="label" size="large">
@@ -91,7 +149,17 @@ export function ForumChannel(props: ChannelPageProps) {
               </Empty>
             </Show>
 
-            <For each={posts()}>
+            <Show
+              when={posts()?.length !== 0 && visiblePosts().length === 0}
+            >
+              <Empty>
+                <Text class="label" size="large">
+                  <Trans>No posts match the selected tags.</Trans>
+                </Text>
+              </Empty>
+            </Show>
+
+            <For each={visiblePosts()}>
               {(post) => (
                 <PostCard onClick={() => setSelectedPostId(post.id)}>
                   <Avatar src={post.author?.animatedAvatarURL} size={32} />
@@ -166,6 +234,38 @@ const Toolbar = styled("div", {
   base: {
     display: "flex",
     justifyContent: "flex-end",
+  },
+});
+
+const FilterBar = styled("div", {
+  base: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "var(--gap-sm)",
+  },
+});
+
+const FilterChip = styled("button", {
+  base: {
+    padding: "4px 12px",
+    borderRadius: "var(--borderRadius-full)",
+    fontSize: "13px",
+    cursor: "pointer",
+    border: "1px solid var(--md-sys-color-outline-variant)",
+    background: "transparent",
+    color: "var(--md-sys-color-on-surface-variant)",
+    "&:hover": {
+      background: "var(--md-sys-color-surface-container-high)",
+    },
+  },
+  variants: {
+    active: {
+      true: {
+        background: "var(--md-sys-color-secondary-container)",
+        color: "var(--md-sys-color-on-secondary-container)",
+        borderColor: "transparent",
+      },
+    },
   },
 });
 
