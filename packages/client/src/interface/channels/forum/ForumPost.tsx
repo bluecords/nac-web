@@ -85,6 +85,40 @@ export function ForumPost(props: Props) {
     }
   }
 
+  // Tag editing for the root post. The author picks from the channel's
+  // allowed_tags; saved via message.edit({ forum_tags }).
+  const [editingTags, setEditingTags] = createSignal(false);
+  const [tagDraft, setTagDraft] = createSignal<Set<string>>(new Set());
+
+  function startEditTags(post: Message) {
+    setTagDraft(new Set(post.forumTags ?? []));
+    setEditingTags(true);
+  }
+
+  function toggleTag(tag: string) {
+    setTagDraft((current) => {
+      const next = new Set(current);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  }
+
+  async function saveTags(post: Message) {
+    try {
+      // forum_tags isn't in stoat-api's DataEditMessage type yet, but is sent
+      // over the wire and handled by the backend. TODO: drop the local field
+      // once stoat-api is regenerated from a release with it (nac-server#10).
+      const data: Parameters<Message["edit"]>[0] & { forum_tags?: string[] } = {
+        forum_tags: [...tagDraft()],
+      };
+      await post.edit(data);
+      setEditingTags(false);
+    } catch (error) {
+      showError(error);
+    }
+  }
+
   const [post] = createResource(
     () => props.postId,
     (id) => props.channel.fetchMessage(id),
@@ -163,11 +197,53 @@ export function ForumPost(props: Props) {
                 <MdMoreVert />
               </div>
             </TitleRow>
-            <Show when={post().forumTags?.length}>
+            <Show
+              when={editingTags()}
+              fallback={
+                <Show
+                  when={
+                    post().forumTags?.length ||
+                    (post().author?.self && props.channel.allowedTags?.length)
+                  }
+                >
+                  <TagRow>
+                    <For each={post().forumTags}>
+                      {(tag) => <Tag>{tag}</Tag>}
+                    </For>
+                    <Show
+                      when={
+                        post().author?.self && props.channel.allowedTags?.length
+                      }
+                    >
+                      <TagEditButton onClick={() => startEditTags(post())}>
+                        <Trans>Edit tags</Trans>
+                      </TagEditButton>
+                    </Show>
+                  </TagRow>
+                </Show>
+              }
+            >
               <TagRow>
-                <For each={post().forumTags}>
-                  {(tag) => <Tag>{tag}</Tag>}
+                <For each={props.channel.allowedTags}>
+                  {(tag) => (
+                    <TagToggle
+                      active={tagDraft().has(tag)}
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                    </TagToggle>
+                  )}
                 </For>
+                <Button size="sm" onPress={() => saveTags(post())}>
+                  <Trans>Save</Trans>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="text"
+                  onPress={() => setEditingTags(false)}
+                >
+                  <Trans>Cancel</Trans>
+                </Button>
               </TagRow>
             </Show>
             <Author>
@@ -323,6 +399,45 @@ const Tag = styled("span", {
     background: "var(--md-sys-color-secondary-container)",
     color: "var(--md-sys-color-on-secondary-container)",
     fontSize: "12px",
+  },
+});
+
+const TagToggle = styled("button", {
+  base: {
+    padding: "2px 10px",
+    borderRadius: "var(--borderRadius-full)",
+    fontSize: "12px",
+    cursor: "pointer",
+    border: "1px solid var(--md-sys-color-outline-variant)",
+    background: "transparent",
+    color: "var(--md-sys-color-on-surface-variant)",
+    "&:hover": {
+      background: "var(--md-sys-color-surface-container-high)",
+    },
+  },
+  variants: {
+    active: {
+      true: {
+        background: "var(--md-sys-color-secondary-container)",
+        color: "var(--md-sys-color-on-secondary-container)",
+        borderColor: "transparent",
+      },
+    },
+  },
+});
+
+const TagEditButton = styled("button", {
+  base: {
+    padding: "2px 8px",
+    borderRadius: "var(--borderRadius-full)",
+    fontSize: "12px",
+    cursor: "pointer",
+    border: "none",
+    background: "transparent",
+    color: "var(--md-sys-color-primary)",
+    "&:hover": {
+      textDecoration: "underline",
+    },
   },
 });
 
