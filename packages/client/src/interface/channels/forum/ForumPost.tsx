@@ -1,12 +1,13 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { Channel } from "stoat.js";
+import { Channel, Message } from "stoat.js";
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { Markdown } from "@revolt/markdown";
 import { useModals } from "@revolt/modal";
+import { useState } from "@revolt/state";
 import { Avatar, Button, IconButton, Text } from "@revolt/ui";
 
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
@@ -27,8 +28,62 @@ interface Props {
  * not kept live via the gateway. Sending a reply locally refetches.
  */
 export function ForumPost(props: Props) {
+  const state = useState();
   const { showError } = useModals();
   const [replyContent, setReplyContent] = createSignal("");
+
+  /**
+   * Inline editor for a forum post or reply.
+   *
+   * The shared MessageContextMenu "Edit" action sets the global editing draft
+   * (`state.draft.setEditingMessage`), which is normally rendered by the text
+   * channel composer. The forum view doesn't mount that composer, so without
+   * this the Edit action silently no-ops. Render an inline editor here for
+   * whichever message is currently being edited, saving via `message.edit`.
+   */
+  function editor(message: Message) {
+    return (
+      <EditBox>
+        <textarea
+          ref={(el) => queueMicrotask(() => el.focus())}
+          value={state.draft.editingMessageContent ?? ""}
+          onInput={(event) =>
+            state.draft.setEditingMessageContent(event.currentTarget.value)
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              state.draft.setEditingMessage(undefined);
+            }
+          }}
+        />
+        <EditActions>
+          <Button
+            size="sm"
+            variant="text"
+            onPress={() => state.draft.setEditingMessage(undefined)}
+          >
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button size="sm" onPress={() => saveEdit(message)}>
+            <Trans>Save</Trans>
+          </Button>
+        </EditActions>
+      </EditBox>
+    );
+  }
+
+  async function saveEdit(message: Message) {
+    const content = (state.draft.editingMessageContent ?? "").trim();
+    try {
+      if (content && content !== message.content) {
+        await message.edit({ content });
+      }
+      state.draft.setEditingMessage(undefined);
+    } catch (error) {
+      showError(error);
+    }
+  }
 
   const [post] = createResource(
     () => props.postId,
@@ -121,7 +176,12 @@ export function ForumPost(props: Props) {
                 {post().author?.username}
               </Text>
             </Author>
-            <Markdown content={post().content} />
+            <Show
+              when={state.draft.editingMessageId === post().id}
+              fallback={<Markdown content={post().content} />}
+            >
+              {editor(post())}
+            </Show>
           </PostBody>
         )}
       </Show>
@@ -156,7 +216,12 @@ export function ForumPost(props: Props) {
                 <MdMoreVert />
               </div>
             </Author>
-            <Markdown content={reply.content} />
+            <Show
+              when={state.draft.editingMessageId === reply.id}
+              fallback={<Markdown content={reply.content} />}
+            >
+              {editor(reply)}
+            </Show>
             <Show when={props.channel.solutionEnabled}>
               <Button
                 size="sm"
@@ -300,6 +365,33 @@ const SolutionBadge = styled("span", {
     background: "var(--md-sys-color-primary)",
     color: "var(--md-sys-color-on-primary)",
     fontSize: "12px",
+  },
+});
+
+const EditBox = styled("div", {
+  base: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "var(--gap-sm)",
+
+    "& textarea": {
+      minHeight: "60px",
+      borderRadius: "var(--borderRadius-md)",
+      background: "var(--md-sys-color-surface-container-highest)",
+      color: "var(--md-sys-color-on-surface)",
+      border: "none",
+      padding: "var(--gap-sm)",
+      resize: "vertical",
+      font: "inherit",
+    },
+  },
+});
+
+const EditActions = styled("div", {
+  base: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "var(--gap-sm)",
   },
 });
 
