@@ -5,6 +5,7 @@ import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
 import { Navigate, useParams } from "@revolt/routing";
+import { CircularProgress } from "@revolt/ui";
 
 import { AgeGate } from "./AgeGate";
 import { ForumChannel } from "./forum/ForumChannel";
@@ -47,6 +48,12 @@ export const ChannelPage: Component = () => {
       <Switch fallback="Unknown channel type!">
         <Match when={!channel()}>
           <Navigate href={"../.."} />
+        </Match>
+        {/* Channel exists but its type hasn't hydrated yet (first-load race).
+            Show a loader instead of briefly flashing "Unknown channel type!"
+            until `type` populates and the right Match below takes over. */}
+        <Match when={!channel()!.type}>
+          <CircularProgress />
         </Match>
         <Match when={TEXT_CHANNEL_TYPES.includes(channel()!.type)}>
           <AgeGate
