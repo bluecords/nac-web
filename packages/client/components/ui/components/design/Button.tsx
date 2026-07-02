@@ -154,7 +154,7 @@ export function Button(props: Props) {
   );
 }
 
-const button = cva({
+export const button = cva({
   base: {
     ...typography.raw(),
 
