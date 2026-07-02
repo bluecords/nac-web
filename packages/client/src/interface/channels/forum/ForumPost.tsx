@@ -12,6 +12,8 @@ import { Avatar, Button, IconButton, Text } from "@revolt/ui";
 
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
+import { fetchAllMessages } from "./fetchAllMessages";
+
 import MdArrowBack from "@material-design-icons/svg/outlined/arrow_back.svg?component-solid";
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
@@ -127,7 +129,7 @@ export function ForumPost(props: Props) {
   const [replies, { refetch: refetchReplies }] = createResource(
     () => props.postId,
     async (id) => {
-      const messages = await props.channel.fetchMessages({ sort: "Latest" });
+      const messages = await fetchAllMessages(props.channel);
       return messages
         .filter((message) => message.replyIds?.includes(id))
         .reverse();

@@ -14,6 +14,7 @@ import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?compon
 import { ChannelHeader } from "../ChannelHeader";
 import { ChannelPageProps } from "../ChannelPage";
 
+import { fetchAllMessages } from "./fetchAllMessages";
 import { ForumPost } from "./ForumPost";
 
 /**
@@ -34,7 +35,7 @@ export function ForumChannel(props: ChannelPageProps) {
   const [postData, { refetch }] = createResource(
     () => props.channel.id,
     async () => {
-      const messages = await props.channel.fetchMessages({ sort: "Latest" });
+      const messages = await fetchAllMessages(props.channel);
       const posts = messages.filter((message) => message.forumTitle);
       const replyCounts = new Map<string, number>();
       for (const message of messages) {
