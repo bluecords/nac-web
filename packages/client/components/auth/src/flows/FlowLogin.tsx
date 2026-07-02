@@ -10,7 +10,9 @@ import {
   Button,
   CircularProgress,
   Column,
+  LinkButton,
   Row,
+  SubmitButton,
   Text,
   iconSize,
 } from "@revolt/ui";
@@ -116,14 +118,12 @@ export default function FlowLogin() {
                 </Column>
               </Show>
               <Row align justify>
-                <a href="..">
-                  <Button variant="text">
-                    <MdArrowBack {...iconSize("1.2em")} /> <Trans>Back</Trans>
-                  </Button>
-                </a>
-                <Button type="submit">
+                <LinkButton href=".." variant="text">
+                  <MdArrowBack {...iconSize("1.2em")} /> <Trans>Back</Trans>
+                </LinkButton>
+                <SubmitButton>
                   <Trans>Login</Trans>
-                </Button>
+                </SubmitButton>
               </Row>
             </Form>
           </>
@@ -160,9 +160,9 @@ export default function FlowLogin() {
               >
                 <MdArrowBack {...iconSize("1.2em")} /> <Trans>Cancel</Trans>
               </Button>
-              <Button type="submit">
+              <SubmitButton>
                 <Trans>Confirm</Trans>
-              </Button>
+              </SubmitButton>
             </Row>
           </Form>
         </Match>

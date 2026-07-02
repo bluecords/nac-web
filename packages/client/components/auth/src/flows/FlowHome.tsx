@@ -6,7 +6,7 @@ import { css } from "styled-system/css";
 import { useClientLifecycle } from "@revolt/client";
 import { TransitionType } from "@revolt/client/Controller";
 import { Navigate } from "@revolt/routing";
-import { Button, Column } from "@revolt/ui";
+import { Button, Column, LinkButton } from "@revolt/ui";
 
 import { useState } from "@revolt/state";
 import nacIcon from "../../../../scripts/assets_fallback/web/android-chrome-192x192.png";
@@ -88,20 +88,12 @@ export default function FlowHome() {
             </Column>
 
             <Column>
-              <a href="/login/auth">
-                <Column>
-                  <Button>
-                    <Trans>Log In</Trans>
-                  </Button>
-                </Column>
-              </a>
-              <a href="/login/create">
-                <Column>
-                  <Button variant="plain">
-                    <Trans>Create Account</Trans>
-                  </Button>
-                </Column>
-              </a>
+              <LinkButton href="/login/auth">
+                <Trans>Log In</Trans>
+              </LinkButton>
+              <LinkButton href="/login/create" variant="plain">
+                <Trans>Create Account</Trans>
+              </LinkButton>
             </Column>
           </Column>
         </>
