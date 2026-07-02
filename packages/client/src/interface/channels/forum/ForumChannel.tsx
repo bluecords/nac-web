@@ -162,14 +162,14 @@ export function ForumChannel(props: ChannelPageProps) {
             <For each={visiblePosts()}>
               {(post) => (
                 <PostCard onClick={() => setSelectedPostId(post.id)}>
-                  <Avatar src={post.author?.animatedAvatarURL} size={32} />
+                  <Avatar src={post.animatedAvatarURL} size={32} />
                   <PostInfo>
                     <Text class="label" size="large">
                       {post.forumTitle}
                     </Text>
                     <Meta>
                       <Text class="label" size="small">
-                        {post.author?.username}
+                        {post.username}
                       </Text>
                       <Show when={post.forumTags?.length}>
                         <For each={post.forumTags}>

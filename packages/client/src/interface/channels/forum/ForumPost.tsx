@@ -247,9 +247,9 @@ export function ForumPost(props: Props) {
               </TagRow>
             </Show>
             <Author>
-              <Avatar src={post().author?.animatedAvatarURL} size={24} />
+              <Avatar src={post().animatedAvatarURL} size={24} />
               <Text class="label" size="small">
-                {post().author?.username}
+                {post().username}
               </Text>
             </Author>
             <Show
@@ -272,9 +272,9 @@ export function ForumPost(props: Props) {
         {(reply) => (
           <ReplyCard isSolution={reply.forumSolution}>
             <Author>
-              <Avatar src={reply.author?.animatedAvatarURL} size={24} />
+              <Avatar src={reply.animatedAvatarURL} size={24} />
               <Text class="label" size="small">
-                {reply.author?.username}
+                {reply.username}
               </Text>
               <Show when={reply.forumSolution}>
                 <SolutionBadge>
