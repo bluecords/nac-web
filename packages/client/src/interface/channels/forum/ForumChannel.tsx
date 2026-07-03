@@ -24,7 +24,7 @@ import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?compon
 import { ChannelHeader } from "../ChannelHeader";
 import { ChannelPageProps } from "../ChannelPage";
 
-import { fetchAllMessages } from "./fetchAllMessages";
+import { fetchForumPosts } from "./fetchForumPosts";
 import { ForumPost } from "./ForumPost";
 
 type SortMode = "latest" | "top" | "active";
@@ -35,12 +35,16 @@ type SortMode = "latest" | "top" | "active";
  * Shows a list of posts (root messages with `forumTitle` set) in the
  * channel; selecting one shows the post + its replies via `ForumPost`.
  *
- * Live updates: the channel's messages are fetched once when the channel
- * changes, then kept current via the gateway (`messageCreate`/`messageDelete`)
- * - the same idiom the text-channel `Messages` view uses. New posts and replies
- * from other members, and remote deletions, now reflect without a reload. Post
- * titles, tags, content and reaction counts already update reactively because
- * the `Message` objects themselves are reactive.
+ * Efficient fetch: the post list is the channel's forum root posts only,
+ * pulled via the backend `forum_root` filter (`fetchForumPosts`) instead of
+ * fetching every message to derive them. Reply counts come from a single
+ * backend aggregation endpoint rather than scanning all replies client-side.
+ *
+ * Live updates: seeded from those two fetches, then kept current via the
+ * gateway (`messageCreate`/`messageDelete`) - the same idiom the text-channel
+ * `Messages` view uses. A new/removed root post updates the list; a new/removed
+ * reply adjusts the affected post's reply count. Post titles, tags, content and
+ * reaction counts already update reactively via the reactive `Message` objects.
  */
 export function ForumChannel(props: ChannelPageProps) {
   const client = useClient();
@@ -48,15 +52,35 @@ export function ForumChannel(props: ChannelPageProps) {
 
   const [selectedPostId, setSelectedPostId] = createSignal<string>();
 
-  // Every message in the channel (posts + replies). Posts and reply counts are
-  // derived from this; keeping the whole list live means one pair of gateway
-  // handlers covers both the post list and each post's reply count.
-  const [messages, setMessages] = createSignal<Message[]>([]);
+  // The forum root posts, and reply counts keyed by post id. Both come from the
+  // backend (roots via the forum_root filter, counts via the aggregation
+  // endpoint) and are then kept live by the gateway handlers below.
+  const [posts, setPosts] = createSignal<Message[]>([]);
+  const [replyCounts, setReplyCounts] = createSignal<Map<string, number>>(
+    new Map(),
+  );
   const [loading, setLoading] = createSignal(true);
 
+  // Reply counts for every post in the channel, from the backend aggregation
+  // endpoint. Not in stoat-api's typed routes yet (nac-server#10), hence the
+  // local cast.
+  async function fetchReplyCounts(): Promise<Map<string, number>> {
+    const data =
+      (await (
+        client().api as unknown as {
+          get: (path: string) => Promise<Record<string, number>>;
+        }
+      ).get(`/channels/${props.channel.id}/forum/reply-counts`)) ?? {};
+    return new Map(Object.entries(data));
+  }
+
   async function reload() {
-    const msgs = await fetchAllMessages(props.channel);
-    setMessages(msgs);
+    const [roots, counts] = await Promise.all([
+      fetchForumPosts(client(), props.channel),
+      fetchReplyCounts(),
+    ]);
+    setPosts(roots);
+    setReplyCounts(counts);
     setLoading(false);
   }
 
@@ -66,12 +90,17 @@ export function ForumChannel(props: ChannelPageProps) {
       () => props.channel.id,
       () => {
         setLoading(true);
-        setMessages([]);
+        setPosts([]);
+        setReplyCounts(new Map());
         let cancelled = false;
-        fetchAllMessages(props.channel)
-          .then((msgs) => {
+        Promise.all([
+          fetchForumPosts(client(), props.channel),
+          fetchReplyCounts(),
+        ])
+          .then(([roots, counts]) => {
             if (cancelled) return;
-            setMessages(msgs);
+            setPosts(roots);
+            setReplyCounts(counts);
             setLoading(false);
           })
           .catch(() => {
@@ -84,16 +113,37 @@ export function ForumChannel(props: ChannelPageProps) {
     ),
   );
 
-  function onMessageCreate(message: Message) {
-    if (message.channelId !== props.channel.id) return;
-    setMessages((prev) =>
-      prev.some((m) => m.id === message.id) ? prev : [message, ...prev],
-    );
+  function bumpReplyCounts(replyIds: string[] | undefined, delta: number) {
+    if (!replyIds?.length) return;
+    setReplyCounts((prev) => {
+      const next = new Map(prev);
+      for (const id of replyIds) {
+        next.set(id, Math.max(0, (next.get(id) ?? 0) + delta));
+      }
+      return next;
+    });
   }
 
-  function onMessageDelete(message: { id: string; channelId: string }) {
+  function onMessageCreate(message: Message) {
     if (message.channelId !== props.channel.id) return;
-    setMessages((prev) => prev.filter((m) => m.id !== message.id));
+    if (message.forumTitle) {
+      setPosts((prev) =>
+        prev.some((m) => m.id === message.id) ? prev : [message, ...prev],
+      );
+    } else {
+      bumpReplyCounts(message.replyIds, +1);
+    }
+  }
+
+  function onMessageDelete(message: {
+    id: string;
+    channelId: string;
+    replyIds?: string[];
+  }) {
+    if (message.channelId !== props.channel.id) return;
+    setPosts((prev) => prev.filter((m) => m.id !== message.id));
+    // If the deleted message was a reply, drop it from the affected counts.
+    bumpReplyCounts(message.replyIds, -1);
   }
 
   onMount(() => {
@@ -106,20 +156,6 @@ export function ForumChannel(props: ChannelPageProps) {
     const c = client();
     c.removeListener("messageCreate", onMessageCreate);
     c.removeListener("messageDelete", onMessageDelete);
-  });
-
-  const posts = createMemo(() => messages().filter((m) => m.forumTitle));
-
-  const replyCounts = createMemo(() => {
-    const counts = new Map<string, number>();
-    for (const message of messages()) {
-      if (!message.forumTitle) {
-        for (const replyId of message.replyIds ?? []) {
-          counts.set(replyId, (counts.get(replyId) ?? 0) + 1);
-        }
-      }
-    }
-    return counts;
   });
 
   const replyCountFor = (postId: string) => replyCounts().get(postId) ?? 0;
