@@ -8,7 +8,7 @@ import { styled } from "styled-system/jsx";
 import { Markdown } from "@revolt/markdown";
 import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
-import { Avatar, Button, IconButton, Text } from "@revolt/ui";
+import { Attachment, Avatar, Button, IconButton, Text } from "@revolt/ui";
 
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
@@ -260,6 +260,13 @@ export function ForumPost(props: Props) {
             >
               {editor(post())}
             </Show>
+            <Show when={post().attachments}>
+              <For each={post().attachments}>
+                {(attachment) => (
+                  <Attachment message={post()} file={attachment} />
+                )}
+              </For>
+            </Show>
           </PostBody>
         )}
       </Show>
@@ -299,6 +306,13 @@ export function ForumPost(props: Props) {
               fallback={<Markdown content={reply.content} />}
             >
               {editor(reply)}
+            </Show>
+            <Show when={reply.attachments}>
+              <For each={reply.attachments}>
+                {(attachment) => (
+                  <Attachment message={reply} file={attachment} />
+                )}
+              </For>
             </Show>
             <Show when={props.channel.solutionEnabled}>
               <Button
