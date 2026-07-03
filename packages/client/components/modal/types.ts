@@ -255,6 +255,9 @@ export type Modals =
       context?: any;
     }
   | {
+      type: "sponsor_nac";
+    }
+  | {
       type: "signed_out";
     }
   | {
