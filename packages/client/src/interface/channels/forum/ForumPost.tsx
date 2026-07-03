@@ -1,10 +1,20 @@
-import { For, Show, createResource, createSignal } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createResource,
+  createSignal,
+  on,
+  onCleanup,
+  onMount,
+} from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Channel, Message } from "stoat.js";
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
+import { useClient } from "@revolt/client";
 import { Markdown } from "@revolt/markdown";
 import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
@@ -30,6 +40,7 @@ interface Props {
  * not kept live via the gateway. Sending a reply locally refetches.
  */
 export function ForumPost(props: Props) {
+  const client = useClient();
   const state = useState();
   const { showError } = useModals();
   const [replyContent, setReplyContent] = createSignal("");
@@ -126,15 +137,76 @@ export function ForumPost(props: Props) {
     (id) => props.channel.fetchMessage(id),
   );
 
-  const [replies, { refetch: refetchReplies }] = createResource(
-    () => props.postId,
-    async (id) => {
-      const messages = await fetchAllMessages(props.channel);
-      return messages
-        .filter((message) => message.replyIds?.includes(id))
-        .reverse();
-    },
+  // Replies to this post, kept live via the gateway. Seeded from a full fetch
+  // (a reply is any message pointing at this post), then patched on
+  // messageCreate/messageDelete - the same idiom the text-channel view uses.
+  // Ordered oldest-first (fetch returns newest-first, so reverse); new replies
+  // append at the end. Content edits and solution mark/unmark reflect
+  // reactively because the Message objects are reactive, so no update handler
+  // is needed for those.
+  const [replies, setReplies] = createSignal<Message[]>([]);
+
+  async function reloadReplies() {
+    const messages = await fetchAllMessages(props.channel);
+    setReplies(
+      messages
+        .filter((message) => message.replyIds?.includes(props.postId))
+        .reverse(),
+    );
+  }
+
+  createEffect(
+    on(
+      () => props.postId,
+      (id) => {
+        setReplies([]);
+        let cancelled = false;
+        fetchAllMessages(props.channel)
+          .then((messages) => {
+            if (cancelled) return;
+            setReplies(
+              messages
+                .filter((message) => message.replyIds?.includes(id))
+                .reverse(),
+            );
+          })
+          .catch(() => {});
+        onCleanup(() => {
+          cancelled = true;
+        });
+      },
+    ),
   );
+
+  function onMessageCreate(message: Message) {
+    if (message.channelId !== props.channel.id) return;
+    if (!message.replyIds?.includes(props.postId)) return;
+    setReplies((prev) =>
+      prev.some((m) => m.id === message.id) ? prev : [...prev, message],
+    );
+  }
+
+  function onMessageDelete(message: { id: string; channelId: string }) {
+    if (message.channelId !== props.channel.id) return;
+    // The post itself was deleted remotely - leave the (now empty) post view.
+    if (message.id === props.postId) {
+      props.onBack();
+      return;
+    }
+    setReplies((prev) => prev.filter((m) => m.id !== message.id));
+  }
+
+  onMount(() => {
+    const c = client();
+    c.addListener("messageCreate", onMessageCreate);
+    c.addListener("messageDelete", onMessageDelete);
+  });
+
+  onCleanup(() => {
+    const c = client();
+    c.removeListener("messageCreate", onMessageCreate);
+    c.removeListener("messageDelete", onMessageDelete);
+  });
 
   async function sendReply() {
     const content = replyContent().trim();
@@ -147,7 +219,8 @@ export function ForumPost(props: Props) {
       });
 
       setReplyContent("");
-      refetchReplies();
+      // The gateway echo appends it live; reload as a fallback for reliability.
+      reloadReplies();
     } catch (error) {
       showError(error);
     }
@@ -155,7 +228,7 @@ export function ForumPost(props: Props) {
 
   async function toggleSolution(replyId: string, isSolution: boolean) {
     try {
-      const reply = (await replies())?.find((m) => m.id === replyId);
+      const reply = replies().find((m) => m.id === replyId);
       if (!reply) return;
 
       if (isSolution) {
@@ -163,8 +236,6 @@ export function ForumPost(props: Props) {
       } else {
         await reply.markSolution();
       }
-
-      refetchReplies();
     } catch (error) {
       showError(error);
     }
