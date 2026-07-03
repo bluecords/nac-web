@@ -1,13 +1,23 @@
-import { For, Show, createResource, createSignal } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+  onMount,
+} from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Message } from "stoat.js";
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
+import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
+import { useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
-import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
@@ -17,41 +27,102 @@ import { ChannelPageProps } from "../ChannelPage";
 import { fetchAllMessages } from "./fetchAllMessages";
 import { ForumPost } from "./ForumPost";
 
+type SortMode = "latest" | "top" | "active";
+
 /**
  * Forum channel component
  *
  * Shows a list of posts (root messages with `forumTitle` set) in the
  * channel; selecting one shows the post + its replies via `ForumPost`.
  *
- * Known v1 limitation: the post list is fetched once on mount/refresh
- * rather than kept live via the gateway - creating a post locally
- * refetches, but another member's new post won't appear until reload.
+ * Live updates: the channel's messages are fetched once when the channel
+ * changes, then kept current via the gateway (`messageCreate`/`messageDelete`)
+ * - the same idiom the text-channel `Messages` view uses. New posts and replies
+ * from other members, and remote deletions, now reflect without a reload. Post
+ * titles, tags, content and reaction counts already update reactively because
+ * the `Message` objects themselves are reactive.
  */
 export function ForumChannel(props: ChannelPageProps) {
+  const client = useClient();
   const { openModal } = useModals();
 
   const [selectedPostId, setSelectedPostId] = createSignal<string>();
 
-  const [postData, { refetch }] = createResource(
-    () => props.channel.id,
-    async () => {
-      const messages = await fetchAllMessages(props.channel);
-      const posts = messages.filter((message) => message.forumTitle);
-      const replyCounts = new Map<string, number>();
-      for (const message of messages) {
-        if (!message.forumTitle) {
-          for (const replyId of message.replyIds ?? []) {
-            replyCounts.set(replyId, (replyCounts.get(replyId) ?? 0) + 1);
-          }
-        }
-      }
-      return { posts, replyCounts };
-    },
+  // Every message in the channel (posts + replies). Posts and reply counts are
+  // derived from this; keeping the whole list live means one pair of gateway
+  // handlers covers both the post list and each post's reply count.
+  const [messages, setMessages] = createSignal<Message[]>([]);
+  const [loading, setLoading] = createSignal(true);
+
+  async function reload() {
+    const msgs = await fetchAllMessages(props.channel);
+    setMessages(msgs);
+    setLoading(false);
+  }
+
+  // (Re)load whenever the channel changes.
+  createEffect(
+    on(
+      () => props.channel.id,
+      () => {
+        setLoading(true);
+        setMessages([]);
+        let cancelled = false;
+        fetchAllMessages(props.channel)
+          .then((msgs) => {
+            if (cancelled) return;
+            setMessages(msgs);
+            setLoading(false);
+          })
+          .catch(() => {
+            if (!cancelled) setLoading(false);
+          });
+        onCleanup(() => {
+          cancelled = true;
+        });
+      },
+    ),
   );
 
-  const posts = () => postData()?.posts;
-  const replyCountFor = (postId: string) =>
-    postData()?.replyCounts.get(postId) ?? 0;
+  function onMessageCreate(message: Message) {
+    if (message.channelId !== props.channel.id) return;
+    setMessages((prev) =>
+      prev.some((m) => m.id === message.id) ? prev : [message, ...prev],
+    );
+  }
+
+  function onMessageDelete(message: { id: string; channelId: string }) {
+    if (message.channelId !== props.channel.id) return;
+    setMessages((prev) => prev.filter((m) => m.id !== message.id));
+  }
+
+  onMount(() => {
+    const c = client();
+    c.addListener("messageCreate", onMessageCreate);
+    c.addListener("messageDelete", onMessageDelete);
+  });
+
+  onCleanup(() => {
+    const c = client();
+    c.removeListener("messageCreate", onMessageCreate);
+    c.removeListener("messageDelete", onMessageDelete);
+  });
+
+  const posts = createMemo(() => messages().filter((m) => m.forumTitle));
+
+  const replyCounts = createMemo(() => {
+    const counts = new Map<string, number>();
+    for (const message of messages()) {
+      if (!message.forumTitle) {
+        for (const replyId of message.replyIds ?? []) {
+          counts.set(replyId, (counts.get(replyId) ?? 0) + 1);
+        }
+      }
+    }
+    return counts;
+  });
+
+  const replyCountFor = (postId: string) => replyCounts().get(postId) ?? 0;
 
   // Tags available to filter by: the channel's defined keywords, falling
   // back to whatever tags actually appear on posts (covers channels whose
@@ -60,7 +131,7 @@ export function ForumChannel(props: ChannelPageProps) {
     const defined = props.channel.allowedTags ?? [];
     if (defined.length) return defined;
     const seen = new Set<string>();
-    for (const post of posts() ?? []) {
+    for (const post of posts()) {
       for (const tag of post.forumTags ?? []) seen.add(tag);
     }
     return [...seen];
@@ -79,16 +150,7 @@ export function ForumChannel(props: ChannelPageProps) {
     });
   }
 
-  // A post is shown if no filter is active, or it carries at least one of
-  // the selected tags (OR / "match any").
-  const visiblePosts = () => {
-    const filters = activeFilters();
-    const all = posts() ?? [];
-    if (!filters.size) return all;
-    return all.filter((post) =>
-      post.forumTags?.some((tag) => filters.has(tag)),
-    );
-  };
+  const [sortMode, setSortMode] = createSignal<SortMode>("latest");
 
   function reactionCount(message: Message): number {
     let total = 0;
@@ -98,11 +160,47 @@ export function ForumChannel(props: ChannelPageProps) {
     return total;
   }
 
+  // Posts after tag filtering, ordered by the active sort. "Latest" is newest
+  // first (ULID ids sort chronologically); "Top" ranks by total reactions -
+  // the "better than Discord" signal from the original design; "Most active"
+  // ranks by reply count. Both fall back to newest-first on ties.
+  const visiblePosts = createMemo(() => {
+    const filters = activeFilters();
+    let list = posts();
+    if (filters.size) {
+      list = list.filter((post) =>
+        post.forumTags?.some((tag) => filters.has(tag)),
+      );
+    }
+
+    const mode = sortMode();
+    return [...list].sort((a, b) => {
+      if (mode === "top") {
+        const diff = reactionCount(b) - reactionCount(a);
+        if (diff) return diff;
+      } else if (mode === "active") {
+        const diff = replyCountFor(b.id) - replyCountFor(a.id);
+        if (diff) return diff;
+      }
+      return b.id.localeCompare(a.id);
+    });
+  });
+
+  // One-line body preview for the post list. Collapsed to the first non-empty
+  // line and truncated, so scanning the list gives a sense of each post beyond
+  // its title.
+  function snippet(post: Message): string {
+    const content = post.content?.trim();
+    if (!content) return "";
+    const firstLine = content.split("\n").find((line) => line.trim()) ?? "";
+    return firstLine.length > 140 ? firstLine.slice(0, 140) + "…" : firstLine;
+  }
+
   function openCreatePost() {
     openModal({
       type: "create_forum_post",
       channel: props.channel,
-      cb: () => refetch(),
+      cb: () => reload(),
     });
   }
 
@@ -116,6 +214,26 @@ export function ForumChannel(props: ChannelPageProps) {
         fallback={
           <Container>
             <Toolbar>
+              <SortBar>
+                <FilterChip
+                  active={sortMode() === "latest"}
+                  onClick={() => setSortMode("latest")}
+                >
+                  <Trans>Latest</Trans>
+                </FilterChip>
+                <FilterChip
+                  active={sortMode() === "top"}
+                  onClick={() => setSortMode("top")}
+                >
+                  <Trans>Top</Trans>
+                </FilterChip>
+                <FilterChip
+                  active={sortMode() === "active"}
+                  onClick={() => setSortMode("active")}
+                >
+                  <Trans>Most active</Trans>
+                </FilterChip>
+              </SortBar>
               <Button onPress={openCreatePost}>
                 <Trans>New post</Trans>
               </Button>
@@ -142,7 +260,7 @@ export function ForumChannel(props: ChannelPageProps) {
               </FilterBar>
             </Show>
 
-            <Show when={posts()?.length === 0}>
+            <Show when={!loading() && posts().length === 0}>
               <Empty>
                 <Text class="label" size="large">
                   <Trans>No posts yet - be the first!</Trans>
@@ -150,9 +268,7 @@ export function ForumChannel(props: ChannelPageProps) {
               </Empty>
             </Show>
 
-            <Show
-              when={posts()?.length !== 0 && visiblePosts().length === 0}
-            >
+            <Show when={posts().length !== 0 && visiblePosts().length === 0}>
               <Empty>
                 <Text class="label" size="large">
                   <Trans>No posts match the selected tags.</Trans>
@@ -168,6 +284,9 @@ export function ForumChannel(props: ChannelPageProps) {
                     <Text class="label" size="large">
                       {post.forumTitle}
                     </Text>
+                    <Show when={snippet(post)}>
+                      <Snippet>{snippet(post)}</Snippet>
+                    </Show>
                     <Meta>
                       <Text class="label" size="small">
                         {post.username}
@@ -211,7 +330,7 @@ export function ForumChannel(props: ChannelPageProps) {
           postId={selectedPostId()!}
           onBack={() => {
             setSelectedPostId(undefined);
-            refetch();
+            reload();
           }}
         />
       </Show>
@@ -234,7 +353,18 @@ const Container = styled("div", {
 const Toolbar = styled("div", {
   base: {
     display: "flex",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "var(--gap-md)",
+    flexWrap: "wrap",
+  },
+});
+
+const SortBar = styled("div", {
+  base: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "var(--gap-sm)",
   },
 });
 
@@ -300,6 +430,17 @@ const PostInfo = styled("div", {
     gap: "var(--gap-xs)",
     minWidth: 0,
     flexGrow: 1,
+  },
+});
+
+const Snippet = styled("span", {
+  base: {
+    fontSize: "13px",
+    color: "var(--md-sys-color-on-surface-variant)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
   },
 });
 
