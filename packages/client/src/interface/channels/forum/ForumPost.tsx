@@ -16,15 +16,25 @@ import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
 import { Markdown } from "@revolt/markdown";
+import { startsWithPackPUA } from "@revolt/markdown/emoji/UnicodeEmoji";
 import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
-import { Attachment, Avatar, Button, IconButton, Text } from "@revolt/ui";
+import {
+  Attachment,
+  Avatar,
+  Button,
+  IconButton,
+  Reactions,
+  Text,
+} from "@revolt/ui";
+import { CompositionMediaPicker } from "@revolt/ui/components/features/messaging/composition";
 
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
 import { fetchAllMessages } from "./fetchAllMessages";
 
 import MdArrowBack from "@material-design-icons/svg/outlined/arrow_back.svg?component-solid";
+import MdEmojiEmotions from "@material-design-icons/svg/outlined/emoji_emotions.svg?component-solid";
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
 interface Props {
@@ -96,6 +106,63 @@ export function ForumPost(props: Props) {
     } catch (error) {
       showError(error);
     }
+  }
+
+  /**
+   * Reaction chips + an always-visible "add reaction" button for a post or
+   * reply. Forums have no hover toolbar (and hover doesn't exist on touch), so
+   * unlike the text-channel message view the react affordance must be explicit
+   * or there's no way to react at all. Reuses the shared Reactions display and
+   * the emoji picker; reacting drives the "Top" sort in the post list.
+   */
+  function reactions(message: Message) {
+    const react = (emoji: string) =>
+      message.react(
+        emoji.startsWith(":")
+          ? emoji.slice(1, emoji.length - 1)
+          : startsWithPackPUA(emoji)
+            ? emoji.slice(1)
+            : emoji,
+      );
+
+    return (
+      <ReactionRow>
+        <Reactions
+          reactions={message.reactions as never as Map<string, Set<string>>}
+          interactions={message.interactions}
+          userId={client().user!.id}
+          addReaction={(emoji) => message.react(emoji)}
+          removeReaction={(emoji) => message.unreact(emoji)}
+          sendGIF={(content) =>
+            props.channel.sendMessage({
+              content,
+              replies: [{ id: message.id, mention: true }],
+            })
+          }
+        />
+        <Show when={props.channel.havePermission("React")}>
+          <CompositionMediaPicker
+            onMessage={(content) =>
+              props.channel.sendMessage({
+                content,
+                replies: [{ id: message.id, mention: true }],
+              })
+            }
+            onTextReplacement={(emoji) => react(emoji)}
+          >
+            {(triggerProps) => (
+              <AddReactionButton
+                ref={triggerProps.ref}
+                onClick={triggerProps.onClickEmoji}
+                title="Add reaction"
+              >
+                <MdEmojiEmotions />
+              </AddReactionButton>
+            )}
+          </CompositionMediaPicker>
+        </Show>
+      </ReactionRow>
+    );
   }
 
   // Tag editing for the root post. The author picks from the channel's
@@ -338,6 +405,7 @@ export function ForumPost(props: Props) {
                 )}
               </For>
             </Show>
+            {reactions(post())}
           </PostBody>
         )}
       </Show>
@@ -385,6 +453,7 @@ export function ForumPost(props: Props) {
                 )}
               </For>
             </Show>
+            {reactions(reply)}
             <Show when={props.channel.solutionEnabled}>
               <Button
                 size="sm"
@@ -594,6 +663,40 @@ const EditActions = styled("div", {
     display: "flex",
     justifyContent: "flex-end",
     gap: "var(--gap-sm)",
+  },
+});
+
+const ReactionRow = styled("div", {
+  base: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: "var(--gap-sm)",
+    marginTop: "var(--gap-xs)",
+  },
+});
+
+const AddReactionButton = styled("button", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    width: "33px",
+    height: "33px",
+    padding: "var(--gap-sm)",
+    borderRadius: "var(--borderRadius-md)",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--md-sys-color-on-surface-variant)",
+    background: "var(--md-sys-color-surface-container-low)",
+    "&:hover": {
+      background: "var(--md-sys-color-surface-container-high)",
+    },
+    "& svg": {
+      width: "20px",
+      height: "20px",
+    },
   },
 });
 
