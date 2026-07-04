@@ -43,10 +43,10 @@ import { KickMemberModal } from "./modals/KickMember";
 import { LeaveServerModal } from "./modals/LeaveServer";
 import { LinkWarningModal } from "./modals/LinkWarning";
 import { MFAEnableTOTPModal } from "./modals/MFAEnableTOTP";
-import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { MFAFlowModal } from "./modals/MFAFlow";
 import { MFARecoveryModal } from "./modals/MFARecovery";
 import { MessagesListModal } from "./modals/MessagesList";
+import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { OnboardingModal } from "./modals/Onboarding";
 import { PolicyChangeModal } from "./modals/PolicyChange";
 import { RemoveMemberModal } from "./modals/RemoveMember";
@@ -60,6 +60,7 @@ import { ServerInfoModal } from "./modals/ServerInfo";
 import { SettingsModal } from "./modals/Settings";
 import { SignOutSessionsModal } from "./modals/SignOutSessions";
 import { SignedOutModal } from "./modals/SignedOut";
+import { SponsorNacModal } from "./modals/SponsorNac";
 import { UserProfileModal } from "./modals/UserProfile";
 import { UserProfileMutualFriendsModal } from "./modals/UserProfileMutualFriends";
 import { UserProfileMutualGroupsModal } from "./modals/UserProfileMutualGroups";
@@ -180,6 +181,8 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <ServerInfoModal {...modalProps} />;
     case "settings":
       return <SettingsModal {...modalProps} />;
+    case "sponsor_nac":
+      return <SponsorNacModal {...modalProps} />;
     case "signed_out":
       return <SignedOutModal {...modalProps} />;
     case "sign_out_sessions":

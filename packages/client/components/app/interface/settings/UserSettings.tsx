@@ -41,7 +41,6 @@ import Native from "./user/Native";
 import Notifications from "./user/notifications/Notifications";
 import { EditProfile } from "./user/profile";
 import { Sessions } from "./user/Sessions";
-import { EditSubscription } from "./user/subscriptions";
 import { VoiceSettings } from "./user/voice/VoiceSettings";
 
 const Config: SettingsConfiguration<{ server: Server }> = {
@@ -92,8 +91,6 @@ const Config: SettingsConfiguration<{ server: Server }> = {
         return <LanguageSettings />;
       case "feedback":
         return <Feedback />;
-      case "subscribe":
-        return <EditSubscription />;
       case "native":
         return <Native />;
       case "voice":
@@ -190,12 +187,11 @@ const Config: SettingsConfiguration<{ server: Server }> = {
         },
         {
           title: <Trans>Subscriptions</Trans>,
-          hidden: import.meta.env.PROD,
           entries: [
             {
-              id: "subscribe",
+              onClick: () => openModal({ type: "sponsor_nac" }),
               icon: <MdWorkspacePremium {...iconSize(20)} />,
-              title: "[premium]",
+              title: <Trans>Sponsor NAC</Trans>,
             },
           ],
         },
@@ -289,9 +285,9 @@ const Config: SettingsConfiguration<{ server: Server }> = {
               title: <Trans>Advanced</Trans>,
             },
             {
-              href: "https://ko-fi.com/stoatchat",
+              onClick: () => openModal({ type: "sponsor_nac" }),
               icon: <MdCoffee {...iconSize(20)} />,
-              title: <Trans>Donate</Trans>,
+              title: <Trans>Sponsor NAC</Trans>,
             },
             {
               id: "logout",
