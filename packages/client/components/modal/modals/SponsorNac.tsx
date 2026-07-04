@@ -24,12 +24,12 @@ const TIERS: { id: Tier; name: string; blurb: string }[] = [
   {
     id: "9_99",
     name: "Sustainer — $9.99/mo",
-    blurb: "All Sponsor perks + more storage",
+    blurb: "All Sponsor perks + even longer posts",
   },
   {
     id: "gift",
     name: "One-time gift",
-    blurb: "$50 = 6 months of Sustainer, $100 = a year",
+    blurb: "$10 = 1 month of Sustainer perks",
   },
 ];
 
