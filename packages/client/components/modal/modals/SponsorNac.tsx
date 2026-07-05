@@ -4,7 +4,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { styled } from "styled-system/jsx";
 
-import { useUser } from "@revolt/client";
+import { useClient, useUser } from "@revolt/client";
 import { Column, Dialog, DialogProps, Form2, Text } from "@revolt/ui";
 
 import { useModals } from "..";
@@ -12,6 +12,12 @@ import { Modals } from "../types";
 
 const SPONSOR_CHECKOUT_WEBHOOK =
   "https://automate.bluecords.solutions/webhook/sponsor-checkout";
+const SPONSOR_MANAGE_WEBHOOK =
+  "https://automate.bluecords.solutions/webhook/sponsor-manage";
+
+const SPONSOR_SERVER_ID = "01KTD1MYDTQ0SSXXH7C93BCHET";
+const SPONSOR_ROLE_ID = "01KWN87BF04TY9DACN5KSP9N1R";
+const SUSTAINER_ROLE_ID = "01KWN87G54FWJ82GB23DNWCDS9";
 
 type Tier = "2_99" | "9_99" | "gift";
 
@@ -42,6 +48,7 @@ export function SponsorNacModal(
   const { t } = useLingui();
   const { showError } = useModals();
   const user = useUser();
+  const client = useClient();
 
   const [tier, setTier] = createSignal<Tier>("2_99");
   const [isSubmitting, setSubmitting] = createSignal(false);
@@ -54,6 +61,11 @@ export function SponsorNacModal(
     if (tier() !== "gift") return true;
     const amount = parseFloat(group.controls.amount.value);
     return amount > 0;
+  });
+
+  const isAlreadySponsor = createMemo(() => {
+    const roles = client().servers.get(SPONSOR_SERVER_ID)?.member?.roles ?? [];
+    return roles.includes(SPONSOR_ROLE_ID) || roles.includes(SUSTAINER_ROLE_ID);
   });
 
   async function onSubmit() {
@@ -83,57 +95,108 @@ export function SponsorNacModal(
     }
   }
 
-  return (
-    <Dialog
-      show={props.show}
-      onClose={props.onClose}
-      title={<Trans>Sponsor NAC</Trans>}
-      actions={[
-        { text: <Trans>Cancel</Trans> },
-        {
-          text: <Trans>Continue</Trans>,
-          onClick: () => {
-            onSubmit();
-            return false;
-          },
-          isDisabled: !canSubmit(),
-        },
-      ]}
-      isDisabled={isSubmitting()}
-    >
-      <Column gap="md">
-        <For each={TIERS}>
-          {(option) => (
-            <TierCard
-              style={{
-                "border-color":
-                  tier() === option.id
-                    ? "var(--md-sys-color-tertiary)"
-                    : "var(--md-sys-color-outline-variant)",
-                background:
-                  tier() === option.id
-                    ? "var(--md-sys-color-surface-container-high)"
-                    : "transparent",
-              }}
-              onClick={() => setTier(option.id)}
-            >
-              <Text>{option.name}</Text>
-              <Text class="label">{option.blurb}</Text>
-            </TierCard>
-          )}
-        </For>
+  async function onManage() {
+    setSubmitting(true);
+    try {
+      const response = await fetch(SPONSOR_MANAGE_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nac_user_id: user()!.id }),
+      });
 
-        <Show when={tier() === "gift"}>
-          <Form2.TextField
-            name="amount"
-            type="number"
-            control={group.controls.amount}
-            label={t`Amount (USD)`}
-            placeholder={t`50`}
-          />
-        </Show>
-      </Column>
-    </Dialog>
+      if (!response.ok)
+        throw new Error(`Manage subscription failed (${response.status})`);
+
+      const data: { portal_url: string } = await response.json();
+      window.open(data.portal_url, "_blank");
+      props.onClose();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Show
+      when={!isAlreadySponsor()}
+      fallback={
+        <Dialog
+          show={props.show}
+          onClose={props.onClose}
+          title={<Trans>Manage Sponsorship</Trans>}
+          actions={[
+            { text: <Trans>Cancel</Trans> },
+            {
+              text: <Trans>Manage Subscription</Trans>,
+              onClick: () => {
+                onManage();
+                return false;
+              },
+            },
+          ]}
+          isDisabled={isSubmitting()}
+        >
+          <Text>
+            <Trans>
+              You're already a NAC supporter. Manage your subscription (update
+              billing details or cancel) through Stripe's secure portal.
+            </Trans>
+          </Text>
+        </Dialog>
+      }
+    >
+      <Dialog
+        show={props.show}
+        onClose={props.onClose}
+        title={<Trans>Sponsor NAC</Trans>}
+        actions={[
+          { text: <Trans>Cancel</Trans> },
+          {
+            text: <Trans>Continue</Trans>,
+            onClick: () => {
+              onSubmit();
+              return false;
+            },
+            isDisabled: !canSubmit(),
+          },
+        ]}
+        isDisabled={isSubmitting()}
+      >
+        <Column gap="md">
+          <For each={TIERS}>
+            {(option) => (
+              <TierCard
+                style={{
+                  "border-color":
+                    tier() === option.id
+                      ? "var(--md-sys-color-tertiary)"
+                      : "var(--md-sys-color-outline-variant)",
+                  background:
+                    tier() === option.id
+                      ? "var(--md-sys-color-surface-container-high)"
+                      : "transparent",
+                }}
+                onClick={() => setTier(option.id)}
+              >
+                <Text>{option.name}</Text>
+                <Text class="label">{option.blurb}</Text>
+              </TierCard>
+            )}
+          </For>
+
+          <Show when={tier() === "gift"}>
+            <Form2.TextField
+              name="amount"
+              type="number"
+              control={group.controls.amount}
+              label={t`Amount (USD)`}
+              placeholder={t`50`}
+            />
+          </Show>
+        </Column>
+      </Dialog>
+    </Show>
   );
 }
 
