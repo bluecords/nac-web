@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Motion, Presence } from "solid-motionone";
 
@@ -16,6 +16,24 @@ export function SettingsModal(
   // eslint-disable-next-line solid/reactivity
   const config = SettingsConfigurations[props.config];
 
+  // `100vh` resolves to a computed height of 0 in Android's WebView
+  // (confirmed via live inspection: window.innerHeight reports correctly,
+  // but the `position: fixed` wrapper's own computed height is 0px even
+  // though it visually overflows and paints its content) -- taps land on
+  // whatever's underneath instead of the settings UI. Track the real
+  // viewport height in JS and apply it as an explicit px value instead.
+  const [height, setHeight] = createSignal(window.innerHeight);
+
+  onMount(() => {
+    const update = () => setHeight(window.innerHeight);
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    onCleanup(() => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    });
+  });
+
   return (
     <Portal mount={document.getElementById("floating")!}>
       <div
@@ -23,7 +41,7 @@ export function SettingsModal(
           "z-index": 100,
           position: "fixed",
           width: "100%",
-          height: "100vh",
+          height: `${height()}px`,
           left: 0,
           top: 0,
           "pointer-events": "none",
