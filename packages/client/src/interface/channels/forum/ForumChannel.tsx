@@ -186,6 +186,12 @@ export function ForumChannel(props: ChannelPageProps) {
     });
   });
 
+  // First image attachment on a post, if any - used for the list's thumbnail
+  // preview (matching Discord forum "grid view" cover images).
+  function thumbnailFor(post: Message) {
+    return post.attachments?.find((file) => file.metadata.type === "Image");
+  }
+
   // One-line body preview for the post list. Collapsed to the first non-empty
   // line and truncated, so scanning the list gives a sense of each post beyond
   // its title.
@@ -308,6 +314,11 @@ export function ForumChannel(props: ChannelPageProps) {
                       </Show>
                     </Meta>
                   </PostInfo>
+                  <Show when={thumbnailFor(post)}>
+                    {(file) => (
+                      <Thumbnail src={file().createFileURL()} loading="lazy" />
+                    )}
+                  </Show>
                   <div
                     class={postMenuTrigger}
                     title="Post actions"
@@ -465,6 +476,16 @@ const Meta = styled("div", {
     alignItems: "center",
     gap: "var(--gap-sm)",
     color: "var(--md-sys-color-on-surface-variant)",
+  },
+});
+
+const Thumbnail = styled("img", {
+  base: {
+    width: "64px",
+    height: "64px",
+    borderRadius: "var(--borderRadius-md)",
+    objectFit: "cover",
+    flexShrink: 0,
   },
 });
 
