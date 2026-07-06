@@ -138,7 +138,19 @@ class Lifecycle {
       }
     };
     this.#visibilityListener = () => {
-      if (document.visibilityState === "visible") forceRetryNow();
+      if (document.visibilityState === "visible") {
+        forceRetryNow();
+      } else if (document.visibilityState === "hidden") {
+        // Any channel viewed just before the tab is hidden/closed/reloaded
+        // has its unread badge cleared locally already, but the actual ack
+        // request to the server is debounced up to 4s (see
+        // Channel.ack()/flushAck() in stoat.js) - without this, that pending
+        // request is lost on unload and the channel reverts to unread on
+        // the next load, even though it was genuinely read.
+        for (const channel of this.client?.channels.values() ?? []) {
+          channel.flushAck();
+        }
+      }
     };
     document.addEventListener("visibilitychange", this.#visibilityListener);
     window.addEventListener("online", forceRetryNow);
