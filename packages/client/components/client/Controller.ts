@@ -94,6 +94,7 @@ class Lifecycle {
   #retryTimeout: number | undefined;
   #visibilityListener: () => void = () => {};
   #onlineListener: () => void = () => {};
+  #pageHideListener: () => void = () => {};
 
   constructor(controller: ClientController) {
     this.#controller = controller;
@@ -137,22 +138,31 @@ class Lifecycle {
         this.transition({ type: TransitionType.Retry });
       }
     };
+    // Any channel viewed just before the tab is backgrounded, closed, or
+    // reloaded has its unread badge cleared locally already, but the actual
+    // ack request to the server is debounced up to 4s (see
+    // Channel.ack()/flushAck() in stoat.js) - without this, that pending
+    // request is lost and the channel reverts to unread on the next load,
+    // even though it was genuinely read. Registered on BOTH events since
+    // neither fires reliably for every case on its own: `visibilitychange`
+    // covers tab-switching/backgrounding/minimizing, but a straight page
+    // refresh doesn't consistently fire it before unload in every browser -
+    // `pagehide` is the standard fallback for that case.
+    const flushPendingAcks = () => {
+      for (const channel of this.client?.channels.values() ?? []) {
+        channel.flushAck();
+      }
+    };
     this.#visibilityListener = () => {
       if (document.visibilityState === "visible") {
         forceRetryNow();
       } else if (document.visibilityState === "hidden") {
-        // Any channel viewed just before the tab is hidden/closed/reloaded
-        // has its unread badge cleared locally already, but the actual ack
-        // request to the server is debounced up to 4s (see
-        // Channel.ack()/flushAck() in stoat.js) - without this, that pending
-        // request is lost on unload and the channel reverts to unread on
-        // the next load, even though it was genuinely read.
-        for (const channel of this.client?.channels.values() ?? []) {
-          channel.flushAck();
-        }
+        flushPendingAcks();
       }
     };
+    this.#pageHideListener = flushPendingAcks;
     document.addEventListener("visibilitychange", this.#visibilityListener);
+    window.addEventListener("pagehide", this.#pageHideListener);
     window.addEventListener("online", forceRetryNow);
     this.#onlineListener = forceRetryNow;
   }
@@ -166,6 +176,7 @@ class Lifecycle {
    */
   destroy() {
     document.removeEventListener("visibilitychange", this.#visibilityListener);
+    window.removeEventListener("pagehide", this.#pageHideListener);
     window.removeEventListener("online", this.#onlineListener);
   }
 
