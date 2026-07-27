@@ -47,7 +47,7 @@ export function UserCard(
   return (
     <div
       use:invisibleScrollable={{ class: base() }}
-      onMouseDown={(e) => {
+      on:pointerdown={(e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
       }}
