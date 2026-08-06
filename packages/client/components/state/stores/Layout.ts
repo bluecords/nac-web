@@ -110,6 +110,17 @@ export class Layout extends AbstractStore<"layout", TypeLayout> {
   }
 
   /**
+   * Read the next redirect path WITHOUT consuming it
+   *
+   * Use this when you need to inspect where the user was headed (e.g. to tell
+   * whether they arrived from an invite link) but must not disturb the single
+   * pop that the post-login redirect depends on.
+   */
+  peekNextPath() {
+    return this.get().nextPath;
+  }
+
+  /**
    * Pop the next redirect path
    */
   popNextPath() {

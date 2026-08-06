@@ -14,16 +14,30 @@ import nacIcon from "../../../../scripts/assets_fallback/web/android-chrome-192x
 /**
  * Flow for logging into an account
  *
- * Note: no special invite-code handling is needed here. When an invite link
- * (/invite/:code) bounces an unauthenticated visitor to /login, Interface's
- * own effect (src/Interface.tsx) has already stored that path as
- * `layout.nextPath` — the <Show when={isLoggedIn()}> below picks it back up
- * via popNextPath() once the user logs in or creates an account. See
+ * When an invite link (/invite/:code) bounces an unauthenticated visitor to
+ * /login, Interface's own effect (src/Interface.tsx) has already stored that
+ * path as `layout.nextPath` — the <Show when={isLoggedIn()}> below picks it
+ * back up via popNextPath() once the user logs in or creates an account. See
  * src/index.tsx's InviteRedirect for the full explanation.
+ *
+ * Registration additionally needs the invite CODE itself, not just the return
+ * path: the server is invite-gated, so account creation submits the code for
+ * validation. That's why the Create Account link below is built from the
+ * pending invite rather than pointing at a bare /login/create.
  */
 export default function FlowHome() {
   const state = useState();
   const { lifecycle, isLoggedIn, isError } = useClientLifecycle();
+
+  /**
+   * Invite code this visitor arrived with, if any.
+   *
+   * Read via peekNextPath() — deliberately NOT popNextPath(), which would
+   * consume the path that the post-login redirect above depends on.
+   */
+  const inviteCode = createMemo(
+    () => state.layout.peekNextPath()?.match(/^\/invite\/([^/?#]+)/)?.[1],
+  );
 
   /**
    * Where to redirect once logged in — popped exactly once, memoized on the
@@ -91,9 +105,19 @@ export default function FlowHome() {
               <LinkButton href="/login/auth">
                 <Trans>Log In</Trans>
               </LinkButton>
-              <LinkButton href="/login/create" variant="plain">
-                <Trans>Create Account</Trans>
-              </LinkButton>
+              {/*
+                NAC is invite-only: registration is possible only through an
+                invite link, so this is shown solely to visitors who arrived
+                with one. Anyone landing on /login directly gets Log In alone.
+                The server enforces this independently (authifier `invite_only`)
+                — hiding the button stops people ending up on a form they can't
+                complete, it is not the access control itself.
+              */}
+              <Show when={inviteCode()}>
+                <LinkButton href={`/login/create/${inviteCode()}`} variant="plain">
+                  <Trans>Create Account</Trans>
+                </LinkButton>
+              </Show>
             </Column>
           </Column>
         </>
