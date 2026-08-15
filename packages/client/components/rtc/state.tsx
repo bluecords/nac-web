@@ -33,6 +33,7 @@ import {
 } from "@revolt/state/stores/Voice";
 import { VoiceCallCardContext } from "@revolt/ui/components/features/voice/callCard/VoiceCallCard";
 
+import { Device, useDevice } from "@revolt/common";
 import { InRoom } from "./components/InRoom";
 import { RoomAudioManager } from "./components/RoomAudioManager";
 import { VoiceProcessor } from "./VoiceProcessor";
@@ -84,6 +85,7 @@ class Voice {
   #setShowBar: Setter<boolean>;
 
   private sound: SoundController;
+  private device: Device;
 
   private openModal;
   private getClient;
@@ -94,9 +96,11 @@ class Voice {
     voiceSettings: VoiceSettings,
     modals: ModalController,
     sound: SoundController,
+    device: Device,
   ) {
     this.#settings = voiceSettings;
     this.sound = sound;
+    this.device = device;
 
     const [channel, setChannel] = createSignal<Channel>();
     this.channel = channel;
@@ -196,6 +200,8 @@ class Voice {
 
   async connect(channel: Channel, auth?: { url: string; token: string }) {
     this.disconnect();
+
+    this.device.setWakeLocked();
 
     const room = new Room({
       audioCaptureDefaults: {
@@ -311,6 +317,7 @@ class Voice {
   }
 
   disconnect() {
+    this.device.releaseWakeLock();
     try {
       const room = this.room();
       if (!room) return;
@@ -704,7 +711,8 @@ export function VoiceContext(props: { children: JSX.Element }) {
   const state = useState();
   const modals = useModals();
   const sound = useSound();
-  const voice = new Voice(state.voice, modals, sound);
+  const device = useDevice();
+  const voice = new Voice(state.voice, modals, sound, device);
 
   return (
     <voiceContext.Provider value={voice}>
