@@ -10,6 +10,7 @@ import {
   SystemMessage as SystemMessageClass,
   TextSystemMessage,
   User,
+  UserJoinedSystemMessage,
   UserModeratedSystemMessage,
   UserSystemMessage,
 } from "stoat.js";
@@ -102,12 +103,34 @@ export function SystemMessage(props: Props) {
           </Trans>
         </Match>
         <Match when={props.systemMessage.type === "user_joined"}>
-          <Trans>
-            <UserMention
-              userId={(props.systemMessage as UserSystemMessage).userId}
-            />{" "}
-            joined the server
-          </Trans>
+          {/*
+            Show the inviter when we know it. The fallback is a normal case,
+            not an edge case: joins from before stoatchat v0.18.0 carry no
+            inviter, and members added to the server directly never had one.
+          */}
+          <Show
+            when={(props.systemMessage as UserJoinedSystemMessage).byId}
+            fallback={
+              <Trans>
+                <UserMention
+                  userId={(props.systemMessage as UserSystemMessage).userId}
+                />{" "}
+                joined the server
+              </Trans>
+            }
+          >
+            <Trans>
+              <UserMention
+                userId={(props.systemMessage as UserSystemMessage).userId}
+              />{" "}
+              joined the server, invited by{" "}
+              <UserMention
+                userId={
+                  (props.systemMessage as UserJoinedSystemMessage).byId!
+                }
+              />
+            </Trans>
+          </Show>
         </Match>
         <Match
           when={props.systemMessage.type === "user_left" && props.isServer}
