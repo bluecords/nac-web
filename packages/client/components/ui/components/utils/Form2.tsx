@@ -24,8 +24,9 @@ import {
   TextField,
 } from "../design";
 import { TextEditor2 } from "../features/texteditor/TextEditor2";
-import { Row } from "../layout";
+import { Column, Row } from "../layout";
 
+import { useError } from "@revolt/i18n";
 import { FileInput, humanFileSize } from "./files";
 
 /**
@@ -161,6 +162,7 @@ const FormFileInput = (
     "hideErrors",
   ]);
 
+  const err = useError();
   const { t } = useLingui();
 
   return (
@@ -199,11 +201,19 @@ const FormFileInput = (
           !local.hideErrors && local.control.isTouched && !local.control.isValid
         }
       >
-        <For each={Object.keys(local.control.errors!)}>
-          {(errorMsg: string) => (
-            <small>{local.control.errors![errorMsg]}</small>
-          )}
-        </For>
+        <Column gap="sm">
+          <For each={Object.keys(local.control.errors!)}>
+            {(errorMsg: string) => (
+              <span
+                class={css(typography.raw({ class: "label", size: "small" }), {
+                  color: "var(--md-sys-color-error)",
+                })}
+              >
+                {err(local.control.errors![errorMsg])}
+              </span>
+            )}
+          </For>
+        </Column>
       </Show>
     </>
   );
