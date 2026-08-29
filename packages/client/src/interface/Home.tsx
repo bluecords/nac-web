@@ -153,7 +153,9 @@ export function HomePage() {
               variant="tertiary"
               onClick={() => openModal({ type: "sponsor_nac" })}
               description={
-                <Trans>Support the project by donating - thank you!</Trans>
+                <Trans>
+                  Pick a sponsorship tier or send a one-time gift - thank you!
+                </Trans>
               }
               icon={<MdPayments />}
             >
