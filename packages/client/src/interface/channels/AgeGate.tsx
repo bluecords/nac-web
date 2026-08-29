@@ -1,7 +1,6 @@
 import { JSXElement, Match, Suspense, Switch } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { useQuery } from "@tanstack/solid-query";
 import { styled } from "styled-system/jsx";
 
 import { useState } from "@revolt/state";
@@ -10,13 +9,16 @@ import { Button, Checkbox, CircularProgress, Text, iconSize } from "@revolt/ui";
 
 import MdWarning from "@material-design-icons/svg/round/warning.svg?component-solid";
 
-type GeoBlock = {
-  countryCode: string;
-  isAgeRestrictedGeo: boolean;
-};
-
 /**
  * Age gate filter for any content
+ *
+ * NOTE: do not reintroduce a geo-IP lookup here. This component previously
+ * called `https://geo.revolt.chat` on every render to decide region blocking.
+ * AgeGate wraps every text and forum channel, and the query had no `enabled`
+ * guard, so it fired on every channel open even though the branch that used it
+ * was disabled -- sending every member's IP to upstream Revolt's infrastructure.
+ * NAC does not call out to anything it does not own. If region logic is ever
+ * needed, resolve it server-side on our own box.
  */
 export function AgeGate(props: {
   enabled: boolean;
@@ -32,53 +34,9 @@ export function AgeGate(props: {
   const allowed = () =>
     state.layout.getSectionState(props.contentId + "-nsfw", false);
 
-  const geoQuery = useQuery(() => ({
-    queryKey: ["geoblock"],
-    queryFn: async (): Promise<GeoBlock> => {
-      const response = await fetch("https://geo.revolt.chat");
-      if (!response.ok) {
-        throw new Error("Failed to fetch geo data");
-      }
-      return response.json();
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    throwOnError: true,
-  }));
-
   return (
     <Suspense fallback={<CircularProgress />}>
       <Switch fallback={props.children}>
-        <Match
-          when={
-            false &&
-            props.enabled &&
-            (geoQuery.isLoading ||
-              geoQuery.error ||
-              (geoQuery.data && geoQuery.data.isAgeRestrictedGeo))
-          }
-        >
-          <Base>
-            <MdWarning {...iconSize("8em")} />
-            <Text class="headline" size="large">
-              {props.contentName}
-            </Text>
-
-            <Text class="body" size="large">
-              {geoQuery.data?.countryCode == "GB" ? (
-                <Trans>
-                  This channel is not available in your region while we review
-                  options on legal compliance.
-                </Trans>
-              ) : (
-                <Trans>This content is not available in your region.</Trans>
-              )}
-            </Text>
-
-            <Button variant="text" onPress={() => history.back()}>
-              <Trans>Back</Trans>
-            </Button>
-          </Base>
-        </Match>
         <Match when={false && props.enabled && (!confirmed() || !allowed())}>
           <Base>
             <MdWarning {...iconSize("8em")} />
