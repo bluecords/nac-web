@@ -1,7 +1,10 @@
+// NAC never falls back to upstream infrastructure. If the API URL is not
+// configured we want a loud, obvious failure -- not a client that silently
+// connects members (and their credentials) to someone else's server.
 const DEFAULT_API_URL =
   (import.meta.env.DEV ? import.meta.env.VITE_DEV_API_URL : undefined) ??
   (import.meta.env.VITE_API_URL as string) ??
-  "https://stoat.chat/api";
+  "";
 
 export default {
   /**
@@ -29,7 +32,7 @@ export default {
   DEFAULT_WS_URL:
     (import.meta.env.DEV ? import.meta.env.VITE_DEV_WS_URL : undefined) ??
     (import.meta.env.VITE_WS_URL as string) ??
-    "wss://stoat.chat/events",
+    "",
   /**
    * What media server to connect to by default.
    */

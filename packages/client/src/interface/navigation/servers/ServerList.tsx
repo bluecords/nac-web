@@ -6,7 +6,6 @@ import { cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
 import { KeybindAction, createKeybind } from "@revolt/keybinds";
 import { useModals } from "@revolt/modal";
 import { useNavigate } from "@revolt/routing";
@@ -14,7 +13,6 @@ import { useState } from "@revolt/state";
 import { Avatar, Column, Text, Time, Unreads, UserStatus } from "@revolt/ui";
 
 import MdChat from "@material-design-icons/svg/filled/chat.svg?component-solid";
-import MdExplore from "@material-design-icons/svg/filled/explore.svg?component-solid";
 import MdHome from "@material-design-icons/svg/filled/home.svg?component-solid";
 import MdSettings from "@material-design-icons/svg/filled/settings.svg?component-solid";
 
@@ -319,16 +317,6 @@ export const ServerList = (props: Props) => {
           )}
         </Draggable>
         {/* Create server hidden — restricted to admin accounts server-side */}
-        <Show when={CONFIGURATION.IS_STOAT}>
-          <Tooltip placement="right" content={"Find new servers to join"}>
-            <a
-              href={state.layout.getLastActiveDiscoverPath()}
-              class={entryContainer()}
-            >
-              <Avatar size={42} fallback={<MdExplore />} />
-            </a>
-          </Tooltip>
-        </Show>
       </div>
       <Shadow>
         <div />
