@@ -151,7 +151,7 @@ export function HomePage() {
             </CategoryButton>
             <CategoryButton
               variant="tertiary"
-              onClick={() => window.open("https://sponsor.nac.social")}
+              onClick={() => openModal({ type: "sponsor_nac" })}
               description={
                 <Trans>Support the project by donating - thank you!</Trans>
               }
