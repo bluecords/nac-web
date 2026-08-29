@@ -76,7 +76,7 @@ export function JoinServerModal(
             name="link"
             control={group.controls.link}
             label={t`Code`}
-            placeholder="stt.gg/wVEJDGVs"
+            placeholder="community.nac.social/invite/wVEJDGVs"
           />
         </Column>
       </form>
