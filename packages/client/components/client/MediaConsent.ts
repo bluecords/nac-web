@@ -62,6 +62,24 @@ let inflight: Promise<void> | undefined;
  * cheap here and ruinous there.
  */
 export function refreshMediaConsent(client: Client): Promise<void> {
+  // If the server is not enforcing consent at all, there is nothing to gate
+  // against and no request worth making.
+  //
+  // This is load-bearing, not an optimisation. Without it the gate fails
+  // closed in two situations that are both NORMAL rather than exceptional:
+  // an API that predates GET /policy/consent (404), and a server with no
+  // policy published yet (also 404, because there is no policy in force to
+  // measure against). In either case every image and video in the community
+  // would sit behind a button that errors. Gating media because no policy
+  // exists is nonsense - there is nothing to have consented to.
+  //
+  // It also keeps the whole feature behind ONE switch, so it deploys dark and
+  // is turned on deliberately, same as the permission gate.
+  if (!client.consentGateEnforcing) {
+    setState("granted");
+    return Promise.resolve();
+  }
+
   if (inflight) return inflight;
 
   inflight = client
