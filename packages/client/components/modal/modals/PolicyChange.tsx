@@ -2,6 +2,7 @@ import { For, createMemo, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
+import { useClient, useClientLifecycle } from "@revolt/client";
 import { Checkbox, Column, Dialog, DialogProps, Row, Text } from "@revolt/ui";
 
 import MdPolicy from "@material-design-icons/svg/outlined/policy.svg?component-solid";
@@ -67,6 +68,8 @@ export function PolicyChangeModal(
   props: DialogProps & Modals & { type: "policy_change" },
 ) {
   const { showError } = useModals();
+  const client = useClient();
+  const { logout } = useClientLifecycle();
   const [granted, setGranted] = createSignal<Record<string, boolean>>({});
   const [busy, setBusy] = createSignal(false);
 
@@ -88,14 +91,32 @@ export function PolicyChangeModal(
     setGranted((current) => ({ ...current, [key]: !current[key] }));
   }
 
+  // Whether the server is actually restricting unconsented members, not just
+  // whether a policy exists. The two are separate states and this modal has to
+  // behave differently in each:
+  //
+  //   enforcing  -> dismissing it leaves a client that looks fine and fails at
+  //                 every action, because clients compute permissions locally
+  //                 and cannot see the consent check. So there is no dismiss;
+  //                 the honest exit is to log out.
+  //   not enforcing -> nothing is blocked, so trapping someone in an
+  //                 unskippable wall would be a lie about the state of the
+  //                 system - and would quietly turn publishing a policy into
+  //                 switching the gate on.
+  const enforcing = () => client()?.consentGateEnforcing ?? false;
+
   return (
     <Dialog
       icon={<MdPolicy />}
       show={props.show}
-      onClose={props.onClose}
+      // No click-away or Escape while the gate is live, for the same reason
+      // there is no Close button.
+      onClose={enforcing() ? () => {} : props.onClose}
       title={<Trans>Before you continue</Trans>}
       actions={[
-        { text: <Trans>Close</Trans> },
+        enforcing()
+          ? { text: <Trans>Log out</Trans>, onClick: () => logout() }
+          : { text: <Trans>Close</Trans> },
         {
           text: <Trans>Continue</Trans>,
           // Every item, individually. A partial tick is a partial consent and
