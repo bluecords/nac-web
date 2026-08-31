@@ -225,6 +225,10 @@ export type Modals =
       type: "policy_change";
       changes: ProtocolV1["types"]["policyChange"][];
       acknowledge: () => Promise<void>;
+      recordConsent: (
+        policy: ProtocolV1["types"]["policyChange"],
+        acks: ProtocolV1["types"]["consentAck"][],
+      ) => Promise<void>;
     }
   | {
       type: "rename_session";

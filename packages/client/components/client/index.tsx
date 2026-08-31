@@ -72,12 +72,13 @@ export function ClientContext(props: { state: State; children: JSXElement }) {
       () => controller.lifecycle.policyAttentionRequired(),
       (attentionRequired) => {
         if (typeof attentionRequired !== "undefined") {
-          const [changes, acknowledge] = attentionRequired;
+          const [changes, acknowledge, recordConsent] = attentionRequired;
 
           openModal({
             type: "policy_change",
             changes,
             acknowledge,
+            recordConsent,
           });
         }
       },
