@@ -15,6 +15,7 @@ import { fetchLatestChangelog } from "@revolt/modal/modals/Changelog";
 import { State } from "@revolt/state";
 
 import ClientController from "./Controller";
+import { refreshMediaConsent, resetMediaConsent } from "./MediaConsent";
 
 export type { default as ClientController } from "./Controller";
 
@@ -26,6 +27,14 @@ export {
   toggleFavorite,
 } from "./Favorites";
 export type { Favorite } from "./Favorites";
+export {
+  grantMediaConsent,
+  MEDIA_ACK_KEY,
+  mediaConsentGranted,
+  refreshMediaConsent,
+  resetMediaConsent,
+  withdrawMediaConsent,
+} from "./MediaConsent";
 export { useNotifications } from "./NotificationsController";
 export { SoundContext, SoundController, useSound } from "./Sounds";
 
@@ -63,6 +72,33 @@ export function ClientContext(props: { state: State; children: JSXElement }) {
             changelog,
           });
         });
+      },
+    ),
+  );
+
+  // The media gate needs to know what this account has already agreed to, and
+  // the answer is server-side so it follows them across devices. Reset on
+  // logout so the next account does not inherit the previous one's decision.
+  //
+  // Waits for the server CONFIGURATION as well as the session, because the
+  // first thing the gate checks is whether consent is being enforced at all -
+  // and before the config lands that reads as "no". Running too early would
+  // ungate media on every page load, which is precisely what the gate exists
+  // to prevent.
+  createEffect(
+    on(
+      () => {
+        const client = controller.getCurrentClient();
+        return [controller.isLoggedIn(), client?.configured()] as const;
+      },
+      ([loggedIn, configured]) => {
+        const client = controller.getCurrentClient();
+
+        if (loggedIn && configured && client) {
+          refreshMediaConsent(client);
+        } else if (!loggedIn) {
+          resetMediaConsent();
+        }
       },
     ),
   );
