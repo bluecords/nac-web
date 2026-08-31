@@ -1,84 +1,180 @@
-import { For, createSignal, onMount } from "solid-js";
+import { For, createMemo, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
-import {
-  Checkbox,
-  Column,
-  Dialog,
-  DialogProps,
-  List,
-  Row,
-  Text,
-  Time,
-} from "@revolt/ui";
-import { Symbol } from "@revolt/ui/components/utils/Symbol";
+import { Checkbox, Column, Dialog, DialogProps, Row, Text } from "@revolt/ui";
 
 import MdPolicy from "@material-design-icons/svg/outlined/policy.svg?component-solid";
 
 import { useModals } from "..";
 import { Modals } from "../types";
 
-let shownForSession = false;
+/**
+ * The four acts a member consents to, each recorded as its own row.
+ *
+ * UNBUNDLED ON PURPOSE. One "I agree to everything" tick is not consent to four
+ * separate things, and the endpoint that stores these has no way to express a
+ * single blanket agreement either - one row per key, by construction.
+ *
+ * The wording is approved copy. In particular "simple non-sexual" in the
+ * imagery item is load-bearing rather than stylistic: it is the same
+ * distinction the app-store position turns on, said in the members' own words.
+ * Do not let a later wording pass quietly drop it.
+ */
+const CONSENT_ITEMS = [
+  {
+    key: "age_18_plus",
+    label: () => <Trans>I am 18 or older.</Trans>,
+    href: "https://terms.nac.social",
+  },
+  {
+    key: "special_category_imagery",
+    label: () => (
+      // Three fragments rather than one <Trans> with a nested <strong>.
+      // Measured in the browser: a <Trans> whose children are text/element/text
+      // renders the element's content three times - "simple non-sexualsimple
+      // non-sexualsimple non-sexual". Splitting it is worse for translators and
+      // it is the trade taken deliberately: "simple non-sexual" is the wording
+      // Bunjie added on purpose, and it has to render exactly once, emphasised.
+      <>
+        <Trans>I understand this community includes</Trans>{" "}
+        <strong>
+          <Trans>simple non-sexual</Trans>
+        </strong>{" "}
+        <Trans>nude imagery, and I consent to seeing it.</Trans>
+      </>
+    ),
+    href: "https://guidelines.nac.social",
+  },
+  {
+    key: "community_rules",
+    label: () => (
+      <Trans>
+        I agree to the community rules, including not sharing anything from here
+        outside it.
+      </Trans>
+    ),
+    href: "https://guidelines.nac.social",
+  },
+  {
+    key: "privacy_notice",
+    label: () => <Trans>I've read how my data is handled.</Trans>,
+    href: "https://privacy.nac.social",
+  },
+] as const;
 
 export function PolicyChangeModal(
   props: DialogProps & Modals & { type: "policy_change" },
 ) {
   const { showError } = useModals();
-  const [confirm, setConfirm] = createSignal(false);
+  const [granted, setGranted] = createSignal<Record<string, boolean>>({});
+  const [busy, setBusy] = createSignal(false);
 
-  // automatically close if we've already shown this modal in this session
-  const allowDisplay = !shownForSession;
-  shownForSession = true;
-  onMount(() => !allowDisplay && props.onClose());
+  // Consent is recorded against the LATEST policy, because that is the one the
+  // server's gate measures against - a record naming a superseded policy would
+  // be evidence of agreeing to the wrong document.
+  const policy = createMemo(
+    () =>
+      [...props.changes].sort((a, b) =>
+        a.created_time < b.created_time ? 1 : -1,
+      )[0],
+  );
+
+  const allGranted = createMemo(() =>
+    CONSENT_ITEMS.every((item) => granted()[item.key]),
+  );
+
+  function toggle(key: string) {
+    setGranted((current) => ({ ...current, [key]: !current[key] }));
+  }
 
   return (
     <Dialog
       icon={<MdPolicy />}
-      show={allowDisplay && props.show}
+      show={props.show}
       onClose={props.onClose}
-      title={<Trans>Review policy changes</Trans>}
+      title={<Trans>Before you continue</Trans>}
       actions={[
         { text: <Trans>Close</Trans> },
         {
-          text: <Trans>Acknowledge</Trans>,
-          isDisabled: !confirm(),
+          text: <Trans>Continue</Trans>,
+          // Every item, individually. A partial tick is a partial consent and
+          // there is no partial state to record it into.
+          isDisabled: !allGranted() || busy(),
           async onClick() {
-            await props.acknowledge().catch(showError);
+            setBusy(true);
+            try {
+              await props.recordConsent(
+                policy(),
+                CONSENT_ITEMS.map((item) => ({
+                  ack_key: item.key,
+                  granted: true,
+                })),
+              );
+            } catch (error) {
+              showError(error);
+            } finally {
+              setBusy(false);
+            }
           },
         },
       ]}
     >
-      <Trans>
-        Click on the items below to learn more about different changes!
-      </Trans>
-      <List>
-        <For each={props.changes}>
-          {(change) => (
-            <List.Item onClick={() => window.open(change.url, "_blank")}>
-              <Row align>
+      <Column gap="lg">
+        <Text class="label">
+          <Trans>
+            Please read and agree to each of these. Each one is separate — agree
+            only to what you actually agree to.
+          </Trans>
+        </Text>
+
+        <Column gap="lg">
+          <For each={CONSENT_ITEMS}>
+            {(item) => (
+              // The label lives OUTSIDE the checkbox on purpose. Checkbox is an
+              // mdui web component, and a <Trans> containing an element (the
+              // <strong> on "simple non-sexual") rendered into its slot came out
+              // duplicated three times - seen in the browser, not guessed at.
+              // Keeping the rich text in a normal element renders it correctly
+              // and gives the document link somewhere sensible to sit.
+              <Row gap="md">
+                {/* Pinned to the top rather than centred: these labels wrap to
+                    three lines on a phone, and a box floating in the middle of
+                    the text reads as belonging to the wrong line. */}
+                <div style={{ "align-self": "flex-start" }}>
+                  <Checkbox
+                    checked={granted()[item.key] ?? false}
+                    onChange={() => toggle(item.key)}
+                  />
+                </div>
                 <Column gap="none" grow>
-                  <Text class="title">{change.description}</Text>
-                  <Text class="label">
-                    <Trans>
-                      Effective{" "}
-                      <Time format="iso8601" value={change.effective_time} /> (
-                      <Time format="relative" value={change.effective_time} />)
-                    </Trans>
-                  </Text>
+                  {/* The label toggles the box too - the text is most of the
+                      hit area, and on a phone the box alone is a small target. */}
+                  <div
+                    style={{ cursor: "pointer" }}
+                    onClick={() => toggle(item.key)}
+                  >
+                    <Text class="body">{item.label()}</Text>
+                  </div>
+                  <a href={item.href} target="_blank" rel="noreferrer">
+                    <Text class="label">
+                      <Trans>Read this document</Trans>
+                    </Text>
+                  </a>
                 </Column>
-                <Symbol>open_in_new</Symbol>
               </Row>
-            </List.Item>
-          )}
-        </For>
-      </List>
-      <Checkbox
-        checked={confirm()}
-        onChange={() => setConfirm((checked) => !checked)}
-      >
-        I've read and reviewed the changes.
-      </Checkbox>
+            )}
+          </For>
+        </Column>
+
+        <Text class="label">
+          <Trans>
+            You can withdraw any of these later in settings. Withdrawing removes
+            access to the community until you agree again — it does not delete
+            your account or anything you have posted.
+          </Trans>
+        </Text>
+      </Column>
     </Dialog>
   );
 }

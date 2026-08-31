@@ -71,6 +71,10 @@ export type Transition =
 type PolicyAttentionRequired = [
   ProtocolV1["types"]["policyChange"][],
   () => Promise<void>,
+  (
+    policy: ProtocolV1["types"]["policyChange"],
+    acks: ProtocolV1["types"]["consentAck"][],
+  ) => Promise<void>,
 ];
 
 class Lifecycle {
@@ -469,10 +473,21 @@ class Lifecycle {
   private onPolicyChanges(
     changes: ProtocolV1["types"]["policyChange"][],
     ack: () => Promise<void>,
+    recordConsent: (
+      policy: ProtocolV1["types"]["policyChange"],
+      acks: ProtocolV1["types"]["consentAck"][],
+    ) => Promise<void>,
   ) {
     this.#policyAttentionRequired([
       changes,
       () => ack().then(() => this.#policyAttentionRequired(undefined)),
+      // Recording consent stamps the acknowledgement server-side as part of
+      // the same request, so this deliberately does NOT also call ack() -
+      // that would be a second write for a state the first one already set.
+      (policy, acks) =>
+        recordConsent(policy, acks).then(() =>
+          this.#policyAttentionRequired(undefined),
+        ),
     ]);
   }
 
