@@ -48,10 +48,6 @@ export default {
     (import.meta.env.VITE_PROXY_URL as string) ??
     "https://proxy.stoatusercontent.com",
   /**
-   * Giphy API key for the GIF picker.
-   */
-  GIPHY_KEY: (import.meta.env.VITE_GIPHY_KEY as string) ?? "",
-  /**
    * hCaptcha site key to use if enabled
    */
   HCAPTCHA_SITEKEY: import.meta.env.VITE_HCAPTCHA_SITEKEY as string,

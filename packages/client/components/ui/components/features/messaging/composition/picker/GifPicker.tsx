@@ -14,7 +14,6 @@ import { Trans } from "@lingui-solid/solid/macro";
 import { useQuery } from "@tanstack/solid-query";
 import { styled } from "styled-system/jsx";
 
-import env from "@revolt/common/lib/env";
 import {
   CircularProgress,
   TextField,
@@ -23,7 +22,19 @@ import {
 
 import { CompositionMediaPickerContext } from "./CompositionMediaPicker";
 
-const GIPHY_BASE = "https://api.giphy.com/v1/gifs";
+/**
+ * GIF search goes through our own origin, not to Giphy directly.
+ *
+ * Calling api.giphy.com from the browser handed Giphy (Google) each member's IP
+ * address, User-Agent and search terms, and required the API key to be shipped
+ * in the client bundle where anyone could read it. nginx now proxies these three
+ * endpoints and appends the key server-side, so Giphy sees the server once
+ * instead of seeing every member.
+ *
+ * The residual, stated honestly: Giphy still receives the search terms. What it
+ * no longer receives is who searched.
+ */
+const GIPHY_BASE = "/giphy";
 
 type GifCategory = { title: string; image: string };
 
@@ -93,7 +104,8 @@ type CategoryItem =
   | { t: 1; gif: GifResult | null };
 
 function giphyUrl(path: string, extra = "") {
-  return `${GIPHY_BASE}${path}?api_key=${encodeURIComponent(env.GIPHY_KEY)}&rating=pg-13&limit=20${extra}`;
+  // No api_key here: the proxy appends it. See GIPHY_BASE above.
+  return `${GIPHY_BASE}${path}?rating=pg-13&limit=20${extra}`;
 }
 
 function mapGif(g: Record<string, never>): GifResult {
@@ -115,9 +127,7 @@ function Categories() {
   const trendingCategories = useQuery<GifCategory[]>(() => ({
     queryKey: ["giphyCategories"],
     queryFn: () =>
-      fetch(
-        `https://api.giphy.com/v1/gifs/categories?api_key=${encodeURIComponent(env.GIPHY_KEY)}`,
-      )
+      fetch(`${GIPHY_BASE}/categories`)
         .then((r) => r.json())
         .then((resp) =>
           (resp.data as Record<string, never>[]).map((c) => ({
