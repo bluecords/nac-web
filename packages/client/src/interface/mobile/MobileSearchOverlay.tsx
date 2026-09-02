@@ -87,7 +87,24 @@ export function MobileSearchOverlay(props: { channel: Channel }) {
         </div>
 
         {/* Results */}
-        <div style={{ flex: "1", "overflow-y": "auto", padding: "8px" }}>
+        <div
+          style={{ flex: "1", "overflow-y": "auto", padding: "8px" }}
+          onClick={(e) => {
+            // Same defect the channel drawer had (nac-web#110): TextSearchSidebar
+            // renders each hit as <a href={message.path}>, so tapping a result
+            // jumps to the message and leaves this full-screen overlay sitting
+            // on top of it. Found by auditing the mobile overlays after Bunjie
+            // reported the drawer, not by him hitting it.
+            //
+            // Delegated for the same reason: TextSearchSidebar is shared with
+            // desktop, where dismissing would be wrong.
+            const target = e.target as HTMLElement | null;
+            if (target?.closest?.("a[href]")) {
+              setQuery("");
+              closeSearch();
+            }
+          }}
+        >
           <Show when={query().trim().length > 0} fallback={
             <div style={{
               display: "flex",
