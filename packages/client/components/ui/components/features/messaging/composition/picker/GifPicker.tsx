@@ -240,7 +240,7 @@ function GifSearch(props: { query: string }) {
 }
 
 function GifItem(props: { gif: GifResult }) {
-  const { onMessage } = useContext(CompositionMediaPickerContext);
+  const { onMessage, close } = useContext(CompositionMediaPickerContext);
 
   return (
     <Gif
@@ -256,7 +256,13 @@ function GifItem(props: { gif: GifResult }) {
       preload="auto"
       role="listitem"
       src={props.gif.previewMp4}
-      onClick={() => onMessage(props.gif.url)}
+      // Selecting a GIF sends it, so there is nothing left to do in the picker.
+      // It used to stay open, and because it covers the screen on a phone there
+      // was no "outside" left to tap to dismiss it.
+      onClick={() => {
+        onMessage(props.gif.url);
+        close();
+      }}
     />
   );
 }

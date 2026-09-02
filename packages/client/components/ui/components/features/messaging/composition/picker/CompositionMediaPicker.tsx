@@ -19,8 +19,11 @@ import { flip, offset, shift } from "@floating-ui/dom";
 import { cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
+import MdClose from "@material-symbols/svg-400/outlined/close.svg?component-solid";
+
 import { Button } from "@revolt/ui/components/design";
 import { Row } from "@revolt/ui/components/layout";
+import { symbolSize } from "@revolt/ui/components/utils";
 
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
@@ -49,7 +52,17 @@ interface Props {
 }
 
 export const CompositionMediaPickerContext = createContext(
-  null as unknown as Pick<Props, "onMessage" | "onTextReplacement">,
+  null as unknown as Pick<Props, "onMessage" | "onTextReplacement"> & {
+    /**
+     * Close the picker.
+     *
+     * Selecting a GIF sends it and leaves nothing more to do in the picker, so
+     * it closes itself. Previously it stayed open, and on a phone it covers the
+     * whole screen - so there was no "outside" left to tap and the outside-click
+     * dismiss below could not be reached. See the close button in Picker.
+     */
+    close: () => void;
+  },
 );
 
 export function CompositionMediaPicker(props: Props) {
@@ -57,7 +70,15 @@ export function CompositionMediaPicker(props: Props) {
   const [show, setShow] = createSignal<"gif" | "emoji">();
 
   return (
-    <CompositionMediaPickerContext.Provider value={props}>
+    <CompositionMediaPickerContext.Provider
+      // Not a spread of `props`: spreading would read each value once here and
+      // break reactivity. These forward to props at call time instead.
+      value={{
+        onMessage: (content) => props.onMessage(content),
+        onTextReplacement: (node) => props.onTextReplacement(node),
+        close: () => setShow(undefined),
+      }}
+    >
       {props.children({
         ref: setAnchor,
         onClickGif: () =>
@@ -108,13 +129,25 @@ function Picker(
     props.setShow();
   }
 
+  // The picker can cover the entire viewport on a phone, which leaves no
+  // "outside" for onDismiss to catch. Escape is the keyboard equivalent of the
+  // close button, for the same reason.
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      props.setShow();
+    }
+  }
+
   onMount(() => {
     document.addEventListener("mousedown", onDismiss);
     document.addEventListener("touchstart", onDismiss, { passive: true });
+    document.addEventListener("keydown", onKeyDown);
   });
   onCleanup(() => {
     document.removeEventListener("mousedown", onDismiss);
     document.removeEventListener("touchstart", onDismiss);
+    document.removeEventListener("keydown", onKeyDown);
   });
 
   return (
@@ -142,6 +175,19 @@ function Picker(
           >
             Emoji
           </Button>
+
+          {/*
+            Always-visible escape hatch. The outside-click dismiss above is
+            unreachable when the picker fills the screen, which is exactly the
+            case on a phone.
+          */}
+          <CloseButton
+            type="button"
+            aria-label="Close"
+            onClick={() => props.setShow()}
+          >
+            <MdClose {...symbolSize(20)} />
+          </CloseButton>
         </Row>
 
         <Switch fallback={<span>Not available yet.</span>}>
@@ -165,6 +211,34 @@ const Base = styled("div", {
     width: "min(400px, 96vw)",
     height: "min(500px, 75vh)",
     // paddingInlineEnd: "5px",
+  },
+});
+
+/**
+ * Dismiss control for the picker.
+ *
+ * Sits beside the GIFs/Emoji buttons rather than floating over the grid, so it
+ * never covers a GIF and never moves as results load.
+ */
+const CloseButton = styled("button", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+
+    marginInlineStart: "auto",
+    width: "32px",
+    height: "32px",
+
+    cursor: "pointer",
+    border: "none",
+    borderRadius: "var(--borderRadius-md)",
+    background: "transparent",
+    color: "var(--colours-foreground)",
+
+    _hover: { background: "var(--colours-component-hover)" },
+    _focusVisible: { outline: "2px solid var(--colours-foreground)" },
   },
 });
 
