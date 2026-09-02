@@ -300,7 +300,7 @@ export function MobileNav(_props: {
                       "overflow-x": "auto",
                       "min-width": "0",
                       flex: "1",
-                      scrollbarWidth: "none",
+                      "scrollbar-width": "none",
                     }}
                   >
                     <For each={orderedServers()}>

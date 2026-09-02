@@ -9,7 +9,7 @@ import {
   createEffect,
 } from "solid-js";
 
-import { ServerMember } from "stoat.js";
+import { Channel, ServerMember } from "stoat.js";
 
 import { useClient } from "@revolt/client";
 import { useSmartParams } from "@revolt/routing";
@@ -86,7 +86,7 @@ export function MobileMembersOverlay() {
 }
 
 function MobileMemberList(props: {
-  channel: NonNullable<ReturnType<ReturnType<typeof useClient>>["channels"]["get"]>;
+  channel: Channel;
   onSelect: (m: ServerMember) => void;
   onClose: () => void;
 }) {
@@ -163,7 +163,7 @@ function MobileMemberList(props: {
   const onlineCount = createMemo(
     () =>
       client().serverMembers.filter(
-        (m) => m.id.server === props.channel.serverId && m.user?.online,
+        (m) => m.id.server === props.channel.serverId && !!m.user?.online,
       ).length,
   );
 

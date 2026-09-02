@@ -82,7 +82,7 @@ export function MoveToChannelModal(
         {
           text: <Trans>Move</Trans>,
           onClick: moveMessage,
-          disabled: !selectedId(),
+          isDisabled: !selectedId(),
         },
       ]}
       isDisabled={loading()}
