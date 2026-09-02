@@ -328,6 +328,10 @@ export function MobileNav(_props: {
                             } else {
                               navigate(`/server/${s.id}`);
                             }
+                            // Same defect as the channel list: this switched
+                            // server and left the drawer covering the result.
+                            // Its twin handler above already did this.
+                            closeNav();
                           }}
                         >
                           <Avatar
@@ -437,7 +441,26 @@ export function MobileNav(_props: {
                   </div>
                 </div>
 
-                <div style={{ flex: "1", "min-height": "0", "overflow-y": "auto", position: "relative" }}>
+                <div
+                  style={{ flex: "1", "min-height": "0", "overflow-y": "auto", position: "relative" }}
+                  onClick={(e) => {
+                    // Selecting a channel has to dismiss the drawer, or the
+                    // channel you just picked stays hidden behind it and the
+                    // only way out is a ~1/4in strip of background down the
+                    // right edge. Reported by Bunjie 2026-09-01.
+                    //
+                    // Delegated here rather than threaded down as a callback:
+                    // the entries live three components deep (ServerSidebar ->
+                    // Category -> Entry) in a component desktop shares, and
+                    // they render as real anchors. Catching the click at the
+                    // container also handles tapping the channel you are
+                    // ALREADY in, where the route never changes so watching
+                    // params().channelId would miss it.
+                    if (editMode()) return; // reordering: a drag must not close it
+                    const target = e.target as HTMLElement | null;
+                    if (target?.closest?.("a[href*='/channel/']")) closeNav();
+                  }}
+                >
                   <ServerSidebar
                     server={server()!}
                     channelId={params().channelId}

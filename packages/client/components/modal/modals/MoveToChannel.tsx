@@ -98,8 +98,13 @@ export function MoveToChannelModal(
         style={{
           "max-height": "320px",
           "overflow-y": "auto",
-          "border": "0.5px solid var(--color-border-tertiary)",
-          "border-radius": "var(--border-radius-md)",
+          // These were --color-border-tertiary / --border-radius-md, which do
+          // not exist. Measured in the browser: both resolved to "", so the
+          // declarations were invalid and simply dropped. This whole modal was
+          // written against a token set the app does not use - everything else
+          // here is --md-sys-color-*. Note --borderRadius-md is camelCase.
+          "border": "0.5px solid var(--md-sys-color-outline-variant)",
+          "border-radius": "var(--borderRadius-md)",
         }}
       >
         <For each={filteredCategories()}>
@@ -111,7 +116,7 @@ export function MoveToChannelModal(
                     padding: "8px 12px 4px",
                     "font-size": "11px",
                     "font-weight": "500",
-                    color: "var(--color-text-tertiary)",
+                    color: "var(--md-sys-color-on-surface-variant)",
                     "letter-spacing": "0.05em",
                     "text-transform": "uppercase",
                   }}
@@ -123,7 +128,16 @@ export function MoveToChannelModal(
                 {(channel) => (
                   <Show when={channel.id !== props.message.channelId}>
                     <div
+                      role="button"
+                      tabindex="0"
+                      aria-pressed={selectedId() === channel.id}
                       onClick={() => setSelectedId(channel.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedId(channel.id);
+                        }
+                      }}
                       style={{
                         padding: "8px 12px",
                         display: "flex",
@@ -131,19 +145,24 @@ export function MoveToChannelModal(
                         gap: "6px",
                         cursor: "pointer",
                         "border-radius": "4px",
+                        // Was --color-background-info / --color-text-info /
+                        // --color-text-primary. None of the three exist, so the
+                        // selected row was styled identically to an unselected
+                        // one: tapping a channel DID select it and showed no
+                        // feedback at all, which reads as "nothing is clickable".
                         background:
                           selectedId() === channel.id
-                            ? "var(--color-background-info)"
+                            ? "var(--md-sys-color-secondary-container)"
                             : "transparent",
                         color:
                           selectedId() === channel.id
-                            ? "var(--color-text-info)"
-                            : "var(--color-text-primary)",
+                            ? "var(--md-sys-color-on-secondary-container)"
+                            : "var(--md-sys-color-on-surface)",
                         "font-weight":
                           selectedId() === channel.id ? "500" : "400",
                       }}
                     >
-                      <span style={{ color: "var(--color-text-secondary)", "flex-shrink": "0" }}>#</span>
+                      <span style={{ color: "var(--md-sys-color-on-surface-variant)", "flex-shrink": "0" }}>#</span>
                       {channel.name}
                     </div>
                   </Show>
