@@ -16,7 +16,12 @@ import { autoUpdate, flip, offset, shift } from "@floating-ui/dom";
 
 import { Keybind, KeybindAction } from "@revolt/keybinds";
 
-import { FloatingElement, floatingElements } from "../../directives";
+import {
+  FloatingElement,
+  consumeSuppressedDocumentClick,
+  floatingElements,
+  isDocumentClickSuppressed,
+} from "../../directives";
 
 import { dismissFloatingElements } from ".";
 import { AutoComplete } from "./AutoComplete";
@@ -139,6 +144,11 @@ function Floating(props: FloatingElement & { mouseX: number; mouseY: number }) {
     const currentlyShown = props.show();
     if (!currentlyShown?.contextMenu && !currentlyShown?.userCard) return;
 
+    // A touch gesture that just opened this menu produces a synthesised
+    // mousedown/click pair when the finger lifts. Do not consume the flag
+    // here - the click below is the one that clears it.
+    if (isDocumentClickSuppressed()) return;
+
     props.hide();
   }
 
@@ -153,6 +163,23 @@ function Floating(props: FloatingElement & { mouseX: number; mouseY: number }) {
   function onClick() {
     const currentlyShown = props.show();
     if (!currentlyShown?.contextMenu) return;
+
+    // THE BUG THIS GUARD FIXES, measured on a handset 2026-09-03. This listener
+    // dismisses on ANY document click and cannot tell the click that ENDED the
+    // gesture which opened the menu from a genuine click elsewhere.
+    //
+    // On desktop it never mattered: a right-click fires `contextmenu` and no
+    // click follows. On touch, a long-press opens the menu at 500ms, the finger
+    // lifts, the browser synthesises a click, and this closed the menu again
+    // within the same gesture. A MutationObserver on #floating recorded
+    // `add:ReplyMark as unreadCopy text...` immediately followed by `rm:`.
+    //
+    // That is why "long press does nothing" and "the 3 dots do nothing" on
+    // mobile: the menu was opening correctly every time and dismissing itself.
+    if (isDocumentClickSuppressed()) {
+      consumeSuppressedDocumentClick();
+      return;
+    }
 
     props.hide();
   }
