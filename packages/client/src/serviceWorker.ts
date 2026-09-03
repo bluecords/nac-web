@@ -3,6 +3,39 @@ import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 
 declare let self: ServiceWorkerGlobalScope;
 
+// ---------------------------------------------------------------------------
+// UPDATES. Read this before changing either line, or the app will silently
+// stop updating again.
+//
+// THE BUG THIS FIXES, measured on a real handset 2026-09-03: a phone was
+// running an asset bundle that 404s on the server, with a new worker parked in
+// "waiting", while the network served the current build perfectly well.
+//
+// Why it deadlocked: `strategies: injectManifest` means WE own this file, and
+// unlike generateSW the plugin does not inject skipWaiting() into it. Nothing
+// here called it, and nothing in the page sent SKIP_WAITING either (under
+// registerType "autoUpdate" the generated updateServiceWorker() is a no-op -
+// `if (!auto) sendSkipWaitingMessage()`). So every new build installed, moved
+// to "waiting", and stayed there until every tab for the origin was closed.
+// On a phone that is never. The client was stuck on that build permanently.
+//
+// Why worker-driven and not a "new version, please refresh" prompt: a prompt
+// runs in the OLD page. A client on a stale build - or on a build whose update
+// code is itself broken, which is exactly what happened - can never be asked.
+// The new worker deciding for itself is the only design that cannot strand
+// anyone. Drafts survive the reload (state persists to IndexedDB via
+// localforage), so the reload costs nothing a member has typed.
+//
+// The update banner in Interface.tsx is NOT dead code: the 426 Upgrade
+// Required path in serviceWorkerInterface.ts still drives it.
+self.skipWaiting();
+self.addEventListener("activate", (event) => {
+  // Take over already-open pages immediately. registerSW's "activated"
+  // listener then reloads them onto the new build.
+  event.waitUntil(self.clients.claim());
+});
+// ---------------------------------------------------------------------------
+
 interface ChannelPartial {
   channel_type: string;
   name?: string;
