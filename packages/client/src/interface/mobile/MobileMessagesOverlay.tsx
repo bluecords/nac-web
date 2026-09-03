@@ -138,7 +138,7 @@ export function MobileMessagesOverlay() {
                           right: "-1px",
                         }}
                       >
-                        <UserStatus.Graphic
+                        <UserStatus
                           status={ch.recipient?.presence}
                           size="10px"
                         />
