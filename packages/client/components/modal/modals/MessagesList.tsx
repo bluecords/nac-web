@@ -74,7 +74,7 @@ export function MessagesListModal(
                     <div
                       style={{ position: "absolute", bottom: "-1px", right: "-1px" }}
                     >
-                      <UserStatus.Graphic
+                      <UserStatus
                         status={ch.recipient?.presence}
                         size="10px"
                       />

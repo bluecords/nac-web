@@ -170,7 +170,7 @@ export function MobileNav(_props: {
                     fallback={user()?.username}
                   />
                   <div style={{ position: "absolute", bottom: "-1px", right: "-1px" }}>
-                    <UserStatus.Graphic status={user()?.presence} size="10px" />
+                    <UserStatus status={user()?.presence} size="10px" />
                   </div>
                 </div>
                 <div style={{ "min-width": "0", flex: "1" }}>
