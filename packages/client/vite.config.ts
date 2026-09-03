@@ -27,6 +27,21 @@ export default defineConfig({
     }),
     VitePWA({
       srcDir: "src",
+      // "autoUpdate" is correct here, but it only works if the service worker
+      // itself calls skipWaiting - see the top of src/serviceWorker.ts. With
+      // `strategies: injectManifest` the plugin does NOT inject that for you
+      // the way generateSW does, and it was missing, which deadlocked every
+      // client. Measured 2026-09-03 against the plugin's registration source
+      // (dist/client/build/register.js), not its docs:
+      //
+      //   auto === true  -> listens for "activated"/"installed" only, and
+      //                     reloads the page when an update activates.
+      //   auto === false -> listens for "waiting" and calls onNeedRefresh.
+      //
+      // Do NOT switch this to "prompt" to bring back a refresh banner without
+      // reading the note in serviceWorker.ts first: a prompt depends on code
+      // running in the OLD page, so a client on a stale or broken build can
+      // never be told to update. Worker-driven activation cannot be stranded.
       registerType: "autoUpdate",
       filename: "serviceWorker.ts",
       strategies: "injectManifest",
