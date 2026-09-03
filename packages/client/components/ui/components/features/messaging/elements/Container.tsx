@@ -134,24 +134,19 @@ const base = cva({
       textDecoration: "underline",
     },
 
-    // Gated to devices that genuinely hover. Touch browsers apply :hover on
-    // tap and then LEAVE IT APPLIED until you tap somewhere else, so on a
-    // handset this revealed the reply/react/delete toolbar on any incidental
-    // touch - including the moment your finger lands to start a scroll.
+    // NOTE, measured 2026-09-02: an attempt to gate this behind
+    // `@media (hover: hover) and (pointer: fine)` produced NO CSS AT ALL.
+    // Panda does not extract a raw @media key written as a nested object
+    // here - it compiled, transformed and passed CI while emitting nothing,
+    // and the ungated rule below stayed live in prod. Verified by grepping
+    // the served CSS bundle, not the diff. If this ever needs gating, use
+    // Panda's own condition syntax and CHECK THE BUILT CSS.
     //
-    // Bunjie, 2026-09-02: "On mobile a short press can just be someone
-    // scrolling. It should require a long press." and "Mobile should be more
-    // intentional."
-    //
-    // Mobile is not left without the actions: this container already carries
-    // use:floating with the DEFAULT "contextmenu" handler, so a long press
-    // opens the full context menu. Desktop hover is unchanged - he checked it
-    // against Discord web and confirmed hover-to-reveal is the expected
-    // behaviour there.
-    "@media (hover: hover) and (pointer: fine)": {
-      "&:hover .Toolbar": {
-        display: "flex",
-      },
+    // Left ungated on purpose: Bunjie re-tested and revised his own report
+    // - "scrolling doesn't trigger it too much. Only if I pause on it.
+    // Maybe leave it."
+    "&:hover .Toolbar": {
+      display: "flex",
     },
   },
   variants: {
