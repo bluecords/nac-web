@@ -356,6 +356,14 @@ export function MessageContainer(props: Props) {
 
   function onTouchStart(e: PointerEvent) {
     if (e.pointerType !== "touch") return;
+
+    // The toolbar is a CHILD of this container, so a tap on one of its buttons
+    // bubbles up here. Without this guard the handler below immediately set
+    // touchDwell false, the toolbar went display:none mid-gesture, and the tap
+    // landed on nothing - the buttons were unclickable on touch. Regression
+    // reported by Bunjie within minutes of the dwell change shipping.
+    if ((e.target as HTMLElement | null)?.closest?.(".Toolbar")) return;
+
     dwellX = e.clientX;
     dwellY = e.clientY;
     cancelDwell();
@@ -367,6 +375,9 @@ export function MessageContainer(props: Props) {
 
   function onTouchMove(e: PointerEvent) {
     if (e.pointerType !== "touch" || !dwellTimer) return;
+    // Same reason as above: dragging a finger across the toolbar must not
+    // cancel a dwell that is keeping that toolbar on screen.
+    if ((e.target as HTMLElement | null)?.closest?.(".Toolbar")) return;
     if (
       Math.abs(e.clientX - dwellX) > TOUCH_MOVE_TOLERANCE ||
       Math.abs(e.clientY - dwellY) > TOUCH_MOVE_TOLERANCE
