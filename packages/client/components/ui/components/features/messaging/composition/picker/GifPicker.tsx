@@ -14,6 +14,8 @@ import { Trans } from "@lingui-solid/solid/macro";
 import { useQuery } from "@tanstack/solid-query";
 import { styled } from "styled-system/jsx";
 
+import { isFinePointer } from "./pointer";
+
 import {
   CircularProgress,
   TextField,
@@ -53,7 +55,9 @@ export function GifPicker() {
   return (
     <Stack>
       <TextField
-        autoFocus
+        // Desktop only, same reason as EmojiPicker: on touch the keyboard opens
+        // over the results. See isFinePointer().
+        autoFocus={isFinePointer()}
         variant="filled"
         placeholder="Search for GIFs..."
         value={filter()}
