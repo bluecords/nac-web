@@ -370,7 +370,13 @@ export function MessageContainer(props: Props) {
     // A new touch anywhere on a message dismisses the previous reveal, so the
     // strip cannot linger the way sticky :hover did.
     setTouchDwell(false);
-    dwellTimer = setTimeout(() => setTouchDwell(true), TOUCH_DWELL_MS);
+    dwellTimer = setTimeout(() => {
+      // Null it as it fires. onTouchMove keys off this handle to mean "a dwell
+      // is still pending"; leaving a spent handle here made that read true
+      // forever after the first press on a message.
+      dwellTimer = null;
+      setTouchDwell(true);
+    }, TOUCH_DWELL_MS);
   }
 
   function onTouchMove(e: PointerEvent) {
