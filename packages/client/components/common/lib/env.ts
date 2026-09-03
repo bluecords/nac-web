@@ -48,6 +48,26 @@ export default {
     (import.meta.env.VITE_PROXY_URL as string) ??
     "https://proxy.stoatusercontent.com",
   /**
+   * Base URL of the bot service (the `/bot/*` routes, proxied by the host nginx
+   * in front of Caddy to the stoatcord container).
+   *
+   * Derived from the app's own origin rather than hardcoded, because the bot is
+   * served from the SAME origin as the client in every real deployment. In
+   * production this resolves to exactly the URL that used to be hardcoded, so
+   * behaviour there is unchanged.
+   *
+   * WHY IT MATTERS: MoveToChannel had `https://community.nac.social/bot/...`
+   * written into it, so moving a message FROM A LOCAL DEV BUILD mutated the live
+   * community. Same-origin means a dev build hits its own origin, which has no
+   * /bot proxy, and fails loudly instead of quietly editing production.
+   *
+   * Also removes one of the hardcoded hostnames that would have to be found and
+   * changed for the white-label direction.
+   */
+  BOT_API_URL:
+    (import.meta.env.VITE_BOT_URL as string) ??
+    (typeof location !== "undefined" ? `${location.origin}/bot` : ""),
+  /**
    * hCaptcha site key to use if enabled
    */
   HCAPTCHA_SITEKEY: import.meta.env.VITE_HCAPTCHA_SITEKEY as string,
