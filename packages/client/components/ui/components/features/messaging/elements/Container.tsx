@@ -1,4 +1,11 @@
-import { JSX, Match, Show, Switch } from "solid-js";
+import {
+  JSX,
+  Match,
+  Show,
+  Switch,
+  createSignal,
+  onCleanup,
+} from "solid-js";
 
 import { useLingui } from "@lingui-solid/solid/macro";
 import { Message } from "stoat.js";
@@ -134,19 +141,25 @@ const base = cva({
       textDecoration: "underline",
     },
 
-    // NOTE, measured 2026-09-02: an attempt to gate this behind
-    // `@media (hover: hover) and (pointer: fine)` produced NO CSS AT ALL.
-    // Panda does not extract a raw @media key written as a nested object
-    // here - it compiled, transformed and passed CI while emitting nothing,
-    // and the ungated rule below stayed live in prod. Verified by grepping
-    // the served CSS bundle, not the diff. If this ever needs gating, use
-    // Panda's own condition syntax and CHECK THE BUILT CSS.
-    //
-    // Left ungated on purpose: Bunjie re-tested and revised his own report
-    // - "scrolling doesn't trigger it too much. Only if I pause on it.
-    // Maybe leave it."
-    "&:hover .Toolbar": {
-      display: "flex",
+    // Desktop only. Touch must NOT inherit this: touch browsers grant
+    // :hover the instant a finger rests - no dwell, no movement check -
+    // and then leave it applied, so a pausing thumb summoned the
+    // reply/react/delete strip and left it one stray tap from the bin.
+    _hoverable: {
+      "&:hover .Toolbar": {
+        display: "flex",
+      },
+    },
+
+    // Touch gets it from a deliberate dwell instead, set by the pointer
+    // handlers on this component. Three distinct gestures:
+    //   scroll      movement > 8px       -> nothing
+    //   short press held still 220ms     -> toolbar (this rule)
+    //   long press  held still 500ms     -> context menu
+    _touch: {
+      '&[data-touch-dwell="1"] .Toolbar': {
+        display: "flex",
+      },
     },
   },
   variants: {
@@ -318,9 +331,59 @@ const CompactInfo = styled(Row, {
 export function MessageContainer(props: Props) {
   const { t } = useLingui();
 
+  // Touch only. Distinguishes "thumb resting here on purpose" from "thumb
+  // passing through on the way down the page". The _touch condition in the
+  // `base` recipe above keys the toolbar to this attribute; _hoverable keeps
+  // the mouse path on :hover. One system, both rules in this file.
+  //
+  // 220ms is deliberately well under the 500ms long-press that opens the
+  // context menu, so a short press still feels immediate, and well over the
+  // "fraction of a second" a scrolling thumb rests for.
+  const TOUCH_DWELL_MS = 220;
+  const TOUCH_MOVE_TOLERANCE = 8; // same threshold the long-press uses
+
+  const [touchDwell, setTouchDwell] = createSignal(false);
+  let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+  let dwellX = 0;
+  let dwellY = 0;
+
+  function cancelDwell() {
+    if (dwellTimer) {
+      clearTimeout(dwellTimer);
+      dwellTimer = null;
+    }
+  }
+
+  function onTouchStart(e: PointerEvent) {
+    if (e.pointerType !== "touch") return;
+    dwellX = e.clientX;
+    dwellY = e.clientY;
+    cancelDwell();
+    // A new touch anywhere on a message dismisses the previous reveal, so the
+    // strip cannot linger the way sticky :hover did.
+    setTouchDwell(false);
+    dwellTimer = setTimeout(() => setTouchDwell(true), TOUCH_DWELL_MS);
+  }
+
+  function onTouchMove(e: PointerEvent) {
+    if (e.pointerType !== "touch" || !dwellTimer) return;
+    if (
+      Math.abs(e.clientX - dwellX) > TOUCH_MOVE_TOLERANCE ||
+      Math.abs(e.clientY - dwellY) > TOUCH_MOVE_TOLERANCE
+    ) {
+      cancelDwell(); // this is a scroll, not a press
+    }
+  }
+
+  onCleanup(cancelDwell);
+
   return (
     <div
       id={props.message?.id}
+      data-touch-dwell={touchDwell() ? "1" : undefined}
+      onPointerDown={onTouchStart}
+      onPointerMove={onTouchMove}
+      onPointerCancel={cancelDwell}
       onMouseEnter={() => props.onHover && props.onHover(true)}
       onMouseLeave={() => props.onHover && props.onHover(false)}
       class={

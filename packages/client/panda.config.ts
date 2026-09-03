@@ -10,6 +10,25 @@ export default defineConfig({
   // Files to exclude
   exclude: [],
 
+  // Device-capability conditions.
+  //
+  // These exist because a raw `"@media (...)": {}` key written inside a cva
+  // block does NOT become a media query - Panda folds the whole condition into
+  // the generated class name instead. That shipped green through CI once and
+  // broke the message toolbar in production (2026-09-02). Declaring the
+  // conditions here is the supported way, and it keeps the rule in the
+  // component next to the style it modifies rather than in a separate
+  // stylesheet fighting it with !important.
+  conditions: {
+    extend: {
+      // A real pointer that can hover. Excludes touch, so touch never inherits
+      // hover-driven affordances.
+      hoverable: "@media (hover: hover) and (pointer: fine)",
+      // Touch and anything else without hover.
+      touch: "@media (hover: none)",
+    },
+  },
+
   // Useful for theme customization
   theme: {
     extend: {
