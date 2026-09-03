@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
+import { CONFIGURATION } from "@revolt/common";
 import { useState } from "@revolt/state";
 import { Dialog, DialogProps } from "@revolt/ui";
 
@@ -43,7 +44,7 @@ export function MoveToChannelModal(
     setLoading(true);
     try {
       const res = await fetch(
-        "https://community.nac.social/bot/api/move-message",
+        `${CONFIGURATION.BOT_API_URL}/api/move-message`,
         {
           method: "POST",
           headers: {
