@@ -19,6 +19,8 @@ import { useState } from "@revolt/state";
 import { Avatar, Ripple, TextField } from "@revolt/ui/components/design";
 import { Row } from "@revolt/ui/components/layout";
 
+import { isFinePointer } from "./pointer";
+
 import emojiMapping from "../../../../../emojiMapping.json";
 
 import {
@@ -140,7 +142,10 @@ export function EmojiPicker() {
   return (
     <Stack>
       <TextField
-        autoFocus
+        // Desktop only: on touch this focuses the field, the on-screen keyboard
+        // opens over the picker, and the emoji you came for are hidden behind
+        // it. See isFinePointer().
+        autoFocus={isFinePointer()}
         variant="filled"
         placeholder="Search for emojis..."
         value={filter()}
