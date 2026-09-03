@@ -174,18 +174,38 @@ export function MobileSearchOverlay(props: { channel: Channel }) {
               Type to search messages and people
             </div>
           }>
-            <Show when={people().length > 0}>
-              <div
-                style={{
-                  "font-size": "12px",
-                  "text-transform": "uppercase",
-                  "letter-spacing": "0.5px",
-                  color: "var(--md-sys-color-on-surface-variant)",
-                  padding: "8px 16px 4px",
-                }}
-              >
-                People
-              </div>
+            {/* Always show the People heading once a search is running, with an
+                explicit "no matches" line. Previously the whole section simply did
+                not render when nothing came back, so "no people matched" and
+                "people search is broken" looked identical - and for a while they
+                genuinely were the same thing, because member search was
+                case-sensitive server-side. A search surface must never fail silently. */}
+            <div
+              style={{
+                "font-size": "12px",
+                "text-transform": "uppercase",
+                "letter-spacing": "0.5px",
+                color: "var(--md-sys-color-on-surface-variant)",
+                padding: "8px 16px 4px",
+              }}
+            >
+              People
+            </div>
+            <Show
+              when={people().length > 0}
+              fallback={
+                <div
+                  style={{
+                    padding: "4px 16px 8px",
+                    "font-size": "13px",
+                    color: "var(--md-sys-color-on-surface-variant)",
+                  }}
+                >
+                  No people match that name
+                </div>
+              }
+            >
+
               <For each={people()}>
                 {(member) => (
                   <PersonRow
@@ -247,13 +267,12 @@ export function MobileSearchOverlay(props: { channel: Channel }) {
  * listed, rather than this becoming a second visual language for members.
  */
 function PersonRow(props: { member: ServerMember; onSelect: () => void }) {
-  const user = () => props.member.user!;
+  const user = () => props.member.user;
   const displayName = () =>
     props.member.nickname ?? user()?.displayName ?? user()?.username ?? "";
 
   return (
-    <Show when={props.member.user}>
-      <button
+    <button
         style={{
           display: "flex",
           "align-items": "center",
@@ -264,7 +283,7 @@ function PersonRow(props: { member: ServerMember; onSelect: () => void }) {
           cursor: "pointer",
           width: "100%",
           "text-align": "left",
-          color: user().online
+          color: user()?.online
             ? "var(--md-sys-color-on-surface)"
             : "var(--md-sys-color-on-surface-variant)",
         }}
@@ -272,10 +291,10 @@ function PersonRow(props: { member: ServerMember; onSelect: () => void }) {
       >
         <Avatar
           size={36}
-          src={props.member.avatarURL ?? user().avatarURL ?? undefined}
+          src={props.member.avatarURL ?? user()?.avatarURL ?? undefined}
           fallback={displayName()}
           holepunch="bottom-right"
-          overlay={<UserStatus.Graphic status={user().presence} />}
+          overlay={<UserStatus.Graphic status={user()?.presence} />}
         />
         <span
           style={{
@@ -287,7 +306,6 @@ function PersonRow(props: { member: ServerMember; onSelect: () => void }) {
         >
           {displayName()}
         </span>
-      </button>
-    </Show>
+    </button>
   );
 }
