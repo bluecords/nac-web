@@ -23,6 +23,38 @@ const [floatingElements, setFloatingElements] = createSignal<FloatingElement[]>(
 export { floatingElements };
 
 /**
+ * Set when a menu is opened by a TOUCH gesture, so the click the browser
+ * synthesises when the finger lifts does not immediately dismiss the menu that
+ * gesture just opened.
+ *
+ * Why this is shared rather than local: FloatingManager registers a document
+ * listener whose comment reads "Always dismiss context menu on click", and it
+ * cannot tell the opening gesture's own trailing click from a genuine click
+ * elsewhere. On desktop that never mattered - a right-click fires `contextmenu`
+ * with no click after it. On touch, a long-press opens the menu at 500ms and
+ * the lift then closes it, so the menu appeared and vanished in the same
+ * gesture. Measured on a handset 2026-09-03: a MutationObserver on #floating
+ * recorded `add:ReplyMark as unreadCopy text...` immediately followed by `rm:`.
+ */
+let suppressedDocumentClick = false;
+
+/**
+ * Whether the next document mousedown/click belongs to the gesture that just
+ * opened a menu. Reading does not clear it; `consumeSuppressedDocumentClick`
+ * does, so `mousedown` can check and the following `click` can clear.
+ */
+export function isDocumentClickSuppressed() {
+  return suppressedDocumentClick;
+}
+
+/**
+ * Clear the suppression, having handled the click it was covering.
+ */
+export function consumeSuppressedDocumentClick() {
+  suppressedDocumentClick = false;
+}
+
+/**
  * Register a new floating element
  * @param element element
  */
@@ -225,11 +257,15 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
             // nothing) would leave the flag set and swallow the NEXT genuine
             // tap - reintroducing the dead-button symptom this fixes.
             suppressNextClick = false;
+            suppressedDocumentClick = false;
             longPressTimer = setTimeout(() => {
               longPressFired = true;
               // The click that follows this finger lift must not toggle the
-              // menu we are about to open.
+              // menu we are about to open...
               suppressNextClick = true;
+              // ...nor reach FloatingManager's "always dismiss on click"
+              // document listener, which would close the menu we are opening.
+              suppressedDocumentClick = true;
               trigger("contextMenu");
               // Vibrate briefly if supported (haptic feedback)
               if (navigator.vibrate) navigator.vibrate(30);
@@ -274,6 +310,10 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
                 accessor().contextMenuHandler === "click"
               ) {
                 suppressNextClick = true;
+                // Same reason as the long-press above: the synthesised click
+                // that follows this lift would otherwise reach
+                // FloatingManager and dismiss the menu we just opened.
+                suppressedDocumentClick = true;
                 trigger("contextMenu");
               }
             }
