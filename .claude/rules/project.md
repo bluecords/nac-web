@@ -9,13 +9,21 @@
   inside `packages/stoat.js`** or the client silently type-checks against the previous build.
   This cost a debugging detour on 2026-08-30 — the errors looked like a broken change and were
   a stale artifact.
-- **`tsc --noEmit -p packages/client/tsconfig.json` has 6 pre-existing errors** (was 18 until
-  2026-09-02). Compare the count before and after; a non-zero count is not automatically yours.
-  ⚠️ **But do not treat the backlog as noise — 3 of the original 18 were real defects**, including
-  a dialog button that was never disabled and a bad prop annotation that silently switched off type
-  checking for a whole mobile file. See nac-web#109. **The remaining 6 are library-typing
-  collisions** (`UserStatus` `status`, JSX attrs on `<video>` in `GifPicker`/`Embed`) and need a
-  change in shared components.
+- **`tsc --noEmit -p packages/client/tsconfig.json` has 2 pre-existing errors** (18 until
+  2026-09-02, 6 until 2026-09-03). Compare the count before and after; a non-zero count is not
+  automatically yours.
+  ⚠️ **DO NOT TREAT THE BACKLOG AS NOISE. It has now yielded real defects TWICE.** 3 of the original
+  18 were real (nac-web#109), and **4 of the following 6 were real too** (nac-web#124): four call
+  sites rendered `UserStatus.Graphic` - a bare `<circle>` - inside a plain `<div>` with no SVG
+  ancestor, so **the presence dot painted nothing at all** in the favourites list, the DM list, the
+  mobile messages overlay and the mobile nav avatar. The `size="10px"` each passed was the tell:
+  that component has no `size` prop and does not spread props, so it was silently dropped.
+  **A prop a component does not declare is not a style nit - it is a signal the wrong component is
+  being used.**
+  **The 2 that remain are genuinely typing-only:** `playsInline` on `<video>` in `GifPicker` and
+  `Embed`. Measured in Solid's runtime, not assumed: `playsInline` is in Solid's known-properties
+  set and `playsinline` is mapped for `VIDEO`, so the attribute really is applied and the iOS
+  fullscreen fix from nac-web#43 is genuinely in effect. Leave them.
 - **This clone's fetch refspec is `main` only**, so a pushed branch never gets a remote-tracking
   ref and `gh pr create` aborts with *"you must first push the current branch to a remote"* even
   though the push succeeded. **Pass `--head <branch> --base main`.** Check with
