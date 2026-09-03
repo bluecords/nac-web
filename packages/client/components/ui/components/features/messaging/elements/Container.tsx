@@ -134,8 +134,24 @@ const base = cva({
       textDecoration: "underline",
     },
 
-    "&:hover .Toolbar": {
-      display: "flex",
+    // Gated to devices that genuinely hover. Touch browsers apply :hover on
+    // tap and then LEAVE IT APPLIED until you tap somewhere else, so on a
+    // handset this revealed the reply/react/delete toolbar on any incidental
+    // touch - including the moment your finger lands to start a scroll.
+    //
+    // Bunjie, 2026-09-02: "On mobile a short press can just be someone
+    // scrolling. It should require a long press." and "Mobile should be more
+    // intentional."
+    //
+    // Mobile is not left without the actions: this container already carries
+    // use:floating with the DEFAULT "contextmenu" handler, so a long press
+    // opens the full context menu. Desktop hover is unchanged - he checked it
+    // against Discord web and confirmed hover-to-reveal is the expected
+    // behaviour there.
+    "@media (hover: hover) and (pointer: fine)": {
+      "&:hover .Toolbar": {
+        display: "flex",
+      },
     },
   },
   variants: {
