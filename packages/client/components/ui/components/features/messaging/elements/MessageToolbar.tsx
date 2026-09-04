@@ -19,11 +19,15 @@ import MdReply from "@material-design-icons/svg/outlined/reply.svg?component-sol
 
 import { startsWithPackPUA } from "@revolt/markdown/emoji/UnicodeEmoji";
 import { CompositionMediaPicker } from "../composition";
+import { isFinePointer } from "../composition/picker/pointer";
 
 export function MessageToolbar(props: { message?: Message }) {
   const user = useUser();
   const state = useState();
   const { openModal } = useModals();
+
+  // Fingers get bigger targets; a mouse keeps the compact strip.
+  const touch = !isFinePointer();
 
   // todo: a11y for buttons; tabindex
 
@@ -42,10 +46,10 @@ export function MessageToolbar(props: { message?: Message }) {
   }
 
   return (
-    <Base class="Toolbar">
+    <Base class="Toolbar" touch={touch}>
       <Show when={props.message?.channel?.havePermission("SendMessage")}>
         <div
-          class={tool()}
+          class={tool({ touch })}
           onClick={() => state.draft.addReply(props.message!, user()!.id)}
         >
           <Ripple />
@@ -73,7 +77,7 @@ export function MessageToolbar(props: { message?: Message }) {
           {(triggerProps) => (
             <div
               ref={triggerProps.ref}
-              class={tool()}
+              class={tool({ touch })}
               onClick={triggerProps.onClickEmoji}
             >
               <Ripple />
@@ -84,7 +88,7 @@ export function MessageToolbar(props: { message?: Message }) {
       </Show>
       <Show when={props.message?.author?.self}>
         <div
-          class={tool()}
+          class={tool({ touch })}
           onClick={() => state.draft.setEditingMessage(props.message)}
         >
           <Ripple />
@@ -97,13 +101,13 @@ export function MessageToolbar(props: { message?: Message }) {
           props.message?.channel?.havePermission("ManageMessages")
         }
       >
-        <div class={tool()} onClick={deleteMessage}>
+        <div class={tool({ touch })} onClick={deleteMessage}>
           <Ripple />
           <MdDelete {...iconSize(20)} />
         </div>
       </Show>
       <div
-        class={tool()}
+        class={tool({ touch })}
         use:floating={{
           contextMenu: () => <MessageContextMenu message={props.message!} />,
           contextMenuHandler: "click",
@@ -118,7 +122,6 @@ export function MessageToolbar(props: { message?: Message }) {
 
 const Base = styled("div", {
   base: {
-    top: "-18px",
     right: "16px",
     position: "absolute",
 
@@ -132,12 +135,35 @@ const Base = styled("div", {
     fill: "var(--md-sys-color-on-secondary-container)",
     background: "var(--md-sys-color-secondary-container)",
   },
+  variants: {
+    // Touch gets a 44px-tall strip, so it has to sit higher to stay clear of
+    // the message it belongs to. -46px puts its bottom edge 2px ABOVE the
+    // message top, which is the point: Bunjie's instruction was "just don't
+    // have it in the middle of the text".
+    touch: {
+      true: { top: "-46px" },
+      false: { top: "-18px" },
+    },
+  },
 });
 
 const tool = cva({
   base: {
     cursor: "pointer",
     position: "relative",
-    padding: "var(--gap-sm)",
+  },
+  variants: {
+    // 20px icon + 2x12 = 44x44, the standard minimum touch target. Measured on
+    // his handset 2026-09-03 the buttons were 28x28 (20px icon + 2x --gap-sm).
+    //
+    // Chosen in JS via isFinePointer(), NOT as a nested @media key in this
+    // block. Panda does not turn a nested @media inside cva into a real media
+    // query - it flattens the whole condition into the CLASS NAME, which is
+    // what took the toolbar out entirely on 2026-09-02. Same reason the picker
+    // does its autofocus check in JS.
+    touch: {
+      true: { padding: "12px" },
+      false: { padding: "var(--gap-sm)" },
+    },
   },
 });
