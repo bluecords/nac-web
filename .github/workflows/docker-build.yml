@@ -11,6 +11,18 @@ on:
       - main
   workflow_dispatch:
 
+# Two merges close together used to race, and the LATER-FINISHING deploy won
+# regardless of which commit was newer. Measured 2026-09-04: #135 finished at
+# 12:17:03 and #134 at 12:17:17, so prod ended up running #134's image with
+# #135's change missing - while BOTH runs reported success. Nothing failed;
+# the ordering was simply wrong, which is worse, because it is silent.
+#
+# One run at a time per branch, and queued rather than cancelled, so the last
+# commit merged is the last image deployed.
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
