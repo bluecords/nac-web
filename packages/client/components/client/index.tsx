@@ -15,6 +15,7 @@ import { fetchLatestChangelog } from "@revolt/modal/modals/Changelog";
 import { State } from "@revolt/state";
 
 import ClientController from "./Controller";
+import { refreshEmbedConsent, resetEmbedConsent } from "./EmbedConsent";
 import { refreshMediaConsent, resetMediaConsent } from "./MediaConsent";
 
 export type { default as ClientController } from "./Controller";
@@ -35,6 +36,16 @@ export {
   resetMediaConsent,
   withdrawMediaConsent,
 } from "./MediaConsent";
+
+export {
+  embedAckKey,
+  embedConsentGranted,
+  embedConsentLoaded,
+  grantEmbedConsent,
+  refreshEmbedConsent,
+  resetEmbedConsent,
+  withdrawEmbedConsent,
+} from "./EmbedConsent";
 export { useNotifications } from "./NotificationsController";
 export { SoundContext, SoundController, useSound } from "./Sounds";
 
@@ -96,8 +107,10 @@ export function ClientContext(props: { state: State; children: JSXElement }) {
 
         if (loggedIn && configured && client) {
           refreshMediaConsent(client);
+          refreshEmbedConsent(client);
         } else if (!loggedIn) {
           resetMediaConsent();
+          resetEmbedConsent();
         }
       },
     ),

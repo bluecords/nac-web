@@ -48,6 +48,7 @@ import { MFARecoveryModal } from "./modals/MFARecovery";
 import { MessagesListModal } from "./modals/MessagesList";
 import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { OnboardingModal } from "./modals/Onboarding";
+import { EmbedConsentModal } from "./modals/EmbedConsent";
 import { PolicyChangeModal } from "./modals/PolicyChange";
 import { RemoveMemberModal } from "./modals/RemoveMember";
 import { RenameSessionModal } from "./modals/RenameSession";
@@ -171,6 +172,8 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <OnboardingModal {...modalProps} />;
     case "policy_change":
       return <PolicyChangeModal {...modalProps} />;
+    case "embed_consent":
+      return <EmbedConsentModal {...modalProps} />;
     case "rename_session":
       return <RenameSessionModal {...modalProps} />;
     case "report_content":
