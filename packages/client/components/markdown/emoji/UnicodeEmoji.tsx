@@ -63,11 +63,28 @@ export const startsWithPackPUA = (emoji: string) => {
   return false;
 };
 
+/**
+ * Emoji come from our own origin, not a third party.
+ *
+ * This used to be https://static.stoat.chat/emoji/... , which meant every
+ * emoji in every message was fetched by the MEMBER'S OWN BROWSER from
+ * infrastructure we do not control - one request, and one IP address, per
+ * emoji per message per member. Probed live 2026-09-04: 200 OK. It was
+ * really happening. Same class as the geo.revolt.chat call already removed
+ * from the age gate.
+ *
+ * All six packs are now mirrored onto the box and served at /emoji/ by nginx.
+ * See nac-server: nginx/sites-available/community-nac-social and
+ * scripts/mirror-emoji.py.
+ *
+ * Relative on purpose, the same way the GIF picker calls /giphy: a dev build
+ * then hits its own origin rather than production.
+ */
 export function unicodeEmojiUrl(
   pack: UnicodeEmojiPacks = "fluent-3d",
   text: string,
 ) {
-  return `https://static.stoat.chat/emoji/${pack}/${toCodepoint(text)}.svg?v=1`;
+  return `/emoji/${pack}/${toCodepoint(text)}.svg?v=1`;
 }
 
 /**
