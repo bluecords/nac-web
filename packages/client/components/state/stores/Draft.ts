@@ -235,6 +235,32 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
   }
 
   /**
+   * Whether anything anywhere is typed-but-unsent, or still on its way out.
+   *
+   * Used to decide when it is safe to apply a new build. Bunjie, 2026-09-03:
+   * "leaving their unentered comment intact with a notice telling them that
+   * there was an update... let the post complete after the fact because 99.9%
+   * of whatever change has nothing to do with a post."
+   *
+   * The outbox counts as well as drafts: a message that has been sent but not
+   * yet acknowledged is exactly the thing a reload would strand.
+   */
+  hasAnyUnsent(): boolean {
+    const state = this.get();
+
+    for (const draft of Object.values(state.drafts ?? {})) {
+      if ((draft?.content?.length ?? 0) > 0) return true;
+      if ((draft?.files?.length ?? 0) > 0) return true;
+    }
+
+    for (const queue of Object.values(state.outbox ?? {})) {
+      if ((queue?.length ?? 0) > 0) return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Check whether a channel has a draft.
    * @param channelId Channel ID
    */
