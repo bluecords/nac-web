@@ -46,13 +46,11 @@ const internalLink = cva({
 
 function inAppScope(link: URL): boolean {
   return (
-    [
-      location.origin,
-      "https://old.stoat.chat",
-      "https://revolt.chat",
-      "https://app.revolt.chat",
-      "https://stoat.chat",
-    ].includes(link.origin) &&
+    // Only our own origin. Upstream's hosts (old.stoat.chat, revolt.chat,
+    // app.revolt.chat, stoat.chat) used to be treated as in-app links, so a
+    // link to someone else's community opened inside NAC as though it were
+    // ours. They are ordinary external links now.
+    link.origin === location.origin &&
     /\/(app|home|pwa|dev|invite|bot|friends|server|channel)\/?/.test(
       link.pathname,
     )
