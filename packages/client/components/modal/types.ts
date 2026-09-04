@@ -286,6 +286,17 @@ export type Modals =
       url: URL;
       display: string;
     }
+  | {
+      /**
+       * Asked before a third-party player is loaded for the first time.
+       * `provider` is the company name shown to the member (YouTube,
+       * Spotify, ...) and is also what the consent record is keyed on.
+       */
+      type: "embed_consent";
+      provider: string;
+      url: string;
+      onPlay: () => void;
+    }
   // | {
   //     type: "pending_friend_requests";
   //     users: User[];
