@@ -19,7 +19,11 @@ import { MobileMembersOverlay } from "./interface/mobile/MobileMembersOverlay";
 import { MobileMessagesOverlay } from "./interface/mobile/MobileMessagesOverlay";
 import { MobileNavProvider } from "./interface/mobile/MobileNavContext";
 import { Sidebar } from "./interface/Sidebar";
-import { pendingUpdate } from "./serviceWorkerInterface";
+import {
+  pendingUpdate,
+  updateApply,
+  updateReady,
+} from "./serviceWorkerInterface";
 
 /**
  * Application layout
@@ -57,6 +61,22 @@ const Interface = (props: { children: JSX.Element }) => {
     }
   });
 
+  // Apply a waiting update the moment it costs the member nothing.
+  //
+  // The worker has already taken over by this point, so the code is READY -
+  // the only question is when to swap the page, and the answer is "not while
+  // they are mid-sentence". Once nothing is typed-but-unsent and the outbox is
+  // empty, reload without asking: there is nothing to lose and the banner has
+  // already said it would.
+  //
+  // A message still in the outbox counts as unsent. Reloading then is exactly
+  // the case his instruction was about - let the post complete first.
+  createEffect(() => {
+    if (!updateReady()) return;
+    if (state.draft.hasAnyUnsent()) return;
+    updateApply()();
+  });
+
   // Belt-and-suspenders: also record nextPath synchronously as part of
   // deciding to redirect, in the SAME expression that gates <Navigate>. This
   // removes any dependency on createEffect firing before the redirect — the
@@ -90,17 +110,27 @@ const Interface = (props: { children: JSX.Element }) => {
         }}
       >
         <Titlebar />
-        <Show when={pendingUpdate()}>
-          {(applyUpdate) => (
-            <UpdateBanner>
-              <Text size="small">
-                A new version is ready — click Refresh to update.
-              </Text>
-              <Button variant="text" onPress={() => applyUpdate()()}>
-                Refresh
-              </Button>
-            </UpdateBanner>
-          )}
+        {/* An update NEVER interrupts. Bunjie, 2026-09-03: "leaving their
+            unentered comment intact with a notice telling them that there was
+            an update... let the post complete after the fact because 99.9% of
+            whatever change has nothing to do with a post."
+
+            So the new code is applied the moment nothing is typed-but-unsent,
+            silently and with nothing lost, and until then this says so and
+            leaves the decision with the member. */}
+        <Show when={pendingUpdate() || updateReady()}>
+          <UpdateBanner>
+            <Text size="small">
+              A new version is ready. Finish what you're typing — it'll update
+              on its own once your message is sent.
+            </Text>
+            <Button
+              variant="text"
+              onPress={() => (pendingUpdate() ?? updateApply())()}
+            >
+              Refresh now
+            </Button>
+          </UpdateBanner>
         </Show>
         <Switch fallback={<CircularProgress />}>
           <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>

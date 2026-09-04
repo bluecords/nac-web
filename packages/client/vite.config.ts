@@ -38,11 +38,24 @@ export default defineConfig({
       //                     reloads the page when an update activates.
       //   auto === false -> listens for "waiting" and calls onNeedRefresh.
       //
-      // Do NOT switch this to "prompt" to bring back a refresh banner without
-      // reading the note in serviceWorker.ts first: a prompt depends on code
-      // running in the OLD page, so a client on a stale or broken build can
-      // never be told to update. Worker-driven activation cannot be stranded.
-      registerType: "autoUpdate",
+      // WHY "prompt" NOW, having been "autoUpdate" earlier the same day: the
+      // earlier warning here said a prompt can never reach a client on a stale
+      // build. That was TRUE of the old setup, where nothing ever called
+      // skipWaiting, so the page was the only thing that could act - and a
+      // stale page cannot. It is no longer true: the worker skip-waits itself,
+      // so activation is guaranteed regardless of what the old page can do.
+      //
+      // "prompt" here only stops the PLUGIN reloading the page by itself. Under
+      // "autoUpdate" its registration reloads the moment a new worker
+      // activates, which is reliable and rude - it can yank the page out from
+      // under someone mid-sentence.
+      //
+      // This is NOT a return to the old broken prompt setup. The worker still
+      // calls self.skipWaiting() (see src/serviceWorker.ts), so nobody can be
+      // stranded on a dead build the way every client was before 2026-09-03.
+      // The worker decides that new code takes over; the PAGE decides when to
+      // swap, and swaps as soon as nothing is typed-but-unsent.
+      registerType: "prompt",
       filename: "serviceWorker.ts",
       strategies: "injectManifest",
       injectManifest: {
