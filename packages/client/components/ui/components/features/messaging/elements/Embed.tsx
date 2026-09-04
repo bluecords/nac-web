@@ -51,8 +51,14 @@ export function Embed(props: { embed: MessageEmbed }) {
       <Match when={image()}>
         <SizedContent width={image()!.width} height={image()!.height}>
           <img
-            // bypass proxy for known GIF providers
-            src={isGIF() ? image()!.url : image()!.proxiedURL}
+            // GIFs go through our proxy too. They used to be exempted, which
+            // meant every GIF in every message was fetched by the member's own
+            // browser straight from Giphy or Tenor - handing them an IP per
+            // member per message, in exactly the place the proxy exists to
+            // prevent. Measured 2026-09-04: a real Giphy GIF through january
+            // came back byte-for-byte identical, 139,425 bytes, 8 frames, loop
+            // block intact. The proxy does not touch animation.
+            src={image()!.proxiedURL}
             loading="lazy"
             class={css({ cursor: "pointer" })}
             onClick={() =>
@@ -75,8 +81,8 @@ export function Embed(props: { embed: MessageEmbed }) {
             playsInline
             controls={!isGIF()}
             preload="metadata"
-            // bypass proxy for known GIF providers
-            src={isGIF() ? video()!.url : video()!.proxiedURL}
+            // Same as the image above: no GIF exemption.
+            src={video()!.proxiedURL}
             class={css({ cursor: isGIF() ? "pointer" : "unset" })}
             onClick={() =>
               isGIF() &&

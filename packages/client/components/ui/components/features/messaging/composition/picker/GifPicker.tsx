@@ -16,6 +16,8 @@ import { styled } from "styled-system/jsx";
 
 import { isFinePointer } from "./pointer";
 
+import { CONFIGURATION } from "@revolt/common";
+
 import {
   CircularProgress,
   TextField,
@@ -37,6 +39,24 @@ import { CompositionMediaPickerContext } from "./CompositionMediaPicker";
  * no longer receives is who searched.
  */
 const GIPHY_BASE = "/giphy";
+
+/**
+ * The picker's own media goes through our proxy as well.
+ *
+ * Proxying the SEARCH (above) stopped Giphy learning who was typing, but the
+ * preview MP4s and the category thumbnails were still a <video src> and a
+ * background-image pointing straight at media*.giphy.com. So merely OPENING
+ * the picker handed Giphy the member's IP once per tile - undoing most of what
+ * proxying the search achieved.
+ *
+ * Falls back to the original URL if no proxy is configured, so a dev build
+ * without VITE_PROXY_URL still shows GIFs rather than breaking.
+ */
+function proxied(url: string) {
+  const base = CONFIGURATION.DEFAULT_PROXY_URL;
+  if (!url || !base) return url;
+  return `${base}/proxy?url=${encodeURIComponent(url)}`;
+}
 
 type GifCategory = { title: string; image: string };
 
@@ -180,7 +200,7 @@ function Categories() {
         {(item) => (
           <Category
             style={{
-              "background-image": `linear-gradient(to right, #0006, #0006), url("${item.t === 0 ? item.category.image : (item.gif?.previewMp4 ?? "")}")`,
+              "background-image": `linear-gradient(to right, #0006, #0006), url("${proxied(item.t === 0 ? item.category.image : (item.gif?.previewMp4 ?? ""))}")`,
             }}
             role="listitem"
             onClick={() =>
@@ -269,7 +289,7 @@ function GifItem(props: { gif: GifResult }) {
       playsInline
       preload="auto"
       role="listitem"
-      src={props.gif.previewMp4}
+      src={proxied(props.gif.previewMp4)}
       // Selecting a GIF sends it, so there is nothing left to do in the picker.
       // It used to stay open, and because it covers the screen on a phone there
       // was no "outside" left to tap to dismiss it.
