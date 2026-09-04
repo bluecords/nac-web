@@ -6,7 +6,6 @@ import { css, cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { IS_DEV, useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import { useNavigate } from "@revolt/routing";
 import { useMobileNav } from "./mobile/MobileNavContext";
@@ -107,11 +106,6 @@ export function HomePage() {
     navigate(`/server/${server.id}`);
     openNav();
   });
-
-  // check if we're stoat.chat; if so, check if the user is in the Lounge
-  const showLoungeButton = CONFIGURATION.IS_STOAT;
-  const isInLounge =
-    client()!.servers.get("01F7ZSBSFHQ8TA81725KQCSDDP") !== undefined;
 
   return (
     <Base>

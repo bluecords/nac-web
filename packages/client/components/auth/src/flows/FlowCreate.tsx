@@ -95,7 +95,7 @@ export default function FlowCreate() {
             cursor: "pointer",
           }}
           onClick={() => {
-            setFlowCheckEmail("insert@stoat.chat");
+            setFlowCheckEmail("test@nac.social");
             navigate("/login/check", { replace: true });
           }}
         >

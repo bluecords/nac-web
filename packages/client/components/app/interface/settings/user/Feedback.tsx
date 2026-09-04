@@ -11,7 +11,6 @@ import MdFormatListNumbered from "@material-design-icons/svg/outlined/format_lis
 import MdStar from "@material-design-icons/svg/outlined/star_outline.svg?component-solid";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import { CategoryButton, Column, iconSize } from "@revolt/ui";
 
@@ -22,10 +21,6 @@ export function Feedback() {
   const { openModal, pop } = useModals();
   const navigate = useNavigate();
   const client = useClient();
-
-  const showLoungeButton = CONFIGURATION.IS_STOAT;
-  const isInLounge =
-    client()!.servers.get("01F7ZSBSFHQ8TA81725KQCSDDP") !== undefined;
 
   return (
     <Column gap="lg">

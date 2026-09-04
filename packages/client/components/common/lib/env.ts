@@ -16,17 +16,6 @@ export default {
    */
   DEFAULT_API_URL,
   /**
-   * Whether this is Stoat
-   */
-  IS_STOAT: [
-    // historically...
-    "https://api.revolt.chat",
-    "https://beta.revolt.chat/api",
-    "https://revolt.chat/api",
-    // ... and now:
-    "https://stoat.chat/api",
-  ].includes(DEFAULT_API_URL),
-  /**
    * What WS server to connect to by default.
    */
   DEFAULT_WS_URL:
@@ -39,14 +28,14 @@ export default {
   DEFAULT_MEDIA_URL:
     (import.meta.env.DEV ? import.meta.env.VITE_DEV_MEDIA_URL : undefined) ??
     (import.meta.env.VITE_MEDIA_URL as string) ??
-    "https://cdn.stoatusercontent.com",
+    "",
   /**
    * What proxy server to connect to by default.
    */
   DEFAULT_PROXY_URL:
     (import.meta.env.DEV ? import.meta.env.VITE_DEV_PROXY_URL : undefined) ??
     (import.meta.env.VITE_PROXY_URL as string) ??
-    "https://proxy.stoatusercontent.com",
+    "",
   /**
    * Base URL of the bot service (the `/bot/*` routes, proxied by the host nginx
    * in front of Caddy to the stoatcord container).
