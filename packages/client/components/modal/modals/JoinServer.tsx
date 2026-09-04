@@ -8,7 +8,10 @@ import { Column, Dialog, DialogProps, Form2, Text } from "@revolt/ui";
 import { useModals } from "..";
 import { Modals } from "../types";
 
-const RE_INVITE_URL = /(?:invite|stt.gg)\/([a-z0-9]+)/gi;
+// Our own invite paths only. This used to accept `stt.gg/<code>` too, so
+// pasting an invite to a completely different community submitted its code to
+// our API. (It also spelled the shortener `stt.gg` with an unescaped dot.)
+const RE_INVITE_URL = /invite\/([a-z0-9]+)/gi;
 
 /**
  * Modal to join a server

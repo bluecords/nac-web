@@ -73,7 +73,7 @@ export function RenderAnchor(
   if (!localProps.href) return <span>{remoteProps.children}</span>;
 
   try {
-    let url = new URL(localProps.href);
+    const url = new URL(localProps.href);
 
     // Only allow http, https, mailto, and tel protocols
     if (
@@ -85,14 +85,11 @@ export function RenderAnchor(
       return <span>{remoteProps.children}</span>;
     }
 
-    // Remap discover links to native links
-    if (url.origin === "https://rvlt.gg" || url.origin === "https://stt.gg") {
-      if (/^\/[\w\d]+$/.test(url.pathname)) {
-        url = new URL(`/invite${url.pathname}`, location.origin);
-      } else if (url.pathname.startsWith("/discover")) {
-        url = new URL(url.pathname, location.origin);
-      }
-    }
+    // Upstream's invite shorteners (rvlt.gg, stt.gg) used to be rewritten into
+    // OUR invite and discover routes. NAC has no such shortener, so pasting
+    // someone else's community invite made this client try to redeem the code
+    // against nac.social - joining nothing, and confusingly. They are ordinary
+    // external links now.
 
     // Determine whether it's in our scope
     if (inAppScope(url)) {
