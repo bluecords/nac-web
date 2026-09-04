@@ -136,12 +136,16 @@ const Base = styled("div", {
     background: "var(--md-sys-color-secondary-container)",
   },
   variants: {
-    // Touch gets a 44px-tall strip, so it has to sit higher to stay clear of
-    // the message it belongs to. -46px puts its bottom edge 2px ABOVE the
-    // message top, which is the point: Bunjie's instruction was "just don't
-    // have it in the middle of the text".
+    // On touch the strip sits INSIDE its own message, in the 48px band the
+    // container reserves on hover (see Container.tsx). Absolutely positioned
+    // elements are placed against the containing block's PADDING box, so
+    // top:2px lands in that reserved band, above this message's content and
+    // below the previous message. It covers nothing.
+    //
+    // -46px was the previous attempt: it cleared this message's text by
+    // sitting on the PREVIOUS message's text instead. Measured on his handset.
     touch: {
-      true: { top: "-46px" },
+      true: { top: "2px" },
       false: { top: "-18px" },
     },
   },

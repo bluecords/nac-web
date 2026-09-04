@@ -14,6 +14,7 @@ import {
 } from "@revolt/ui/components/utils";
 
 import { MessageToolbar } from "./MessageToolbar";
+import { isFinePointer } from "../composition/picker/pointer";
 
 interface CommonProps {
   /**
@@ -150,6 +151,25 @@ const base = cva({
     },
   },
   variants: {
+    // On touch the toolbar is 44px tall and floats above the message. Without
+    // this it lands on the message ABOVE and covers that message's text -
+    // measured on his handset 2026-09-04, the strip sat squarely across
+    // "@d_of_eden you can't see this?". His instruction was "just don't have
+    // it in the middle of the text", and moving the overlap onto a different
+    // message does not satisfy it.
+    //
+    // So the hovered message RESERVES the band instead of borrowing it. The
+    // toolbar then sits inside this message's own padding, over nothing.
+    // Costs one ~46px nudge when the strip appears; covers no text, ever.
+    //
+    // Touch only, chosen in JS - see the NOTE above about @media here.
+    touch: {
+      true: {
+        "&:hover": {
+          paddingTop: "48px",
+        },
+      },
+    },
     tail: {
       true: {
         marginTop: 0,
@@ -326,6 +346,7 @@ export function MessageContainer(props: Props) {
       class={
         "group " +
         base({
+          touch: !isFinePointer(),
           tail: props.tail,
           mentioned: props.mentioned,
           highlight: props.highlight,
