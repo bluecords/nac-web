@@ -21,6 +21,7 @@ import { ChannelPermissionsEditor } from "./channel/permissions/ChannelPermissio
 import Overview from "./server/Overview";
 import { ListServerBans } from "./server/bans/ListBans";
 import { EmojiList } from "./server/emojis/EmojiList";
+import { MemberList } from "./server/members/MemberList";
 import { ListServerInvites } from "./server/invites/ListServerInvites";
 import { RoleClassesEditor } from "./server/roles/RoleClassesEditor";
 import { ServerRoleEditor } from "./server/roles/ServerRoleEditor";
@@ -73,6 +74,8 @@ const Config: SettingsConfiguration<Server> = {
         return <Overview server={server} />;
       case "emojis":
         return <EmojiList server={server} />;
+      case "members":
+        return <MemberList server={server} />;
       case "roles":
         return <ServerRoleOverview context={server} />;
       case "role_classes":
@@ -127,7 +130,12 @@ const Config: SettingsConfiguration<Server> = {
           title: <Trans>User Management</Trans>,
           entries: [
             {
-              hidden: true,
+              // Was `hidden: true` with no case in the render switch: upstream
+              // stubbed this entry and never built it, so there was no way to
+              // see the membership at all. The member sidebar is per-channel by
+              // design and most NAC channels deny view by default, which is why
+              // the owner's own account showed three people.
+              hidden: !server.havePermission("ManageServer"),
               id: "members",
               icon: <BiSolidGroup size={20} />,
               title: <Trans>Members</Trans>,
