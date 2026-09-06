@@ -3,7 +3,11 @@
  */
 import "./sentry";
 
-import { JSX, createEffect, createSignal, onMount } from "solid-js";
+import { JSX, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+
+/** How long to wait for `client.user` after the client reports loaded. */
+const USER_WAIT_INTERVAL_MS = 250;
+const MAX_USER_WAIT_TICKS = 40; // 10 seconds, then fail loudly rather than silently
 import { render } from "solid-js/web";
 
 import { attachDevtoolsOverlay } from "@solid-devtools/overlay";
@@ -130,9 +134,13 @@ function InviteRedirect() {
   const navigate = useNavigate();
   const { showError } = useModals();
   const [attempted, setAttempted] = createSignal(false);
+  const [userWaitTicks, setUserWaitTicks] = createSignal(0);
 
   createEffect(() => {
     if (attempted()) return;
+
+    // Tracked read: this is what lets the client.user wait below re-run.
+    userWaitTicks();
 
     // Capture the code ONCE per attempt, synchronously, and reuse this local
     // everywhere below. Do NOT re-read `params.code` inside the async .then()
@@ -173,11 +181,38 @@ function InviteRedirect() {
       return;
     }
 
+    // `client()?.user` is an UNTRACKED read — the same trap the comment above
+    // describes, left behind when the earlier bail was fixed. Returning here on
+    // a plain `return` means nothing re-triggers this effect (none of its
+    // tracked deps change again), so the join is dropped permanently and
+    // silently: the member lands logged in with no server and no error.
+    //
+    // So this branch drives its own retry via a tracked signal, and gives up
+    // LOUDLY rather than quietly. `loadedOnce()` can flip true a beat before
+    // the websocket sync populates the user, which is why this is a race and
+    // why it only ever hit some people.
     if (!client()?.user) {
-      console.warn(
-        "[InviteRedirect] loadedOnce but client.user still missing — code:",
+      if (userWaitTicks() >= MAX_USER_WAIT_TICKS) {
+        setAttempted(true);
+        console.error(
+          "[InviteRedirect] gave up waiting for client.user — join NOT attempted, code:",
+          code,
+        );
+        showError(
+          "We could not finish adding you to the server. Please reload the page and open your invite link again." as never,
+        );
+        return;
+      }
+
+      console.info(
+        "[InviteRedirect] loadedOnce but client.user still missing, retrying — code:",
         code,
       );
+      const timer = setTimeout(
+        () => setUserWaitTicks((n) => n + 1),
+        USER_WAIT_INTERVAL_MS,
+      );
+      onCleanup(() => clearTimeout(timer));
       return;
     }
 
