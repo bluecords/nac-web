@@ -31,7 +31,7 @@ import {
 const Interface = (props: { children: JSX.Element }) => {
   const state = useState();
   const client = useClient();
-  const { openModal } = useModals();
+  const { openModal, isOpen } = useModals();
   const { isLoggedIn, lifecycle } = useClientLifecycle();
   const { pathname } = useLocation();
 
@@ -74,6 +74,26 @@ const Interface = (props: { children: JSX.Element }) => {
   createEffect(() => {
     if (!updateReady()) return;
     if (state.draft.hasAnyUnsent()) return;
+
+    // The consent gate counts as "mid-sentence" too, and the draft check cannot
+    // see it. It holds four tick-boxes and a Discord name the member searched
+    // for and selected, none of it saved anywhere until they press Continue -
+    // so a reload silently wipes the lot and re-opens the wall, blank.
+    //
+    // Reported by Bunjie 2026-09-07, testing the live gate while this session
+    // was shipping fixes: "the page kept reloading in the background causing
+    // the model to wipe and start over". Two deploys landed while he was
+    // filling it in. It is not a deploy-only problem - the soft launch is
+    // deliberately the period when members are mid-gate AND fixes are shipping.
+    //
+    // Scoped to this ONE modal on purpose, not "any modal open". Blocking
+    // updates behind any open dialog is how a client gets stranded on a stale
+    // build, which is the exact failure the worker-driven design exists to
+    // prevent. The gate is the case that is both unskippable and full of
+    // unsaved input - and passing it closes the modal, so the update applies
+    // moments later anyway.
+    if (isOpen("policy_change")) return;
+
     updateApply()();
   });
 
