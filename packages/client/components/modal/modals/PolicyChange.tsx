@@ -164,6 +164,12 @@ export function PolicyChangeModal(
       show={props.show}
       // No click-away or Escape while the gate is live, for the same reason
       // there is no Close button.
+      //
+      // ⚠️ Dialog calls THIS on a successful action too, not only on dismissal -
+      // it awaits an async `onClick` and then calls `onClose`. So while the gate
+      // is enforcing, that path lands on the no-op and Continue can never close
+      // the modal. That is why Continue is closed explicitly in its own handler
+      // below instead of relying on Dialog to do it.
       onClose={enforcing() ? () => {} : props.onClose}
       title={<Trans>Before you continue</Trans>}
       actions={[
@@ -195,6 +201,18 @@ export function PolicyChangeModal(
                   granted: true,
                 })),
               );
+
+              // Close explicitly. Dialog would normally do this for us once the
+              // async handler resolves, but it goes through the `onClose` above,
+              // which is deliberately a no-op while the gate is enforcing - so
+              // relying on it leaves the member looking at the same wall after a
+              // successful submit, with no way out and no error to explain it.
+              //
+              // Reported by Bunjie 2026-09-07: "I filled it out, hit the continue
+              // button which highlighted on press but the modal never went away."
+              // He pressed it three times; the database shows three complete sets
+              // of consent records, 4 and 6 seconds apart. Every press worked.
+              props.onClose();
             } catch (error) {
               showError(error);
             } finally {
