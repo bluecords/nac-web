@@ -5,7 +5,16 @@ import { createFormControl, createFormGroup } from "solid-forms";
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 
 import { useClient } from "@revolt/client";
-import { Button, Column, Dialog, DialogProps, Form2, Row, Text } from "@revolt/ui";
+import {
+  Button,
+  Column,
+  Dialog,
+  DialogProps,
+  FilePasteCollector,
+  Form2,
+  Row,
+  Text,
+} from "@revolt/ui";
 
 import { useModals } from "..";
 import { Modals } from "../types";
@@ -125,6 +134,19 @@ export function CreateForumPostModal(
           <Form2.TextEditor
             control={group.controls.content}
             placeholder={t`Write your post...`}
+          />
+
+          {/*
+            Pasting an image is how most people actually attach a screenshot,
+            and it is the whole point of a troubleshooting forum. The message
+            composer has had this all along via FilePasteCollector; this modal
+            never wired it up, so a file picker alone still left paste dead.
+
+            Mounted inside the dialog, so it only listens while the modal is
+            open and cannot swallow pastes meant for anything else.
+          */}
+          <FilePasteCollector
+            onFiles={(pasted) => setFiles((current) => [...current, ...pasted])}
           />
 
           <Column gap="sm">
