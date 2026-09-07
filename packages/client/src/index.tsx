@@ -222,19 +222,50 @@ function InviteRedirect() {
     client()
       .api.get(`/invites/${code}`)
       .then(async (invite) => {
+        const serverId = (invite as unknown as { server_id: string }).server_id;
+
         try {
           await client().api.post(`/invites/${code}`);
           console.info("[InviteRedirect] join succeeded — code:", code);
         } catch (err) {
+          // ONLY "you are already in this server" is benign here.
+          //
+          // This catch used to swallow EVERY failure as "likely already a
+          // member" and navigate to the server regardless — so a join that
+          // genuinely failed looked exactly like a join that succeeded, and
+          // the member landed in an empty app with no error and nothing to
+          // retry. That is the limbo Bunjie has reported repeatedly since
+          // June, and it is how `Benjamin.Thompson` ended up on 2026-09-07
+          // with an account, a completed consent gate, a claimed Discord
+          // identity, two sessions — and no membership of any server.
+          //
+          // The earlier fixes (#10/#33/#44/#142) all closed paths where the
+          // join was never ATTEMPTED. This one is the opposite: attempted,
+          // failed, and reported as fine.
+          const type = (err as { type?: string })?.type;
+          const status = (err as { response?: { status?: number } })?.response
+            ?.status;
+          const alreadyIn = type === "AlreadyInServer" || status === 409;
+
+          if (!alreadyIn) {
+            console.error(
+              "[InviteRedirect] join POST FAILED — code:",
+              code,
+              err,
+            );
+            showError(
+              "We could not add you to the server. Please reload the page and open your invite link again." as never,
+            );
+            return; // do NOT pretend this worked by navigating into the server
+          }
+
           console.info(
-            "[InviteRedirect] join POST failed (likely already a member) — code:",
+            "[InviteRedirect] already a member — code:",
             code,
-            err,
           );
         }
-        navigate(
-          `/server/${(invite as unknown as { server_id: string }).server_id}`,
-        );
+
+        navigate(`/server/${serverId}`);
       })
       .catch((err) => {
         console.error("[InviteRedirect] GET /invites failed — code:", code, err);
