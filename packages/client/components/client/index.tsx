@@ -55,7 +55,7 @@ const clientContext = createContext(null! as ClientController);
  * Mount the modal controller
  */
 export function ClientContext(props: { state: State; children: JSXElement }) {
-  const { openModal } = useModals();
+  const { openModal, isOpen } = useModals();
 
   // eslint-disable-next-line solid/reactivity
   const controller = new ClientController(props.state);
@@ -121,6 +121,25 @@ export function ClientContext(props: { state: State; children: JSXElement }) {
       () => controller.lifecycle.policyAttentionRequired(),
       (attentionRequired) => {
         if (typeof attentionRequired !== "undefined") {
+          // `policyChanges` is emitted from the READY handler, so it fires again
+          // on every reconnect while the member is still unacknowledged - and
+          // `openModal` appends unconditionally. Without this guard the gate
+          // stacks a second copy of itself on top of the first: the member
+          // completes the top one and is left staring at a duplicate they
+          // cannot dismiss, because an enforcing gate has no Close button.
+          //
+          // Reported by Bunjie 2026-09-07, minutes after the gate went live:
+          // "I had 2 popups. One in front of the other." A deploy had recreated
+          // `events` underneath him. It is NOT specific to deploys - the comment
+          // in Controller.ts about mobile browsers dropping the socket when
+          // backgrounded describes exactly the same trigger, which on phones
+          // happens constantly.
+          //
+          // Skip rather than replace: he may already have ticked boxes in the
+          // open one, and the server verifies the policy hash on submit anyway,
+          // so consent can never be recorded against the wrong document.
+          if (isOpen("policy_change")) return;
+
           const [changes, acknowledge, recordConsent] = attentionRequired;
 
           openModal({
