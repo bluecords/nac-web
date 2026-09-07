@@ -108,6 +108,34 @@ export function ForumChannel(props: ChannelPageProps) {
     c.removeListener("messageDelete", onMessageDelete);
   });
 
+  // Mark the channel read while it is being viewed.
+  //
+  // Acking only ever happened in `TextChannel`, so a member could open a forum,
+  // read every post, and the unread dot never cleared - no `channel_unreads`
+  // row was ever written for the channel. A channel-level ack is the whole
+  // story here: posts and their replies are all messages in this one channel.
+  createEffect(
+    on(
+      () => props.channel.unread,
+      (unread) => {
+        if (unread && document.hasFocus()) {
+          props.channel.ack();
+        }
+      },
+    ),
+  );
+
+  // ...and again when the tab regains focus, for a post that arrived while it
+  // was in the background. On `window`, because focus events do not bubble.
+  function onFocus() {
+    if (props.channel.unread) {
+      props.channel.ack();
+    }
+  }
+
+  onMount(() => window.addEventListener("focus", onFocus));
+  onCleanup(() => window.removeEventListener("focus", onFocus));
+
   const posts = createMemo(() => messages().filter((m) => m.forumTitle));
 
   const replyCounts = createMemo(() => {
