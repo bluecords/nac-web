@@ -1,6 +1,7 @@
-import { For, createMemo, createSignal } from "solid-js";
+import { For, createMemo, createSignal, onMount } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
+import type { DiscordMemberSuggestion } from "stoat.js";
 
 import { useClient, useClientLifecycle } from "@revolt/client";
 import { Checkbox, Column, Dialog, DialogProps, Row, Text } from "@revolt/ui";
@@ -9,6 +10,7 @@ import MdPolicy from "@material-design-icons/svg/outlined/policy.svg?component-s
 
 import { useModals } from "..";
 import { Modals } from "../types";
+import { DiscordIdentityPicker } from "./DiscordIdentityPicker";
 
 /**
  * The four acts a member consents to, each recorded as its own row.
@@ -73,6 +75,46 @@ export function PolicyChangeModal(
   const [granted, setGranted] = createSignal<Record<string, boolean>>({});
   const [busy, setBusy] = createSignal(false);
 
+  // The Discord identity prompt lives HERE, in the consent gate, and not in
+  // signup. About forty members were already on NAC before it could have asked
+  // them, so signup will never fire for them again - this gate is the one
+  // screen every existing member is forced through, exactly once. `[RULED BY
+  // BUNJIE]` 2026-09-06: "everyone is going to get prompted on the first login
+  // to provide their user info from Discord so we can confirm match then."
+  const [discordMember, setDiscordMember] = createSignal<
+    DiscordMemberSuggestion | undefined
+  >();
+  const [skipDiscord, setSkipDiscord] = createSignal(false);
+  const [confirmedName, setConfirmedName] = createSignal<string | undefined>();
+  const [identityLoaded, setIdentityLoaded] = createSignal(false);
+
+  onMount(async () => {
+    try {
+      const claim = await client().fetchMyDiscordIdentity();
+      if (claim) {
+        if (claim.confirmed_by && claim.confirmed_at) {
+          setConfirmedName(claim.discord_display_name ?? claim.discord_username);
+        } else {
+          // A pending claim already answers the question. Re-showing an empty
+          // picker would read as the answer having been lost.
+          setDiscordMember({
+            id: claim.discord_id,
+            username: claim.discord_username,
+            display_name: claim.discord_display_name,
+            claimed: true,
+          });
+        }
+      }
+    } catch {
+      // An API that cannot answer must not wall the member out of the app. The
+      // gate still works; the prompt just cannot be pre-filled, and the skip
+      // below is the honest way through.
+      setSkipDiscord(true);
+    } finally {
+      setIdentityLoaded(true);
+    }
+  });
+
   // Consent is recorded against the LATEST policy, because that is the one the
   // server's gate measures against - a record naming a superseded policy would
   // be evidence of agreeing to the wrong document.
@@ -85,6 +127,17 @@ export function PolicyChangeModal(
 
   const allGranted = createMemo(() =>
     CONSENT_ITEMS.every((item) => granted()[item.key]),
+  );
+
+  // Answered EITHER by picking a name or by saying there is not one to pick.
+  // Requiring a pick would trap anybody who never used Discord on a screen that
+  // blocks the whole app; requiring nothing would waste the one moment every
+  // member passes through.
+  const discordAnswered = createMemo(
+    () =>
+      !!confirmedName() ||
+      !!discordMember() ||
+      (skipDiscord() && identityLoaded()),
   );
 
   function toggle(key: string) {
@@ -121,10 +174,20 @@ export function PolicyChangeModal(
           text: <Trans>Continue</Trans>,
           // Every item, individually. A partial tick is a partial consent and
           // there is no partial state to record it into.
-          isDisabled: !allGranted() || busy(),
+          isDisabled: !allGranted() || !discordAnswered() || busy(),
           async onClick() {
             setBusy(true);
             try {
+              // The claim goes FIRST, and that order is load-bearing. Recording
+              // consent is what closes this gate, and the gate never opens
+              // again - so if the claim were second and failed, the answer
+              // would be lost with no way back to the screen that asked. This
+              // way a failed claim leaves the member here, able to try again.
+              const member = discordMember();
+              if (member && !confirmedName()) {
+                await client()!.claimDiscordIdentity(member.id);
+              }
+
               await props.recordConsent(
                 policy(),
                 CONSENT_ITEMS.map((item) => ({
@@ -187,6 +250,20 @@ export function PolicyChangeModal(
             )}
           </For>
         </Column>
+
+        <DiscordIdentityPicker
+          selected={discordMember()}
+          onSelect={(member) => {
+            setDiscordMember(member);
+            if (member) setSkipDiscord(false);
+          }}
+          skipped={skipDiscord()}
+          onSkip={(skipped) => {
+            setSkipDiscord(skipped);
+            if (skipped) setDiscordMember(undefined);
+          }}
+          confirmedName={confirmedName()}
+        />
 
         <Text class="label">
           <Trans>

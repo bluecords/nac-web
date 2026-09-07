@@ -21,6 +21,7 @@ import { ChannelPermissionsEditor } from "./channel/permissions/ChannelPermissio
 import Overview from "./server/Overview";
 import { ListServerBans } from "./server/bans/ListBans";
 import { EmojiList } from "./server/emojis/EmojiList";
+import { DiscordClaims } from "./server/members/DiscordClaims";
 import { MemberList } from "./server/members/MemberList";
 import { ListServerInvites } from "./server/invites/ListServerInvites";
 import { RoleClassesEditor } from "./server/roles/RoleClassesEditor";
@@ -76,6 +77,8 @@ const Config: SettingsConfiguration<Server> = {
         return <EmojiList server={server} />;
       case "members":
         return <MemberList server={server} />;
+      case "discord_claims":
+        return <DiscordClaims server={server} />;
       case "roles":
         return <ServerRoleOverview context={server} />;
       case "role_classes":
@@ -139,6 +142,16 @@ const Config: SettingsConfiguration<Server> = {
               id: "members",
               icon: <BiSolidGroup size={20} />,
               title: <Trans>Members</Trans>,
+            },
+            {
+              // The queue of "this Discord account was mine" claims. Confirming
+              // one hands that member six years of their own posts, their
+              // reactions and their Discord role, so it is a human decision
+              // behind ManageServer - not something the claim does by itself.
+              hidden: !server.havePermission("ManageServer"),
+              id: "discord_claims",
+              icon: <BiSolidGroup size={20} />,
+              title: <Trans>Discord identities</Trans>,
             },
             {
               hidden: !(
