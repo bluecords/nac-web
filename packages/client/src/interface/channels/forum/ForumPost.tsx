@@ -10,7 +10,7 @@ import {
 } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { Channel, Message } from "stoat.js";
+import { API, Channel, Message } from "stoat.js";
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
@@ -24,10 +24,14 @@ import {
   Avatar,
   Button,
   IconButton,
+  MessageReply,
+  MessageReplyPreview,
   Reactions,
   Text,
 } from "@revolt/ui";
 import { CompositionMediaPicker } from "@revolt/ui/components/features/messaging/composition";
+import { TextEditor2 } from "@revolt/ui/components/features/texteditor/TextEditor2";
+import { useSearchSpace } from "@revolt/ui/components/utils/autoComplete";
 
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 
@@ -54,6 +58,39 @@ export function ForumPost(props: Props) {
   const state = useState();
   const { showError } = useModals();
   const [replyContent, setReplyContent] = createSignal("");
+
+  // Mention/emoji/channel autocomplete needs the same search space the text
+  // channel composer builds (server members, roles, channels).
+  const searchSpace = useSearchSpace(() => props.channel, client);
+
+  // The reply box is a CodeMirror editor, so its content is pushed in rather
+  // than bound: bump `initialValue` to overwrite the document (used to clear
+  // it after sending).
+  const [initialValue, setInitialValue] = createSignal([""] as const);
+
+  // `state.draft.addReply` (the shared "Reply" context-menu action) focuses the
+  // composer through this global slot. The forum view is the composer for a
+  // forum channel, so it has to claim it - otherwise Reply silently no-ops.
+  const [nodeReplacement, setNodeReplacement] =
+    createSignal<readonly [string | "_focus"]>();
+
+  const previousNodeReplacement = state.draft._setNodeReplacement;
+  state.draft._setNodeReplacement = setNodeReplacement;
+  onCleanup(() => {
+    if (state.draft._setNodeReplacement === setNodeReplacement) {
+      state.draft._setNodeReplacement = previousNodeReplacement;
+    }
+  });
+
+  /**
+   * Messages the pending reply is aimed at, from the shared channel draft.
+   *
+   * The "Reply" action in `MessageContextMenu` writes here for every channel
+   * type; a forum channel never mounts the text composer, so nothing rendered
+   * it and nothing consumed it - the menu closed and nothing happened.
+   */
+  const draftedReplies = () =>
+    state.draft.getDraft(props.channel.id).replies ?? [];
 
   /**
    * Inline editor for a forum post or reply.
@@ -227,6 +264,13 @@ export function ForumPost(props: Props) {
       () => props.postId,
       (id) => {
         setReplies([]);
+        // Reply targets are stored per CHANNEL but only mean anything within
+        // one post, so a target picked in another post must not follow the
+        // reader here.
+        state.draft.setDraft(props.channel.id, (data) => ({
+          ...data,
+          replies: [],
+        }));
         let cancelled = false;
         fetchAllMessages(props.channel)
           .then((messages) => {
@@ -279,13 +323,28 @@ export function ForumPost(props: Props) {
     const content = replyContent().trim();
     if (!content) return;
 
+    // The root post is always a reply target: this thread's reply list is
+    // "every message in the channel pointing at the post", so a reply that
+    // omits it disappears from the thread. Replying to another reply adds that
+    // message as a second target, which is what carries the @mention.
+    const drafted = draftedReplies();
+    const replies: API.ReplyIntent[] = [
+      drafted.find((reply) => reply.id === props.postId) ?? {
+        id: props.postId,
+        mention: false,
+      },
+      ...drafted.filter((reply) => reply.id !== props.postId),
+    ];
+
     try {
-      await props.channel.sendMessage({
-        content,
-        replies: [{ id: props.postId, mention: false }],
-      });
+      await props.channel.sendMessage({ content, replies });
 
       setReplyContent("");
+      setInitialValue([""]);
+      state.draft.setDraft(props.channel.id, (data) => ({
+        ...data,
+        replies: [],
+      }));
       // The gateway echo appends it live; reload as a fallback for reliability.
       reloadReplies();
     } catch (error) {
@@ -419,6 +478,18 @@ export function ForumPost(props: Props) {
       <For each={replies()}>
         {(reply) => (
           <ReplyCard isSolution={reply.forumSolution}>
+            {/* Every reply points at the root post; anything else it points at
+                is a reply-to-a-reply and is worth showing. */}
+            <For
+              each={(reply.replyIds ?? []).filter((id) => id !== props.postId)}
+            >
+              {(id) => (
+                <MessageReply
+                  message={client().messages.get(id)}
+                  noDecorations
+                />
+              )}
+            </For>
             <Author>
               <Avatar src={reply.animatedAvatarURL} size={24} />
               <Text class="label" size="small">
@@ -471,12 +542,36 @@ export function ForumPost(props: Props) {
         )}
       </For>
 
+      <For each={draftedReplies()}>
+        {(reply) => {
+          const message = () => client().messages.get(reply.id);
+
+          return (
+            <MessageReplyPreview
+              message={message()}
+              mention={reply.mention}
+              self={message()?.authorId === client().user!.id}
+              toggle={() =>
+                state.draft.toggleReplyMention(props.channel.id, reply.id)
+              }
+              dismiss={() =>
+                state.draft.removeReply(props.channel.id, reply.id)
+              }
+            />
+          );
+        }}
+      </For>
+
       <ReplyBox>
-        <textarea
-          value={replyContent()}
-          onInput={(event) => setReplyContent(event.currentTarget.value)}
-          placeholder="Write a reply..."
-        />
+        <EditorSlot>
+          <TextEditor2
+            placeholder="Write a reply..."
+            initialValue={initialValue()}
+            nodeReplacement={nodeReplacement()}
+            onChange={setReplyContent}
+            autoCompleteSearchSpace={searchSpace}
+          />
+        </EditorSlot>
         <Button onPress={sendReply} isDisabled={!replyContent().trim()}>
           <Trans>Reply</Trans>
         </Button>
@@ -703,19 +798,29 @@ const AddReactionButton = styled("button", {
 const ReplyBox = styled("div", {
   base: {
     display: "flex",
+    alignItems: "flex-end",
     gap: "var(--gap-sm)",
     marginTop: "var(--gap-md)",
+  },
+});
 
-    "& textarea": {
-      flexGrow: 1,
-      minHeight: "60px",
-      borderRadius: "var(--borderRadius-md)",
-      background: "var(--md-sys-color-surface-container-highest)",
-      color: "var(--md-sys-color-on-surface)",
-      border: "none",
-      padding: "var(--gap-sm)",
-      resize: "vertical",
-      font: "inherit",
-    },
+/**
+ * Wrapper giving the CodeMirror reply editor the same box the textarea had.
+ * `overflow: visible` matters - the autocomplete popup is positioned inside.
+ */
+const EditorSlot = styled("div", {
+  base: {
+    flexGrow: 1,
+    minWidth: 0,
+    minHeight: "60px",
+    maxHeight: "220px",
+    // Not `overflow: auto` - CodeMirror renders the autocomplete popup inside
+    // its own DOM, and a scroll container here clips it. The editor's own
+    // `.cm-scroller` handles a long reply.
+    display: "flex",
+    borderRadius: "var(--borderRadius-md)",
+    background: "var(--md-sys-color-surface-container-highest)",
+    color: "var(--md-sys-color-on-surface)",
+    padding: "var(--gap-sm)",
   },
 });
