@@ -245,7 +245,40 @@ function InviteRedirect() {
           const type = (err as { type?: string })?.type;
           const status = (err as { response?: { status?: number } })?.response
             ?.status;
-          const alreadyIn = type === "AlreadyInServer" || status === 409;
+          let alreadyIn = type === "AlreadyInServer" || status === 409;
+
+          if (!alreadyIn) {
+            // THE SHAPE CHECK ABOVE IS A FAST PATH, NOT THE ANSWER.
+            //
+            // It reads two fields off a thrown object whose shape the SDK does
+            // not guarantee, and on 2026-09-08 it missed a real one: the API
+            // logged `Outcome: Success(409 Conflict)` and the member was still
+            // shown "We could not add you to the server" — about a server he
+            // was already in — and told to open his invite link again, which
+            // does exactly the same thing. Reported by Bunjie with a screenshot
+            // from a real member.
+            //
+            // So ask the system rather than parsing the error. `GET /servers/
+            // <id>` returns NotFound unless `are_we_a_member()` is true, which
+            // makes it a direct answer to the only question being asked here.
+            // It costs one request, only on the failure path.
+            // Via the SDK rather than a raw `api.get`: the typed single-argument
+            // GET union does not carry `/servers/{target}` at all, and the
+            // SDK's own call passes `include_channels` as a second argument,
+            // which is what makes that path resolve.
+            alreadyIn = await client()
+              .servers.fetch(serverId)
+              .then(() => true)
+              .catch(() => false);
+
+            if (alreadyIn) {
+              console.info(
+                "[InviteRedirect] join POST failed but we ARE a member — code:",
+                code,
+                err,
+              );
+            }
+          }
 
           if (!alreadyIn) {
             console.error(
