@@ -10,197 +10,46 @@ import {
 } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { API, Channel, Message } from "stoat.js";
-import { css } from "styled-system/css";
+import { Channel, Message } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
+import { Message as MessageView } from "@revolt/app";
 import { useClient } from "@revolt/client";
-import { Markdown } from "@revolt/markdown";
-import { startsWithPackPUA } from "@revolt/markdown/emoji/UnicodeEmoji";
 import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
-import {
-  Attachment,
-  Avatar,
-  Button,
-  IconButton,
-  MessageReply,
-  MessageReplyPreview,
-  Reactions,
-  Text,
-} from "@revolt/ui";
-import { CompositionMediaPicker } from "@revolt/ui/components/features/messaging/composition";
-import { TextEditor2 } from "@revolt/ui/components/features/texteditor/TextEditor2";
-import { useSearchSpace } from "@revolt/ui/components/utils/autoComplete";
+import { Button, IconButton, Text } from "@revolt/ui";
 
-import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
+import { MessageComposition } from "../text/Composition";
 
 import { fetchAllMessages } from "./fetchAllMessages";
 
 import MdArrowBack from "@material-design-icons/svg/outlined/arrow_back.svg?component-solid";
-import MdEmojiEmotions from "@material-design-icons/svg/outlined/emoji_emotions.svg?component-solid";
-import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
 interface Props {
   channel: Channel;
   postId: string;
+  /**
+   * A reply within this post to scroll to and flash - set when the reader
+   * arrived via a deep link or a notification pointing at that reply.
+   */
+  highlightMessageId?: string;
   onBack: () => void;
 }
 
 /**
  * Single forum post: the root message plus its flat list of replies.
  *
- * Known v1 limitation: same as `ForumChannel` - replies are fetched once,
- * not kept live via the gateway. Sending a reply locally refetches.
+ * The post and every reply render through the shared `<Message>` view, and the
+ * reply box is the shared `<MessageComposition>` - so timestamps, edit with
+ * autocomplete, embeds, badges, attachments, drag/paste, GIF and emoji pickers,
+ * slowmode and Enter-to-send all behave exactly as they do in a text channel.
+ * The forum only adds what is genuinely forum-specific: the title, the tag row,
+ * and the "mark as solution" control.
  */
 export function ForumPost(props: Props) {
   const client = useClient();
   const state = useState();
   const { showError } = useModals();
-  const [replyContent, setReplyContent] = createSignal("");
-
-  // Mention/emoji/channel autocomplete needs the same search space the text
-  // channel composer builds (server members, roles, channels).
-  const searchSpace = useSearchSpace(() => props.channel, client);
-
-  // The reply box is a CodeMirror editor, so its content is pushed in rather
-  // than bound: bump `initialValue` to overwrite the document (used to clear
-  // it after sending).
-  const [initialValue, setInitialValue] = createSignal([""] as const);
-
-  // `state.draft.addReply` (the shared "Reply" context-menu action) focuses the
-  // composer through this global slot. The forum view is the composer for a
-  // forum channel, so it has to claim it - otherwise Reply silently no-ops.
-  const [nodeReplacement, setNodeReplacement] =
-    createSignal<readonly [string | "_focus"]>();
-
-  const previousNodeReplacement = state.draft._setNodeReplacement;
-  state.draft._setNodeReplacement = setNodeReplacement;
-  onCleanup(() => {
-    if (state.draft._setNodeReplacement === setNodeReplacement) {
-      state.draft._setNodeReplacement = previousNodeReplacement;
-    }
-  });
-
-  /**
-   * Messages the pending reply is aimed at, from the shared channel draft.
-   *
-   * The "Reply" action in `MessageContextMenu` writes here for every channel
-   * type; a forum channel never mounts the text composer, so nothing rendered
-   * it and nothing consumed it - the menu closed and nothing happened.
-   */
-  const draftedReplies = () =>
-    state.draft.getDraft(props.channel.id).replies ?? [];
-
-  /**
-   * Inline editor for a forum post or reply.
-   *
-   * The shared MessageContextMenu "Edit" action sets the global editing draft
-   * (`state.draft.setEditingMessage`), which is normally rendered by the text
-   * channel composer. The forum view doesn't mount that composer, so without
-   * this the Edit action silently no-ops. Render an inline editor here for
-   * whichever message is currently being edited, saving via `message.edit`.
-   */
-  function editor(message: Message) {
-    return (
-      <EditBox>
-        <textarea
-          ref={(el) => queueMicrotask(() => el.focus())}
-          value={state.draft.editingMessageContent ?? ""}
-          onInput={(event) =>
-            state.draft.setEditingMessageContent(event.currentTarget.value)
-          }
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              state.draft.setEditingMessage(undefined);
-            }
-          }}
-        />
-        <EditActions>
-          <Button
-            size="sm"
-            variant="text"
-            onPress={() => state.draft.setEditingMessage(undefined)}
-          >
-            <Trans>Cancel</Trans>
-          </Button>
-          <Button size="sm" onPress={() => saveEdit(message)}>
-            <Trans>Save</Trans>
-          </Button>
-        </EditActions>
-      </EditBox>
-    );
-  }
-
-  async function saveEdit(message: Message) {
-    const content = (state.draft.editingMessageContent ?? "").trim();
-    try {
-      if (content && content !== message.content) {
-        await message.edit({ content });
-      }
-      state.draft.setEditingMessage(undefined);
-    } catch (error) {
-      showError(error);
-    }
-  }
-
-  /**
-   * Reaction chips + an always-visible "add reaction" button for a post or
-   * reply. Forums have no hover toolbar (and hover doesn't exist on touch), so
-   * unlike the text-channel message view the react affordance must be explicit
-   * or there's no way to react at all. Reuses the shared Reactions display and
-   * the emoji picker; reacting drives the "Top" sort in the post list.
-   */
-  function reactions(message: Message) {
-    const react = (emoji: string) =>
-      message.react(
-        emoji.startsWith(":")
-          ? emoji.slice(1, emoji.length - 1)
-          : startsWithPackPUA(emoji)
-            ? emoji.slice(1)
-            : emoji,
-      );
-
-    return (
-      <ReactionRow>
-        <Reactions
-          reactions={message.reactions as never as Map<string, Set<string>>}
-          interactions={message.interactions}
-          userId={client().user!.id}
-          addReaction={(emoji) => message.react(emoji)}
-          removeReaction={(emoji) => message.unreact(emoji)}
-          sendGIF={(content) =>
-            props.channel.sendMessage({
-              content,
-              replies: [{ id: message.id, mention: true }],
-            })
-          }
-        />
-        <Show when={props.channel.havePermission("React")}>
-          <CompositionMediaPicker
-            onMessage={(content) =>
-              props.channel.sendMessage({
-                content,
-                replies: [{ id: message.id, mention: true }],
-              })
-            }
-            onTextReplacement={(emoji) => react(emoji)}
-          >
-            {(triggerProps) => (
-              <AddReactionButton
-                ref={triggerProps.ref}
-                onClick={triggerProps.onClickEmoji}
-                title="Add reaction"
-              >
-                <MdEmojiEmotions />
-              </AddReactionButton>
-            )}
-          </CompositionMediaPicker>
-        </Show>
-      </ReactionRow>
-    );
-  }
 
   // Tag editing for the root post. The author picks from the channel's
   // allowed_tags; saved via message.edit({ forum_tags }).
@@ -246,8 +95,7 @@ export function ForumPost(props: Props) {
   // messageCreate/messageDelete - the same idiom the text-channel view uses.
   // Ordered oldest-first (fetch returns newest-first, so reverse); new replies
   // append at the end. Content edits and solution mark/unmark reflect
-  // reactively because the Message objects are reactive, so no update handler
-  // is needed for those.
+  // reactively because the Message objects are reactive.
   const [replies, setReplies] = createSignal<Message[]>([]);
 
   async function reloadReplies() {
@@ -264,13 +112,15 @@ export function ForumPost(props: Props) {
       () => props.postId,
       (id) => {
         setReplies([]);
-        // Reply targets are stored per CHANNEL but only mean anything within
-        // one post, so a target picked in another post must not follow the
-        // reader here.
+        // Reply chips are stored per CHANNEL but only mean anything within one
+        // post, so a target picked in another post must not follow the reader
+        // here. The root post is re-attached at send time by the composer's
+        // `forcedReplyId`, so it does not need to live in the draft.
         state.draft.setDraft(props.channel.id, (data) => ({
           ...data,
           replies: [],
         }));
+        setEditingTags(false);
         let cancelled = false;
         fetchAllMessages(props.channel)
           .then((messages) => {
@@ -319,38 +169,19 @@ export function ForumPost(props: Props) {
     c.removeListener("messageDelete", onMessageDelete);
   });
 
-  async function sendReply() {
-    const content = replyContent().trim();
-    if (!content) return;
-
-    // The root post is always a reply target: this thread's reply list is
-    // "every message in the channel pointing at the post", so a reply that
-    // omits it disappears from the thread. Replying to another reply adds that
-    // message as a second target, which is what carries the @mention.
-    const drafted = draftedReplies();
-    const replies: API.ReplyIntent[] = [
-      drafted.find((reply) => reply.id === props.postId) ?? {
-        id: props.postId,
-        mention: false,
-      },
-      ...drafted.filter((reply) => reply.id !== props.postId),
-    ];
-
-    try {
-      await props.channel.sendMessage({ content, replies });
-
-      setReplyContent("");
-      setInitialValue([""]);
-      state.draft.setDraft(props.channel.id, (data) => ({
-        ...data,
-        replies: [],
-      }));
-      // The gateway echo appends it live; reload as a fallback for reliability.
-      reloadReplies();
-    } catch (error) {
-      showError(error);
-    }
-  }
+  // Scroll a deep-linked reply into view once it is in the list. `<Message>`
+  // stamps the message id onto its container element, and the `highlight` prop
+  // below flashes it.
+  createEffect(
+    on([() => props.highlightMessageId, replies], ([id, list]) => {
+      if (!id || !list.some((m) => m.id === id)) return;
+      queueMicrotask(() =>
+        document
+          .getElementById(id)
+          ?.scrollIntoView({ block: "center", behavior: "smooth" }),
+      );
+    }),
+  );
 
   async function toggleSolution(replyId: string, isSolution: boolean) {
     try {
@@ -369,218 +200,145 @@ export function ForumPost(props: Props) {
 
   return (
     <Container>
-      <BackRow>
-        <IconButton onPress={props.onBack}>
-          <MdArrowBack />
-        </IconButton>
-        <Text class="label" size="large">
-          <Trans>Back to posts</Trans>
-        </Text>
-      </BackRow>
+      <Scroll>
+        <BackRow>
+          <IconButton onPress={props.onBack}>
+            <MdArrowBack />
+          </IconButton>
+          <Text class="label" size="large">
+            <Trans>Back to posts</Trans>
+          </Text>
+        </BackRow>
 
-      <Show when={post()}>
-        {(post) => (
-          <PostBody>
-            <TitleRow>
+        <Show when={post()}>
+          {(post) => (
+            <PostBody>
               <Text class="label" size="large">
                 {post().forumTitle}
               </Text>
-              <div
-                class={menuTrigger}
-                title="Post actions"
-                use:floating={{
-                  contextMenu: () => <MessageContextMenu message={post()} />,
-                  contextMenuHandler: "click",
-                }}
+              <Show
+                when={editingTags()}
+                fallback={
+                  <Show
+                    when={
+                      post().forumTags?.length ||
+                      (post().author?.self && props.channel.allowedTags?.length)
+                    }
+                  >
+                    <TagRow>
+                      <For each={post().forumTags}>
+                        {(tag) => <Tag>{tag}</Tag>}
+                      </For>
+                      <Show
+                        when={
+                          post().author?.self &&
+                          props.channel.allowedTags?.length
+                        }
+                      >
+                        <TagEditButton onClick={() => startEditTags(post())}>
+                          <Trans>Edit tags</Trans>
+                        </TagEditButton>
+                      </Show>
+                    </TagRow>
+                  </Show>
+                }
               >
-                <MdMoreVert />
-              </div>
-            </TitleRow>
-            <Show
-              when={editingTags()}
-              fallback={
-                <Show
-                  when={
-                    post().forumTags?.length ||
-                    (post().author?.self && props.channel.allowedTags?.length)
-                  }
-                >
-                  <TagRow>
-                    <For each={post().forumTags}>
-                      {(tag) => <Tag>{tag}</Tag>}
-                    </For>
-                    <Show
-                      when={
-                        post().author?.self && props.channel.allowedTags?.length
-                      }
-                    >
-                      <TagEditButton onClick={() => startEditTags(post())}>
-                        <Trans>Edit tags</Trans>
-                      </TagEditButton>
-                    </Show>
-                  </TagRow>
-                </Show>
-              }
-            >
-              <TagRow>
-                <For each={props.channel.allowedTags}>
-                  {(tag) => (
-                    <TagToggle
-                      active={tagDraft().has(tag)}
-                      onClick={() => toggleTag(tag)}
-                    >
-                      {tag}
-                    </TagToggle>
-                  )}
-                </For>
-                <Button size="sm" onPress={() => saveTags(post())}>
-                  <Trans>Save</Trans>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="text"
-                  onPress={() => setEditingTags(false)}
-                >
-                  <Trans>Cancel</Trans>
-                </Button>
-              </TagRow>
-            </Show>
-            <Author>
-              <Avatar src={post().animatedAvatarURL} size={24} />
-              <Text class="label" size="small">
-                {post().username}
-              </Text>
-            </Author>
-            <Show
-              when={state.draft.editingMessageId === post().id}
-              fallback={<Markdown content={post().content} />}
-            >
-              {editor(post())}
-            </Show>
-            <Show when={post().attachments}>
-              <For each={post().attachments}>
-                {(attachment) => (
-                  <Attachment message={post()} file={attachment} />
-                )}
-              </For>
-            </Show>
-            {reactions(post())}
-          </PostBody>
-        )}
-      </Show>
-
-      <RepliesHeading>
-        <Text class="label" size="medium">
-          <Trans>Replies</Trans>
-        </Text>
-      </RepliesHeading>
-
-      <For each={replies()}>
-        {(reply) => (
-          <ReplyCard isSolution={reply.forumSolution}>
-            {/* Every reply points at the root post; anything else it points at
-                is a reply-to-a-reply and is worth showing. */}
-            <For
-              each={(reply.replyIds ?? []).filter((id) => id !== props.postId)}
-            >
-              {(id) => (
-                <MessageReply
-                  message={client().messages.get(id)}
-                  noDecorations
-                />
-              )}
-            </For>
-            <Author>
-              <Avatar src={reply.animatedAvatarURL} size={24} />
-              <Text class="label" size="small">
-                {reply.username}
-              </Text>
-              <Show when={reply.forumSolution}>
-                <SolutionBadge>
-                  <Trans>Solution</Trans>
-                </SolutionBadge>
+                <TagRow>
+                  <For each={props.channel.allowedTags}>
+                    {(tag) => (
+                      <TagToggle
+                        active={tagDraft().has(tag)}
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </TagToggle>
+                    )}
+                  </For>
+                  <Button size="sm" onPress={() => saveTags(post())}>
+                    <Trans>Save</Trans>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="text"
+                    onPress={() => setEditingTags(false)}
+                  >
+                    <Trans>Cancel</Trans>
+                  </Button>
+                </TagRow>
               </Show>
-              <div
-                class={menuTrigger}
-                title="Reply actions"
-                use:floating={{
-                  contextMenu: () => <MessageContextMenu message={reply} />,
-                  contextMenuHandler: "click",
-                }}
-              >
-                <MdMoreVert />
-              </div>
-            </Author>
-            <Show
-              when={state.draft.editingMessageId === reply.id}
-              fallback={<Markdown content={reply.content} />}
-            >
-              {editor(reply)}
-            </Show>
-            <Show when={reply.attachments}>
-              <For each={reply.attachments}>
-                {(attachment) => (
-                  <Attachment message={reply} file={attachment} />
-                )}
-              </For>
-            </Show>
-            {reactions(reply)}
-            <Show when={props.channel.solutionEnabled}>
-              <Button
-                size="sm"
-                variant="text"
-                onPress={() => toggleSolution(reply.id, reply.forumSolution)}
-              >
-                {reply.forumSolution ? (
-                  <Trans>Unmark as solution</Trans>
-                ) : (
-                  <Trans>Mark as solution</Trans>
-                )}
-              </Button>
-            </Show>
-          </ReplyCard>
-        )}
-      </For>
+              <MessageView
+                message={post()}
+                editing={state.draft.editingMessageId === post().id}
+              />
+            </PostBody>
+          )}
+        </Show>
 
-      <For each={draftedReplies()}>
-        {(reply) => {
-          const message = () => client().messages.get(reply.id);
+        <RepliesHeading>
+          <Text class="label" size="medium">
+            <Trans>Replies</Trans>
+          </Text>
+        </RepliesHeading>
 
-          return (
-            <MessageReplyPreview
-              message={message()}
-              mention={reply.mention}
-              self={message()?.authorId === client().user!.id}
-              toggle={() =>
-                state.draft.toggleReplyMention(props.channel.id, reply.id)
-              }
-              dismiss={() =>
-                state.draft.removeReply(props.channel.id, reply.id)
-              }
-            />
-          );
-        }}
-      </For>
+        <For each={replies()}>
+          {(reply) => (
+            <ReplyCard isSolution={reply.forumSolution}>
+              <MessageView
+                message={reply}
+                editing={state.draft.editingMessageId === reply.id}
+                highlight={props.highlightMessageId === reply.id}
+                omitReplyIds={[props.postId]}
+              />
+              <Show when={props.channel.solutionEnabled}>
+                <SolutionRow>
+                  <Show when={reply.forumSolution}>
+                    <SolutionBadge>
+                      <Trans>Solution</Trans>
+                    </SolutionBadge>
+                  </Show>
+                  <Button
+                    size="sm"
+                    variant="text"
+                    onPress={() =>
+                      toggleSolution(reply.id, reply.forumSolution)
+                    }
+                  >
+                    {reply.forumSolution ? (
+                      <Trans>Unmark as solution</Trans>
+                    ) : (
+                      <Trans>Mark as solution</Trans>
+                    )}
+                  </Button>
+                </SolutionRow>
+              </Show>
+            </ReplyCard>
+          )}
+        </For>
+      </Scroll>
 
-      <ReplyBox>
-        <EditorSlot>
-          <TextEditor2
-            placeholder="Write a reply..."
-            initialValue={initialValue()}
-            nodeReplacement={nodeReplacement()}
-            onChange={setReplyContent}
-            autoCompleteSearchSpace={searchSpace}
-          />
-        </EditorSlot>
-        <Button onPress={sendReply} isDisabled={!replyContent().trim()}>
-          <Trans>Reply</Trans>
-        </Button>
-      </ReplyBox>
+      <ComposerSlot>
+        <MessageComposition
+          channel={props.channel}
+          forcedReplyId={() => props.postId}
+          placeholder="Write a reply..."
+          onMessageSend={() => window.setTimeout(reloadReplies, 1500)}
+        />
+      </ComposerSlot>
     </Container>
   );
 }
 
 const Container = styled("div", {
+  base: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    minHeight: 0,
+    flexGrow: 1,
+  },
+});
+
+const Scroll = styled("div", {
   base: {
     display: "flex",
     flexDirection: "column",
@@ -608,30 +366,6 @@ const PostBody = styled("div", {
     padding: "var(--gap-md)",
     borderRadius: "var(--borderRadius-lg)",
     background: "var(--md-sys-color-surface-container)",
-  },
-});
-
-const TitleRow = styled("div", {
-  base: {
-    display: "flex",
-    alignItems: "center",
-    gap: "var(--gap-sm)",
-  },
-});
-
-const menuTrigger = css({
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-  marginLeft: "auto",
-  width: "32px",
-  height: "32px",
-  borderRadius: "var(--borderRadius-full)",
-  cursor: "pointer",
-  color: "var(--md-sys-color-on-surface-variant)",
-  "&:hover": {
-    background: "var(--md-sys-color-surface-container-highest)",
   },
 });
 
@@ -692,14 +426,6 @@ const TagEditButton = styled("button", {
   },
 });
 
-const Author = styled("div", {
-  base: {
-    display: "flex",
-    alignItems: "center",
-    gap: "var(--gap-sm)",
-  },
-});
-
 const RepliesHeading = styled("div", {
   base: {
     marginTop: "var(--gap-md)",
@@ -711,9 +437,8 @@ const ReplyCard = styled("div", {
     display: "flex",
     flexDirection: "column",
     gap: "var(--gap-sm)",
-    padding: "var(--gap-md)",
     borderRadius: "var(--borderRadius-lg)",
-    background: "var(--md-sys-color-surface-container-low)",
+    padding: "var(--gap-sm)",
   },
   variants: {
     isSolution: {
@@ -721,6 +446,15 @@ const ReplyCard = styled("div", {
         border: "1px solid var(--md-sys-color-primary)",
       },
     },
+  },
+});
+
+const SolutionRow = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--gap-sm)",
+    paddingInlineStart: "54px",
   },
 });
 
@@ -734,93 +468,9 @@ const SolutionBadge = styled("span", {
   },
 });
 
-const EditBox = styled("div", {
+const ComposerSlot = styled("div", {
   base: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "var(--gap-sm)",
-
-    "& textarea": {
-      minHeight: "60px",
-      borderRadius: "var(--borderRadius-md)",
-      background: "var(--md-sys-color-surface-container-highest)",
-      color: "var(--md-sys-color-on-surface)",
-      border: "none",
-      padding: "var(--gap-sm)",
-      resize: "vertical",
-      font: "inherit",
-    },
-  },
-});
-
-const EditActions = styled("div", {
-  base: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "var(--gap-sm)",
-  },
-});
-
-const ReactionRow = styled("div", {
-  base: {
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: "var(--gap-sm)",
-    marginTop: "var(--gap-xs)",
-  },
-});
-
-const AddReactionButton = styled("button", {
-  base: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
     flexShrink: 0,
-    width: "33px",
-    height: "33px",
-    padding: "var(--gap-sm)",
-    borderRadius: "var(--borderRadius-md)",
-    border: "none",
-    cursor: "pointer",
-    color: "var(--md-sys-color-on-surface-variant)",
-    background: "var(--md-sys-color-surface-container-low)",
-    "&:hover": {
-      background: "var(--md-sys-color-surface-container-high)",
-    },
-    "& svg": {
-      width: "20px",
-      height: "20px",
-    },
-  },
-});
-
-const ReplyBox = styled("div", {
-  base: {
-    display: "flex",
-    alignItems: "flex-end",
-    gap: "var(--gap-sm)",
-    marginTop: "var(--gap-md)",
-  },
-});
-
-/**
- * Wrapper giving the CodeMirror reply editor the same box the textarea had.
- * `overflow: visible` matters - the autocomplete popup is positioned inside.
- */
-const EditorSlot = styled("div", {
-  base: {
-    flexGrow: 1,
-    minWidth: 0,
-    minHeight: "60px",
-    maxHeight: "220px",
-    // Not `overflow: auto` - CodeMirror renders the autocomplete popup inside
-    // its own DOM, and a scroll container here clips it. The editor's own
-    // `.cm-scroller` handles a long reply.
-    display: "flex",
-    borderRadius: "var(--borderRadius-md)",
-    background: "var(--md-sys-color-surface-container-highest)",
-    color: "var(--md-sys-color-on-surface)",
-    padding: "var(--gap-sm)",
+    padding: "0 var(--gap-md) var(--gap-md)",
   },
 });
