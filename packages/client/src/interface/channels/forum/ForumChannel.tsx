@@ -1,6 +1,8 @@
 import {
   For,
+  Match,
   Show,
+  Switch,
   createEffect,
   createMemo,
   createSignal,
@@ -11,19 +13,26 @@ import {
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Message } from "stoat.js";
-import { css } from "styled-system/css";
+import { css, cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 import { useClient } from "@revolt/client";
+import { Keybind, KeybindAction } from "@revolt/keybinds";
 import { useModals } from "@revolt/modal";
 import { useSmartParams } from "@revolt/routing";
+import { useState } from "@revolt/state";
+import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
 
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 
+import { MobileSearchOverlay } from "../../mobile/MobileSearchOverlay";
 import { ChannelHeader } from "../ChannelHeader";
 import { ChannelPageProps } from "../ChannelPage";
+import { MemberSidebar } from "../text/MemberSidebar";
+import { SidebarState } from "../text/TextChannel";
+import { TextSearchSidebar } from "../text/TextSearchSidebar";
 
 import { fetchAllMessages } from "./fetchAllMessages";
 import { ForumPost } from "./ForumPost";
@@ -47,8 +56,28 @@ export function ForumChannel(props: ChannelPageProps) {
   const client = useClient();
   const { openModal } = useModals();
   const params = useSmartParams();
+  const state = useState();
 
   const [selectedPostId, setSelectedPostId] = createSignal<string>();
+
+  // Right-hand sidebar, mirroring the text channel: members by default, or a
+  // message-search / pinned-posts panel. Reset when the channel changes.
+  const isMobile = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 768px)").matches;
+
+  const [sidebarState, setSidebarState] = createSignal<SidebarState>({
+    state: "default",
+  });
+
+  createEffect(
+    on(
+      () => props.channel.id,
+      () => setSidebarState({ state: "default" }),
+    ),
+  );
+
+  let sidebarScrollTargetElement!: HTMLDivElement;
 
   // Every message in the channel (posts + replies). Posts and reply counts are
   // derived from this; keeping the whole list live means one pair of gateway
@@ -263,147 +292,275 @@ export function ForumChannel(props: ChannelPageProps) {
 
   return (
     <>
+      <MobileSearchOverlay channel={props.channel} />
       <Header placement="primary">
-        <ChannelHeader channel={props.channel} />
+        <ChannelHeader
+          channel={props.channel}
+          sidebarState={sidebarState}
+          setSidebarState={setSidebarState}
+        />
       </Header>
-      <Show
-        when={selectedPostId()}
-        fallback={
-          <Container>
-            <Toolbar>
-              <SortBar>
-                <FilterChip
-                  active={sortMode() === "latest"}
-                  onClick={() => setSortMode("latest")}
-                >
-                  <Trans>Latest</Trans>
-                </FilterChip>
-                <FilterChip
-                  active={sortMode() === "top"}
-                  onClick={() => setSortMode("top")}
-                >
-                  <Trans>Top</Trans>
-                </FilterChip>
-                <FilterChip
-                  active={sortMode() === "active"}
-                  onClick={() => setSortMode("active")}
-                >
-                  <Trans>Most active</Trans>
-                </FilterChip>
-              </SortBar>
-              <Button onPress={openCreatePost}>
-                <Trans>New post</Trans>
-              </Button>
-            </Toolbar>
-
-            <Show when={filterableTags().length}>
-              <FilterBar>
-                <FilterChip
-                  active={activeFilters().size === 0}
-                  onClick={() => setActiveFilters(new Set())}
-                >
-                  <Trans>All</Trans>
-                </FilterChip>
-                <For each={filterableTags()}>
-                  {(tag) => (
+      <ContentRow>
+        <MainColumn>
+          <Show
+            when={selectedPostId()}
+            fallback={
+              <Container>
+                <Toolbar>
+                  <SortBar>
                     <FilterChip
-                      active={activeFilters().has(tag)}
-                      onClick={() => toggleFilter(tag)}
+                      active={sortMode() === "latest"}
+                      onClick={() => setSortMode("latest")}
                     >
-                      {tag}
+                      <Trans>Latest</Trans>
                     </FilterChip>
+                    <FilterChip
+                      active={sortMode() === "top"}
+                      onClick={() => setSortMode("top")}
+                    >
+                      <Trans>Top</Trans>
+                    </FilterChip>
+                    <FilterChip
+                      active={sortMode() === "active"}
+                      onClick={() => setSortMode("active")}
+                    >
+                      <Trans>Most active</Trans>
+                    </FilterChip>
+                  </SortBar>
+                  <Button onPress={openCreatePost}>
+                    <Trans>New post</Trans>
+                  </Button>
+                </Toolbar>
+
+                <Show when={filterableTags().length}>
+                  <FilterBar>
+                    <FilterChip
+                      active={activeFilters().size === 0}
+                      onClick={() => setActiveFilters(new Set())}
+                    >
+                      <Trans>All</Trans>
+                    </FilterChip>
+                    <For each={filterableTags()}>
+                      {(tag) => (
+                        <FilterChip
+                          active={activeFilters().has(tag)}
+                          onClick={() => toggleFilter(tag)}
+                        >
+                          {tag}
+                        </FilterChip>
+                      )}
+                    </For>
+                  </FilterBar>
+                </Show>
+
+                <Show when={!loading() && posts().length === 0}>
+                  <Empty>
+                    <Text class="label" size="large">
+                      <Trans>No posts yet - be the first!</Trans>
+                    </Text>
+                  </Empty>
+                </Show>
+
+                <Show
+                  when={posts().length !== 0 && visiblePosts().length === 0}
+                >
+                  <Empty>
+                    <Text class="label" size="large">
+                      <Trans>No posts match the selected tags.</Trans>
+                    </Text>
+                  </Empty>
+                </Show>
+
+                <For each={visiblePosts()}>
+                  {(post) => (
+                    <PostCard onClick={() => setSelectedPostId(post.id)}>
+                      <Avatar src={post.animatedAvatarURL} size={32} />
+                      <PostInfo>
+                        <Text class="label" size="large">
+                          {post.forumTitle}
+                        </Text>
+                        <Show when={snippet(post)}>
+                          <Snippet>{snippet(post)}</Snippet>
+                        </Show>
+                        <Meta>
+                          <Text class="label" size="small">
+                            {post.username}
+                          </Text>
+                          <Show when={post.forumTags?.length}>
+                            <For each={post.forumTags}>
+                              {(tag) => <Tag>{tag}</Tag>}
+                            </For>
+                          </Show>
+                          <Show when={reactionCount(post)}>
+                            <Text class="label" size="small">
+                              {reactionCount(post)} ▲
+                            </Text>
+                          </Show>
+                          <Show when={replyCountFor(post.id)}>
+                            <Text class="label" size="small">
+                              {replyCountFor(post.id)} 💬
+                            </Text>
+                          </Show>
+                        </Meta>
+                      </PostInfo>
+                      <Show when={thumbnailFor(post)}>
+                        {(file) => (
+                          <Thumbnail
+                            src={file().createFileURL()}
+                            loading="lazy"
+                          />
+                        )}
+                      </Show>
+                      <div
+                        class={postMenuTrigger}
+                        title="Post actions"
+                        use:floating={{
+                          contextMenu: () => (
+                            <MessageContextMenu message={post} />
+                          ),
+                          contextMenuHandler: "click",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MdMoreVert />
+                      </div>
+                    </PostCard>
                   )}
                 </For>
-              </FilterBar>
-            </Show>
+              </Container>
+            }
+          >
+            <ForumPost
+              channel={props.channel}
+              postId={selectedPostId()!}
+              highlightMessageId={
+                params().messageId && params().messageId !== selectedPostId()
+                  ? params().messageId
+                  : undefined
+              }
+              onBack={() => {
+                setSelectedPostId(undefined);
+                reload();
+              }}
+            />
+          </Show>
+        </MainColumn>
 
-            <Show when={!loading() && posts().length === 0}>
-              <Empty>
-                <Text class="label" size="large">
-                  <Trans>No posts yet - be the first!</Trans>
-                </Text>
-              </Empty>
-            </Show>
-
-            <Show when={posts().length !== 0 && visiblePosts().length === 0}>
-              <Empty>
-                <Text class="label" size="large">
-                  <Trans>No posts match the selected tags.</Trans>
-                </Text>
-              </Empty>
-            </Show>
-
-            <For each={visiblePosts()}>
-              {(post) => (
-                <PostCard onClick={() => setSelectedPostId(post.id)}>
-                  <Avatar src={post.animatedAvatarURL} size={32} />
-                  <PostInfo>
-                    <Text class="label" size="large">
-                      {post.forumTitle}
-                    </Text>
-                    <Show when={snippet(post)}>
-                      <Snippet>{snippet(post)}</Snippet>
-                    </Show>
-                    <Meta>
-                      <Text class="label" size="small">
-                        {post.username}
-                      </Text>
-                      <Show when={post.forumTags?.length}>
-                        <For each={post.forumTags}>
-                          {(tag) => <Tag>{tag}</Tag>}
-                        </For>
-                      </Show>
-                      <Show when={reactionCount(post)}>
-                        <Text class="label" size="small">
-                          {reactionCount(post)} ▲
-                        </Text>
-                      </Show>
-                      <Show when={replyCountFor(post.id)}>
-                        <Text class="label" size="small">
-                          {replyCountFor(post.id)} 💬
-                        </Text>
-                      </Show>
-                    </Meta>
-                  </PostInfo>
-                  <Show when={thumbnailFor(post)}>
-                    {(file) => (
-                      <Thumbnail src={file().createFileURL()} loading="lazy" />
-                    )}
-                  </Show>
-                  <div
-                    class={postMenuTrigger}
-                    title="Post actions"
-                    use:floating={{
-                      contextMenu: () => <MessageContextMenu message={post} />,
-                      contextMenuHandler: "click",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <MdMoreVert />
-                  </div>
-                </PostCard>
-              )}
-            </For>
-          </Container>
-        }
-      >
-        <ForumPost
-          channel={props.channel}
-          postId={selectedPostId()!}
-          highlightMessageId={
-            params().messageId && params().messageId !== selectedPostId()
-              ? params().messageId
-              : undefined
+        <Show
+          when={
+            !isMobile() &&
+            (state.layout.getSectionState(
+              LAYOUT_SECTIONS.MEMBER_SIDEBAR,
+              true,
+            ) ||
+              sidebarState().state !== "default")
           }
-          onBack={() => {
-            setSelectedPostId(undefined);
-            reload();
-          }}
-        />
-      </Show>
+        >
+          <div
+            ref={sidebarScrollTargetElement}
+            use:scrollable={{
+              direction: "y",
+              showOnHover: !isMobile(),
+              class: sidebar(),
+            }}
+            style={
+              sidebarState().state !== "default"
+                ? { width: "min(85vw, 360px)" }
+                : {}
+            }
+          >
+            <Switch
+              fallback={
+                <MemberSidebar
+                  channel={props.channel}
+                  scrollTargetElement={sidebarScrollTargetElement}
+                />
+              }
+            >
+              <Match when={sidebarState().state === "search"}>
+                <WideSidebarContainer>
+                  <SidebarTitle>
+                    <Text class="label" size="large">
+                      <Trans>Search Results</Trans>
+                    </Text>
+                  </SidebarTitle>
+                  <TextSearchSidebar
+                    channel={props.channel}
+                    query={{
+                      query: (sidebarState() as { query: string }).query,
+                    }}
+                  />
+                </WideSidebarContainer>
+              </Match>
+              <Match when={sidebarState().state === "pins"}>
+                <WideSidebarContainer>
+                  <SidebarTitle>
+                    <Text class="label" size="large">
+                      <Trans>Pinned Messages</Trans>
+                    </Text>
+                  </SidebarTitle>
+                  <TextSearchSidebar
+                    channel={props.channel}
+                    query={{ pinned: true, sort: "Latest" }}
+                  />
+                </WideSidebarContainer>
+              </Match>
+            </Switch>
+
+            <Show when={sidebarState().state !== "default"}>
+              <Keybind
+                keybind={KeybindAction.CLOSE_SIDEBAR}
+                onPressed={() => setSidebarState({ state: "default" })}
+              />
+            </Show>
+          </div>
+        </Show>
+      </ContentRow>
     </>
   );
 }
+
+const ContentRow = styled("div", {
+  base: {
+    display: "flex",
+    flexDirection: "row",
+    flexGrow: 1,
+    minWidth: 0,
+    minHeight: 0,
+  },
+});
+
+const MainColumn = styled("div", {
+  base: {
+    display: "flex",
+    flexDirection: "column",
+    flexGrow: 1,
+    minWidth: 0,
+    minHeight: 0,
+  },
+});
+
+const sidebar = cva({
+  base: {
+    flexShrink: 0,
+    width: "var(--layout-width-channel-sidebar)",
+    borderRadius: "var(--borderRadius-lg)",
+  },
+});
+
+const WideSidebarContainer = styled("div", {
+  base: {
+    paddingRight: "var(--gap-md)",
+    width: "360px",
+  },
+});
+
+const SidebarTitle = styled("div", {
+  base: {
+    padding: "var(--gap-md)",
+    color: "var(--md-sys-color-on-surface)",
+  },
+});
 
 const Container = styled("div", {
   base: {
