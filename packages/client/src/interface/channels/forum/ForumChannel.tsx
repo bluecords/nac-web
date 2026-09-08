@@ -17,6 +17,7 @@ import { styled } from "styled-system/jsx";
 import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 import { useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
+import { useSmartParams } from "@revolt/routing";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
 
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
@@ -45,6 +46,7 @@ type SortMode = "latest" | "top" | "active";
 export function ForumChannel(props: ChannelPageProps) {
   const client = useClient();
   const { openModal } = useModals();
+  const params = useSmartParams();
 
   const [selectedPostId, setSelectedPostId] = createSignal<string>();
 
@@ -137,6 +139,27 @@ export function ForumChannel(props: ChannelPageProps) {
   onCleanup(() => window.removeEventListener("focus", onFocus));
 
   const posts = createMemo(() => messages().filter((m) => m.forumTitle));
+
+  // Deep link: /server/x/channel/y/<messageId> should open the post that
+  // message belongs to (the post itself, or the post a reply points at) and
+  // highlight it. Without this a shared link or a notification tap just landed
+  // on the post list. Runs once messages are loaded and whenever the id
+  // changes; a stale highlight is cleared when the id goes away.
+  createEffect(
+    on([() => params().messageId, messages], ([messageId, all]) => {
+      if (!messageId) return;
+      const target = all.find((m) => m.id === messageId);
+      if (!target) return; // not loaded yet, or not in this channel
+      if (target.forumTitle) {
+        setSelectedPostId(messageId);
+      } else {
+        const parentPost = (target.replyIds ?? []).find((id) =>
+          all.some((m) => m.id === id && m.forumTitle),
+        );
+        if (parentPost) setSelectedPostId(parentPost);
+      }
+    }),
+  );
 
   const replyCounts = createMemo(() => {
     const counts = new Map<string, number>();
@@ -367,6 +390,11 @@ export function ForumChannel(props: ChannelPageProps) {
         <ForumPost
           channel={props.channel}
           postId={selectedPostId()!}
+          highlightMessageId={
+            params().messageId && params().messageId !== selectedPostId()
+              ? params().messageId
+              : undefined
+          }
           onBack={() => {
             setSelectedPostId(undefined);
             reload();

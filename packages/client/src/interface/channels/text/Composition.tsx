@@ -46,6 +46,24 @@ interface Props {
    * Notify parent component when a message is sent
    */
   onMessageSend?: () => void;
+
+  /**
+   * Reply target that is always attached to whatever is sent, without being
+   * shown as a dismissable reply chip.
+   *
+   * A forum post view mounts this composer for the whole thread: every reply
+   * in the thread is "a message pointing at the root post", so a reply that
+   * omits the root would vanish from the thread. The forum passes the root
+   * post id here so the reader cannot accidentally drop it, while replies to
+   * a specific reply still show as normal chips.
+   */
+  forcedReplyId?: () => string | undefined;
+
+  /**
+   * Placeholder override for the message box (the forum thread composer says
+   * "Write a reply..." rather than "Message #channel").
+   */
+  placeholder?: string;
 }
 
 /**
@@ -259,6 +277,23 @@ export function MessageComposition(props: Props) {
    * Send a message using the current draft
    * @param useContent Content to send
    */
+  /**
+   * Make sure the forced reply target (e.g. a forum post's root message) is
+   * attached to the draft before it is sent. Kept out of the visible reply
+   * chips, and never overrides an explicit "Reply" the reader made on the same
+   * message.
+   */
+  function ensureForcedReply() {
+    const id = props.forcedReplyId?.();
+    if (!id) return;
+    const existing = draft().replies ?? [];
+    if (existing.some((reply) => reply.id === id)) return;
+    state.draft.setDraft(props.channel.id, (data) => ({
+      ...data,
+      replies: [{ id, mention: false }, ...(data.replies ?? [])],
+    }));
+  }
+
   async function sendMessage(useContent?: unknown) {
     if (!canSend() && typeof useContent !== "string") {
       return;
@@ -266,6 +301,7 @@ export function MessageComposition(props: Props) {
       return;
     }
     stopTyping();
+    ensureForcedReply();
     props.onMessageSend?.();
 
     if (typeof useContent === "string") {
@@ -400,7 +436,11 @@ export function MessageComposition(props: Props) {
         addFile={addFile}
         removeFile={removeFile}
       />
-      <For each={draft().replies ?? []}>
+      <For
+        each={(draft().replies ?? []).filter(
+          (reply) => reply.id !== props.forcedReplyId?.(),
+        )}
+      >
         {(reply) => {
           const message = client()!.messages.get(reply.id);
 
@@ -504,11 +544,12 @@ export function MessageComposition(props: Props) {
           </MessageBox.ActionContainer>
         }
         placeholder={
-          props.channel.type === "SavedMessages"
+          props.placeholder ??
+          (props.channel.type === "SavedMessages"
             ? t`Save to your notes`
             : props.channel.type === "DirectMessage"
               ? t`Message ${props.channel.recipient?.username}`
-              : t`Message ${props.channel.name}`
+              : t`Message ${props.channel.name}`)
         }
         sendingAllowed={props.channel.havePermission("SendMessage")}
         autoCompleteSearchSpace={searchSpace}

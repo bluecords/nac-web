@@ -63,6 +63,15 @@ interface Props {
    * Whether this message is a link
    */
   isLink?: boolean;
+
+  /**
+   * Reply ids to leave out of the reply-context header.
+   *
+   * The forum thread view sets this to the root post id: every reply in a
+   * thread points at the root, so rendering "replying to <root>" on each one
+   * is just noise. Replies to another reply still show.
+   */
+  omitReplyIds?: string[];
 }
 
 /**
@@ -157,7 +166,15 @@ export function Message(props: Props) {
       tail={props.tail || state.settings.getValue("appearance:compact_mode")}
       header={
         <Show when={props.message.replyIds}>
-          <For each={props.message.replyIds}>
+          <For
+            each={
+              props.omitReplyIds
+                ? props.message.replyIds!.filter(
+                    (id) => !props.omitReplyIds!.includes(id),
+                  )
+                : props.message.replyIds
+            }
+          >
             {(reply_id) => {
               /**
                * Signal the actual message
