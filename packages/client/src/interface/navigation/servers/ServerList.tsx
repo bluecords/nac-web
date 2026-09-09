@@ -1,4 +1,14 @@
-import { Accessor, For, JSX, Show, createMemo, createSignal } from "solid-js";
+import {
+  Accessor,
+  For,
+  JSX,
+  Show,
+  createMemo,
+  createResource,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Channel, Server, User } from "stoat.js";
@@ -104,9 +114,44 @@ export const ServerList = (props: Props) => {
   createKeybind(KeybindAction.NAVIGATION_SERVER_UP, () => navigateServer(-1));
   createKeybind(KeybindAction.NAVIGATION_SERVER_DOWN, () => navigateServer(1));
 
+  // Pending incoming friend requests → the badge on the home button.
+  //
+  // Reading `client().users` alone is not enough: whether a user who has only
+  // sent you a friend request (no shared server/DM) is in that collection after
+  // a cold load depends on the Ready payload, and in practice the badge did not
+  // appear until you opened the Friends page. Migration day is ~130 people who
+  // will immediately friend-request each other, so this has to be right on
+  // first paint. `GET /users/@me` returns the authoritative `relations` list;
+  // fetch it on mount and refetch whenever a relationship changes live.
+  const [relationCount, { refetch: refetchRelations }] = createResource(
+    () => client(),
+    async (c) => {
+      try {
+        const me = (await c.api.get("/users/@me")) as unknown as {
+          relations?: { status: string }[];
+        };
+        return (me.relations ?? []).filter((r) => r.status === "Incoming")
+          .length;
+      } catch {
+        return undefined;
+      }
+    },
+  );
+
+  onMount(() => {
+    const c = client();
+    const onUserUpdate = () => refetchRelations();
+    c.addListener("userUpdate", onUserUpdate);
+    onCleanup(() => c.removeListener("userUpdate", onUserUpdate));
+  });
+
   const homeNotifications = createMemo(() => {
-    return client().users.filter((user) => user.relationship === "Incoming")
-      .length;
+    const fromCollection = client().users.filter(
+      (user) => user.relationship === "Incoming",
+    ).length;
+    // Whichever source knows about more pending requests wins — they count the
+    // same set, so this is a resilience fallback, not a sum.
+    return Math.max(relationCount() ?? 0, fromCollection);
   });
 
   const messageNotifications = createMemo(
