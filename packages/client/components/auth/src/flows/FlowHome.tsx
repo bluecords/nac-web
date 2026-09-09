@@ -1,12 +1,20 @@
-import { Match, Show, Switch, createMemo, untrack } from "solid-js";
+import {
+  Match,
+  Show,
+  Switch,
+  createMemo,
+  createResource,
+  untrack,
+} from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
+import { PublicChannelInvite, ServerPublicInvite } from "stoat.js";
 import { css } from "styled-system/css";
 
-import { useClientLifecycle } from "@revolt/client";
+import { useClient, useClientLifecycle } from "@revolt/client";
 import { TransitionType } from "@revolt/client/Controller";
 import { Navigate } from "@revolt/routing";
-import { Button, Column, LinkButton } from "@revolt/ui";
+import { Avatar, Button, Column, LinkButton } from "@revolt/ui";
 
 import { useState } from "@revolt/state";
 import nacIcon from "../../../../scripts/assets_fallback/web/android-chrome-192x192.png";
@@ -27,6 +35,7 @@ import nacIcon from "../../../../scripts/assets_fallback/web/android-chrome-192x
  */
 export default function FlowHome() {
   const state = useState();
+  const getClient = useClient();
   const { lifecycle, isLoggedIn, isError } = useClientLifecycle();
 
   /**
@@ -37,6 +46,21 @@ export default function FlowHome() {
    */
   const inviteCode = createMemo(
     () => state.layout.peekNextPath()?.match(/^\/invite\/([^/?#]+)/)?.[1],
+  );
+
+  /**
+   * Public details for that invite (server name, icon, member count, inviter).
+   * `GET /invites/:code` is unauthenticated, so this works before the visitor
+   * has an account. A Discord user expects "you've been invited to join X"
+   * with proof — not a bare marketing card. See BUG_BASH_2026-09-09 #3.
+   */
+  const [invite] = createResource(
+    inviteCode,
+    async (code) => {
+      const data = await getClient().api.get(`/invites/${code}` as never);
+      const parsed = PublicChannelInvite.from(getClient(), data as never);
+      return parsed instanceof ServerPublicInvite ? parsed : undefined;
+    },
   );
 
   /**
@@ -71,53 +95,101 @@ export default function FlowHome() {
           </Show>
 
           <Column gap="xl">
-            <img
-              src={nacIcon}
-              alt="NAC"
-              class={css({
-                width: "96px",
-                height: "96px",
-                margin: "auto",
-                borderRadius: "20px",
-              })}
-            />
+            <Show
+              when={invite()}
+              fallback={
+                <img
+                  src={nacIcon}
+                  alt="NAC"
+                  class={css({
+                    width: "96px",
+                    height: "96px",
+                    margin: "auto",
+                    borderRadius: "20px",
+                  })}
+                />
+              }
+            >
+              <div class={css({ margin: "auto" })}>
+                <Avatar
+                  size={96}
+                  src={invite()!.serverIcon?.previewUrl}
+                  fallback={invite()!.serverName}
+                />
+              </div>
+            </Show>
 
             <Column>
-              <b
-                style={{
-                  "font-weight": 800,
-                  "font-size": "1.4em",
-                  display: "flex",
-                  "flex-direction": "column",
-                  "align-items": "center",
-                  "text-align": "center",
-                }}
+              <Show
+                when={invite()}
+                fallback={
+                  <>
+                    <b
+                      style={{
+                        "font-weight": 800,
+                        "font-size": "1.4em",
+                        display: "flex",
+                        "flex-direction": "column",
+                        "align-items": "center",
+                        "text-align": "center",
+                      }}
+                    >
+                      <span>NAC — Naked as Created</span>
+                    </b>
+                    <span style={{ "text-align": "center", opacity: "0.5" }}>
+                      A private community of Jesus Followers built around
+                      naturism and authentic human connection.
+                    </span>
+                  </>
+                }
               >
-                <span>NAC — Naked as Created</span>
-              </b>
-              <span style={{ "text-align": "center", opacity: "0.5" }}>
-                A private community of Jesus Followers built around naturism and
-                authentic human connection.
-              </span>
+                <span
+                  style={{ "text-align": "center", opacity: "0.6" }}
+                  class="label"
+                >
+                  <Trans>You've been invited to join</Trans>
+                </span>
+                <b
+                  style={{
+                    "font-weight": 800,
+                    "font-size": "1.4em",
+                    "text-align": "center",
+                  }}
+                >
+                  {invite()!.serverName}
+                </b>
+                <span style={{ "text-align": "center", opacity: "0.5" }}>
+                  <Trans>
+                    {invite()!.memberCount.toLocaleString()} members
+                  </Trans>
+                  <Show when={invite()!.userName}>
+                    {" · "}
+                    <Trans>invited by {invite()!.userName}</Trans>
+                  </Show>
+                </span>
+              </Show>
             </Column>
 
             <Column>
-              <LinkButton href="/login/auth">
-                <Trans>Log In</Trans>
-              </LinkButton>
               {/*
                 NAC is invite-only: registration is possible only through an
-                invite link, so this is shown solely to visitors who arrived
-                with one. Anyone landing on /login directly gets Log In alone.
-                The server enforces this independently (authifier `invite_only`)
-                — hiding the button stops people ending up on a form they can't
-                complete, it is not the access control itself.
+                invite link, so Create Account is shown solely to visitors who
+                arrived with one. Anyone landing on /login directly gets Log In
+                alone. The server enforces this independently (authifier
+                `invite_only`) — hiding the button stops people ending up on a
+                form they can't complete, it is not the access control itself.
               */}
               <Show when={inviteCode()}>
-                <LinkButton href={`/login/create/${inviteCode()}`} variant="plain">
+                <LinkButton href={`/login/create/${inviteCode()}`} variant="filled">
                   <Trans>Create Account</Trans>
                 </LinkButton>
               </Show>
+              <LinkButton
+                href="/login/auth"
+                variant={inviteCode() ? "outlined" : "filled"}
+              >
+                <Trans>Log In</Trans>
+              </LinkButton>
             </Column>
           </Column>
         </>
