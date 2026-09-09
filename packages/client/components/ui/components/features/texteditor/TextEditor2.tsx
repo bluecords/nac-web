@@ -15,6 +15,7 @@ import { smartLineWrapping } from "./codeMirrorLineWrap";
 import { markPlugins } from "./codeMirrorMarks";
 import { markdownTheme } from "./codeMirrorTheme";
 import { codeMirrorWidgets } from "./codeMirrorWidgets";
+import { FormatKind, applyMarkdownFormat } from "./markdownFormatting";
 
 interface Props {
   /**
@@ -36,6 +37,12 @@ interface Props {
    * Signal for sending a node replacement or focus request to the editor
    */
   nodeReplacement?: readonly [string | "_focus"];
+
+  /**
+   * Signal for a formatting-toolbar action. A fresh tuple each time (a nonce is
+   * fine) so clicking the same button twice re-fires and toggles.
+   */
+  formatAction?: readonly [FormatKind, ...unknown[]];
 
   /**
    * Event is fired when the text content changes
@@ -228,6 +235,20 @@ export function TextEditor2(props: Props) {
       {
         defer: true,
       },
+    ),
+  );
+
+  // apply a formatting-toolbar action to the current selection
+  createEffect(
+    on(
+      () => props.formatAction,
+      (value) => {
+        if (!value) return;
+        applyMarkdownFormat(view, value[0]);
+        props.onChange(view.state.doc.toString());
+        props.onTyping?.();
+      },
+      { defer: true },
     ),
   );
 
