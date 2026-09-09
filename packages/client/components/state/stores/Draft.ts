@@ -638,12 +638,24 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
       uploadProgress: createSignal(0),
     };
 
+    // Append to the draft NOW, before awaiting image decode. Callers add files
+    // in a loop without awaiting (`for (const f of files) addFile(...)`), so if
+    // the append waited on `image.onload` the files landed in whatever order
+    // their images finished decoding - a big screenshot after a small one -
+    // rather than the order they were picked. Dimensions are only used for the
+    // preview aspect ratio and are patched in below once they load.
+    this.setDraft(channelId, (data) => ({
+      files: [...(data.files ?? []), id],
+    }));
+
     if (this.fileCache[id].dataUri) {
       await new Promise((resolve, reject) => {
         const image = new Image();
 
         image.onload = () => {
-          this.fileCache[id].dimensions = [image.width, image.height];
+          if (this.fileCache[id]) {
+            this.fileCache[id].dimensions = [image.width, image.height];
+          }
           resolve(void 0);
         };
 
@@ -653,10 +665,6 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
         // ignore errors
         .catch(() => {});
     }
-
-    this.setDraft(channelId, (data) => ({
-      files: [...(data.files ?? []), id],
-    }));
   }
 
   /**
