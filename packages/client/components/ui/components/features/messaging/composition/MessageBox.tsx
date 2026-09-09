@@ -8,6 +8,7 @@ import { Row } from "@revolt/ui";
 import { AutoCompleteSearchSpace } from "@revolt/ui/components/utils/autoComplete";
 
 import { TextEditor2 } from "../../texteditor/TextEditor2";
+import { FormatKind } from "../../texteditor/markdownFormatting";
 
 interface Props {
   /**
@@ -19,6 +20,11 @@ interface Props {
    * Node replacement
    */
   nodeReplacement?: readonly [string | "_focus"];
+
+  /**
+   * Formatting-toolbar action to apply to the editor selection
+   */
+  formatAction?: readonly [FormatKind, ...unknown[]];
 
   /**
    * Text content
@@ -246,6 +252,7 @@ export function MessageBox(props: Props) {
                 placeholder={props.placeholder}
                 initialValue={props.initialValue}
                 nodeReplacement={props.nodeReplacement}
+                formatAction={props.formatAction}
                 onChange={props.setContent}
                 onComplete={props.onSendMessage}
                 onTyping={props.onTyping}

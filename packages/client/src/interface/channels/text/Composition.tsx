@@ -26,12 +26,14 @@ import {
   FileCarousel,
   FileDropAnywhereCollector,
   FilePasteCollector,
+  FormattingToolbar,
   IconButton,
   MessageBox,
   MessageReplyPreview,
   Tooltip,
   humanFileSize,
 } from "@revolt/ui";
+import { FormatKind } from "@revolt/ui/components/features/texteditor/markdownFormatting";
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 import { useSearchSpace } from "@revolt/ui/components/utils/autoComplete";
 import { UserSlowmodes } from "stoat.js/lib/events/v1";
@@ -205,6 +207,12 @@ export function MessageComposition(props: Props) {
 
   const [nodeReplacement, setNodeReplacement] =
     createSignal<readonly [string | "_focus"]>();
+
+  // A fresh tuple per click (the number is a nonce) so clicking the same button
+  // twice re-fires and toggles the formatting off.
+  const [formatAction, setFormatAction] =
+    createSignal<readonly [FormatKind, number]>();
+  const applyFormat = (kind: FormatKind) => setFormatAction([kind, Date.now()]);
 
   // bind this composition instance to the global node replacement signal
   state.draft._setNodeReplacement = setNodeReplacement;
@@ -487,9 +495,13 @@ export function MessageComposition(props: Props) {
           </Tooltip>
         </SlowmodeContainer>
       </Show>
+      <Show when={props.channel.havePermission("SendMessage")}>
+        <FormattingToolbar onFormat={applyFormat} />
+      </Show>
       <MessageBox
         initialValue={initialValue()}
         nodeReplacement={nodeReplacement()}
+        formatAction={formatAction()}
         onSendMessage={() => sendMessage()}
         onTyping={delayedStopTyping}
         onEditLastMessage={() => state.draft.setEditingMessage(true)}
