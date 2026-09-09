@@ -56,6 +56,45 @@ export function ForumPost(props: Props) {
   const [editingTags, setEditingTags] = createSignal(false);
   const [tagDraft, setTagDraft] = createSignal<Set<string>>(new Set());
 
+  // The channel's allowed_tags, fetched directly rather than trusted from
+  // `props.channel.allowedTags`. The Ready payload carries the field but
+  // `ChannelCollection` returns cached channels without re-hydrating it, so on
+  // a reconnect / partial the "Edit tags" button silently never appears on a
+  // channel whose tags the server has (Bunjie hit exactly this, repeatedly —
+  // BUG_BASH_2026-09-09 #5). Owning the fetch here decouples post tagging from
+  // that race; the result is also written back to the store so the channel
+  // settings picker and CreateForumPost heal too. On failure we warn (not a
+  // silent catch) and fall back to whatever is cached.
+  const [fetchedTags] = createResource(
+    () => props.channel.id,
+    async (id) => {
+      if (props.channel.type !== "ForumChannel") return undefined;
+      try {
+        const data = (await client().api.get(
+          `/channels/${id as ""}`,
+        )) as unknown as { allowed_tags?: string[] };
+        const tags = data.allowed_tags ?? [];
+        if (
+          JSON.stringify(tags) !==
+          JSON.stringify(props.channel.allowedTags ?? [])
+        ) {
+          client().channels.updateUnderlyingObject(id, "allowedTags", tags);
+        }
+        return tags;
+      } catch (err) {
+        console.warn(
+          "[ForumPost] could not fetch allowed_tags for channel",
+          id,
+          err,
+        );
+        return undefined;
+      }
+    },
+  );
+
+  /** Best available allowed_tags: freshly fetched, else whatever is cached. */
+  const allowedTags = () => fetchedTags() ?? props.channel.allowedTags ?? [];
+
   function startEditTags(post: Message) {
     setTagDraft(new Set(post.forumTags ?? []));
     setEditingTags(true);
@@ -222,7 +261,7 @@ export function ForumPost(props: Props) {
                   <Show
                     when={
                       post().forumTags?.length ||
-                      (post().author?.self && props.channel.allowedTags?.length)
+                      (post().author?.self && allowedTags().length)
                     }
                   >
                     <TagRow>
@@ -230,10 +269,7 @@ export function ForumPost(props: Props) {
                         {(tag) => <Tag>{tag}</Tag>}
                       </For>
                       <Show
-                        when={
-                          post().author?.self &&
-                          props.channel.allowedTags?.length
-                        }
+                        when={post().author?.self && allowedTags().length}
                       >
                         <TagEditButton onClick={() => startEditTags(post())}>
                           <Trans>Edit tags</Trans>
@@ -244,7 +280,7 @@ export function ForumPost(props: Props) {
                 }
               >
                 <TagRow>
-                  <For each={props.channel.allowedTags}>
+                  <For each={allowedTags()}>
                     {(tag) => (
                       <TagToggle
                         active={tagDraft().has(tag)}

@@ -106,8 +106,15 @@ export function ForumChannel(props: ChannelPageProps) {
           ) {
             client().channels.updateUnderlyingObject(id, "allowedTags", tags);
           }
-        } catch {
-          /* keep whatever is cached */
+        } catch (err) {
+          // Don't swallow — a failing GET here is the whole reason the tag
+          // picker shows up empty (BUG_BASH_2026-09-09 #5). Keep the cached
+          // list, but make the failure visible for the next repro.
+          console.warn(
+            "[ForumChannel] could not refresh allowed_tags for channel",
+            id,
+            err,
+          );
         }
       },
     ),
