@@ -16,7 +16,6 @@ import { Message } from "stoat.js";
 import { css, cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
-import { MessageContextMenu } from "@revolt/app/menus/MessageContextMenu";
 import { useClient } from "@revolt/client";
 import { Keybind, KeybindAction } from "@revolt/keybinds";
 import { useModals } from "@revolt/modal";
@@ -36,6 +35,7 @@ import { TextSearchSidebar } from "../text/TextSearchSidebar";
 
 import { fetchAllMessages } from "./fetchAllMessages";
 import { ForumPost } from "./ForumPost";
+import { ForumPostCardMenu } from "./ForumPostCardMenu";
 
 type SortMode = "latest" | "top" | "active";
 
@@ -74,6 +74,42 @@ export function ForumChannel(props: ChannelPageProps) {
     on(
       () => props.channel.id,
       () => setSidebarState({ state: "default" }),
+    ),
+  );
+
+  // Refresh the channel's tag list from the API on entry.
+  //
+  // `allowed_tags` is in the Ready payload and the SDK hydrates it, but
+  // `ChannelCollection.fetch()`/`getOrCreate()` return the cached channel
+  // WITHOUT re-hydrating - so any load where the cached copy is missing tags
+  // (a reconnect, a partial, a channel edited after connect) leaves the tag
+  // picker permanently empty with no way to recover. Bunjie hit exactly this:
+  // "Edit tags" opening to nothing on a channel whose tags the server has.
+  // Write the fresh list straight into the reactive store so every consumer
+  // (`ForumPost` editor, `CreateForumPost`, the filter bar) sees it.
+  createEffect(
+    on(
+      () => props.channel.id,
+      async (id) => {
+        if (props.channel.type !== "ForumChannel") return;
+        try {
+          const data = (await client().api.get(
+            `/channels/${id as ""}`,
+          )) as unknown as {
+            allowed_tags?: string[];
+            solution_enabled?: boolean;
+          };
+          const tags = data.allowed_tags ?? [];
+          if (
+            JSON.stringify(tags) !==
+            JSON.stringify(props.channel.allowedTags ?? [])
+          ) {
+            client().channels.updateUnderlyingObject(id, "allowedTags", tags);
+          }
+        } catch {
+          /* keep whatever is cached */
+        }
+      },
     ),
   );
 
@@ -416,7 +452,10 @@ export function ForumChannel(props: ChannelPageProps) {
                         title="Post actions"
                         use:floating={{
                           contextMenu: () => (
-                            <MessageContextMenu message={post} />
+                            <ForumPostCardMenu
+                              post={post}
+                              openPost={() => setSelectedPostId(post.id)}
+                            />
                           ),
                           contextMenuHandler: "click",
                         }}
@@ -677,9 +716,14 @@ const postMenuTrigger = css({
   height: "32px",
   borderRadius: "var(--borderRadius-full)",
   cursor: "pointer",
-  color: "var(--md-sys-color-on-surface-variant)",
+  // The muted `on-surface-variant` grey on the dark card was near-invisible
+  // (Bunjie: "3 dots on a dark background are hard to see"). Full-contrast icon
+  // sitting in its own chip, darker still on hover.
+  color: "var(--md-sys-color-on-surface)",
+  background: "var(--md-sys-color-surface-container-highest)",
   "&:hover": {
-    background: "var(--md-sys-color-surface-container-highest)",
+    background: "var(--md-sys-color-primary-container)",
+    color: "var(--md-sys-color-on-primary-container)",
   },
 });
 
