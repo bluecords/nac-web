@@ -25,6 +25,7 @@ type Field =
   | "email"
   | "password"
   | "new-password"
+  | "confirm-password"
   | "log-out"
   | "username"
   | "invite";
@@ -53,7 +54,14 @@ const useFieldConfiguration = () => {
       type: "password" as const,
       autocomplete: "new-password",
       name: () => t`New Password`,
-      placeholder: () => t`Enter a new password.`,
+      placeholder: () => t`At least 8 characters.`,
+    },
+    "confirm-password": {
+      minLength: 8,
+      type: "password" as const,
+      autocomplete: "new-password",
+      name: () => t`Confirm Password`,
+      placeholder: () => t`Re-enter your password.`,
     },
     "log-out": {
       name: () => t`Log out of all other sessions`,
