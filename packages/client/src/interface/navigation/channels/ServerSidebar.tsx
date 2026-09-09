@@ -506,6 +506,9 @@ function Entry(
                     headset_mic
                   </Symbol>
                 </Match>
+                <Match when={props.channel.type === "ForumChannel"}>
+                  <Symbol>forum</Symbol>
+                </Match>
               </Switch>
               <Show when={props.channel.icon}>
                 <ChannelIcon
