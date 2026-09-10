@@ -1,7 +1,7 @@
 import { Trans } from "@lingui-solid/solid/macro";
 
 import { useApi, useClient, useClientLifecycle } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, rememberPendingInvite } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import { useNavigate, useParams } from "@revolt/routing";
 import {
@@ -16,6 +16,7 @@ import {
 import MdArrowBack from "@material-design-icons/svg/filled/arrow_back.svg?component-solid";
 
 import { Show, createSignal } from "solid-js";
+
 import { FlowTitle } from "./Flow";
 import { setFlowCheckEmail } from "./FlowCheck";
 import { emailIsBroken, suggestEmail } from "./emailSanity";
@@ -80,6 +81,12 @@ export default function FlowCreate() {
       captcha,
       ...(invite ? { invite } : {}),
     });
+
+    // Stash the invite so the join still happens if verification completes in a
+    // different tab/browser and the in-memory nextPath is lost. See
+    // resumePendingInvite.ts — this is the capture point where the code is
+    // certain (they just submitted it).
+    rememberPendingInvite(invite || code);
 
     const client = getClient();
     if (client.configuration && !client.configuration.features.email) {

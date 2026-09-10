@@ -7,6 +7,10 @@ import { ChannelContextMenu, ServerContextMenu } from "@revolt/app";
 import { MessageCache } from "@revolt/app/interface/channels/text/MessageCache";
 import { Titlebar } from "@revolt/app/interface/desktop/Titlebar";
 import { useClient, useClientLifecycle } from "@revolt/client";
+import {
+  rememberPendingInvite,
+  resumePendingInvite,
+} from "@revolt/common";
 import { State } from "@revolt/client/Controller";
 import { NotificationsWorker } from "@revolt/client/NotificationsWorker";
 import { useModals } from "@revolt/modal";
@@ -52,6 +56,11 @@ const Interface = (props: { children: JSX.Element }) => {
   createEffect(() => {
     if (!isLoggedIn()) {
       state.layout.setNextPath(pathname);
+      // Also stash the invite code somewhere the verify round-trip can't lose
+      // it (localStorage, not the in-memory nextPath). This is the normal
+      // path: click an invite link while logged out → bounced here to sign up.
+      const inviteCode = pathname.match(/^\/invite\/([^/?#]+)/)?.[1];
+      if (inviteCode) rememberPendingInvite(inviteCode);
       console.debug(
         "[Interface] not logged in — recorded nextPath:",
         pathname,
@@ -59,6 +68,19 @@ const Interface = (props: { children: JSX.Element }) => {
         lifecycle.state(),
       );
     }
+  });
+
+  // Finish an interrupted invite-join. `nextPath` only survives inside the tab
+  // that opened `/invite/:code`; when signup completes through an emailed link
+  // in a different tab/browser, the member lands with no server and nothing
+  // retries. This joins them from a localStorage-stashed code once the client
+  // is ready, on every authenticated load until it succeeds. See
+  // resumePendingInvite.ts. (Bunjie, 2026-09-10: the heal timer is a net, this
+  // shouldn't happen in the first place.)
+  createEffect(() => {
+    if (!isLoggedIn() || !lifecycle.loadedOnce()) return;
+    if (!client()?.user) return;
+    resumePendingInvite(client() as never);
   });
 
   // Apply a waiting update the moment it costs the member nothing.
