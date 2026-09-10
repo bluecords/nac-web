@@ -4,7 +4,14 @@ import { useApi, useClient, useClientLifecycle } from "@revolt/client";
 import { CONFIGURATION } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import { useNavigate, useParams } from "@revolt/routing";
-import { LinkButton, Row, SubmitButton, Text, iconSize } from "@revolt/ui";
+import {
+  Column,
+  LinkButton,
+  Row,
+  SubmitButton,
+  Text,
+  iconSize,
+} from "@revolt/ui";
 
 import MdArrowBack from "@material-design-icons/svg/filled/arrow_back.svg?component-solid";
 
@@ -98,12 +105,44 @@ export default function FlowCreate() {
     return false;
   };
 
+  /**
+   * NAC is invite-only and the code rides in the URL (`/login/create/:code`),
+   * put there by the invite-link → /login → "Create Account" chain. If someone
+   * reaches this page without it (a bookmarked/shared bare URL, a lost
+   * `nextPath`), submitting just earns a server rejection they can't fix.
+   * Several real people hit exactly this on migration eve — tell them plainly
+   * what they need instead of showing a form that can't succeed.
+   */
+  const missingInvite = () => isInviteOnly() && !code;
+
   return (
     <>
       <FlowTitle subtitle={<Trans>Create an account</Trans>} emoji="wave">
         <Trans>Hello!</Trans>
       </FlowTitle>
-      <Form onSubmit={create} captcha={CONFIGURATION.HCAPTCHA_SITEKEY}>
+
+      <Show when={missingInvite()}>
+        <Column gap="lg">
+          <Text class="label">
+            <Trans>
+              NAC is invite-only. To create an account, open the invite link you
+              were sent — it carries the code you need. If you already have an
+              account, log in instead.
+            </Trans>
+          </Text>
+          <Column gap="sm">
+            <LinkButton href="/login/auth" variant="filled">
+              <Trans>Log In</Trans>
+            </LinkButton>
+            <LinkButton href=".." variant="text">
+              <MdArrowBack {...iconSize("1.2em")} /> <Trans>Back</Trans>
+            </LinkButton>
+          </Column>
+        </Column>
+      </Show>
+
+      <Show when={!missingInvite()}>
+        <Form onSubmit={create} captcha={CONFIGURATION.HCAPTCHA_SITEKEY}>
         <Fields fields={["email", "new-password", "confirm-password"]} />
         <Show when={isInviteOnly()}>
           <Fields fields={[{ field: "invite", value: code }]} />
@@ -119,15 +158,16 @@ export default function FlowCreate() {
           </a>
           .
         </Text>
-        <Row justify>
-          <LinkButton href=".." variant="text">
-            <MdArrowBack {...iconSize("1.2em")} /> <Trans>Back</Trans>
-          </LinkButton>
-          <SubmitButton>
-            <Trans>Register</Trans>
-          </SubmitButton>
-        </Row>
-      </Form>
+          <Row justify>
+            <LinkButton href=".." variant="text">
+              <MdArrowBack {...iconSize("1.2em")} /> <Trans>Back</Trans>
+            </LinkButton>
+            <SubmitButton>
+              <Trans>Register</Trans>
+            </SubmitButton>
+          </Row>
+        </Form>
+      </Show>
       {import.meta.env.DEV && (
         <div
           style={{
