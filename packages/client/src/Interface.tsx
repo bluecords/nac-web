@@ -174,6 +174,23 @@ const Interface = (props: { children: JSX.Element }) => {
             </Button>
           </UpdateBanner>
         </Show>
+
+        {/* Connection-lost notice. During a server update the API restarts and
+            every client's socket drops for a few seconds — without a word for
+            it, members read that as "the platform is broken" and post about it
+            in public. Bunjie, 2026-09-10: "have a message when the server is
+            getting an update so they have vis that they'll need to wait a few."
+            Only shown after the first successful load, so it never covers the
+            normal startup connect. */}
+        <Show when={lifecycle.loadedOnce() && isDisconnected()}>
+          <ReconnectBanner>
+            <Text size="small">
+              Reconnecting to NAC… if we're in the middle of an update this is
+              normal — it'll be back in a moment.
+            </Text>
+          </ReconnectBanner>
+        </Show>
+
         <Switch fallback={<CircularProgress />}>
           <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>
             <Navigate href="/login" />
@@ -235,6 +252,22 @@ const UpdateBanner = styled("div", {
     padding: "var(--gap-sm) var(--gap-md)",
     color: "var(--md-sys-color-on-primary-container)",
     background: "var(--md-sys-color-primary-container)",
+  },
+});
+
+/**
+ * Banner shown while the client is reconnecting (e.g. during a server update)
+ */
+const ReconnectBanner = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    gap: "var(--gap-md)",
+    padding: "var(--gap-sm) var(--gap-md)",
+    color: "var(--md-sys-color-on-tertiary-container)",
+    background: "var(--md-sys-color-tertiary-container)",
   },
 });
 
