@@ -56,44 +56,69 @@ export function ForumPost(props: Props) {
   const [editingTags, setEditingTags] = createSignal(false);
   const [tagDraft, setTagDraft] = createSignal<Set<string>>(new Set());
 
-  // The channel's allowed_tags, fetched directly rather than trusted from
-  // `props.channel.allowedTags`. The Ready payload carries the field but
+  // The channel's allowed_tags. The Ready payload carries the field but
   // `ChannelCollection` returns cached channels without re-hydrating it, so on
   // a reconnect / partial the "Edit tags" button silently never appears on a
   // channel whose tags the server has (Bunjie hit exactly this, repeatedly —
-  // BUG_BASH_2026-09-09 #5). Owning the fetch here decouples post tagging from
-  // that race; the result is also written back to the store so the channel
-  // settings picker and CreateForumPost heal too. On failure we warn (not a
-  // silent catch) and fall back to whatever is cached.
-  const [fetchedTags] = createResource(
-    () => props.channel.id,
-    async (id) => {
-      if (props.channel.type !== "ForumChannel") return undefined;
-      try {
-        const data = (await client().api.get(
-          `/channels/${id as ""}`,
-        )) as unknown as { allowed_tags?: string[] };
-        const tags = data.allowed_tags ?? [];
-        if (
-          JSON.stringify(tags) !==
-          JSON.stringify(props.channel.allowedTags ?? [])
-        ) {
+  // BUG_BASH_2026-09-09 #5, and #159's createResource still did not fix it for
+  // him).
+  //
+  // Plain signal, not a resource: seeded synchronously from the cached channel
+  // so it is never `undefined` on first paint, then refreshed from the API.
+  // Two rules that #159 got wrong:
+  //   * an empty API result must NOT blank a non-empty cache — `?? []` only
+  //     falls through on null/undefined, so a resource that resolved to `[]`
+  //     (unknown field stripped, transient response) permanently hid the button;
+  //   * seed before the await, so the button is correct even if the fetch is
+  //     slow or fails.
+  // The fresh result is written back to the store so the channel-settings picker
+  // and CreateForumPost heal from the same fetch.
+  const [allowedTagsSignal, setAllowedTagsSignal] = createSignal<string[]>(
+    props.channel.allowedTags ?? [],
+  );
+  const allowedTags = () => allowedTagsSignal();
+
+  // Visible only with ?tagdbg=1 in the URL — a breadcrumb for the #5 repro that
+  // members never see. Remove once the picker is confirmed working for him.
+  const tagDbgOn = (() => {
+    try {
+      return new URLSearchParams(location.search).has("tagdbg");
+    } catch {
+      return false;
+    }
+  })();
+  const [tagDbg, setTagDbg] = createSignal("init");
+
+  createEffect(() => {
+    const id = props.channel.id;
+    const cached = props.channel.allowedTags ?? [];
+    if (cached.length) setAllowedTagsSignal(cached);
+
+    if (props.channel.type !== "ForumChannel") {
+      setTagDbg(`not-forum (type=${props.channel.type})`);
+      return;
+    }
+
+    client()
+      .api.get(`/channels/${id as ""}`)
+      .then((data: unknown) => {
+        const tags =
+          (data as { allowed_tags?: string[] } | null)?.allowed_tags ?? [];
+        setTagDbg(
+          `fetched=${JSON.stringify(tags)} cached=${JSON.stringify(cached)}`,
+        );
+        // Only let the fetch WIN if it actually returned tags, or the cache is
+        // also empty. Never let an empty fetch clobber a populated cache.
+        if (tags.length || !cached.length) setAllowedTagsSignal(tags);
+        if (tags.length && JSON.stringify(tags) !== JSON.stringify(cached)) {
           client().channels.updateUnderlyingObject(id, "allowedTags", tags);
         }
-        return tags;
-      } catch (err) {
-        console.warn(
-          "[ForumPost] could not fetch allowed_tags for channel",
-          id,
-          err,
-        );
-        return undefined;
-      }
-    },
-  );
-
-  /** Best available allowed_tags: freshly fetched, else whatever is cached. */
-  const allowedTags = () => fetchedTags() ?? props.channel.allowedTags ?? [];
+      })
+      .catch((err) => {
+        setTagDbg(`fetch-error: ${err}`);
+        console.warn("[ForumPost] allowed_tags fetch failed", id, err);
+      });
+  });
 
   function startEditTags(post: Message) {
     setTagDraft(new Set(post.forumTags ?? []));
@@ -255,6 +280,20 @@ export function ForumPost(props: Props) {
               <Text class="label" size="large">
                 {post().forumTitle}
               </Text>
+              <Show when={tagDbgOn}>
+                <span
+                  style={{
+                    opacity: 0.5,
+                    "font-size": "11px",
+                    "font-family": "monospace",
+                    "word-break": "break-all",
+                  }}
+                >
+                  tagdbg · self={String(post().author?.self)} · authorId=
+                  {post().authorId} · chan.type={props.channel.type} · shown=
+                  {allowedTags().length} · {tagDbg()}
+                </span>
+              </Show>
               <Show
                 when={editingTags()}
                 fallback={
