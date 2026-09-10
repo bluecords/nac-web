@@ -7,6 +7,10 @@ import { ChannelContextMenu, ServerContextMenu } from "@revolt/app";
 import { MessageCache } from "@revolt/app/interface/channels/text/MessageCache";
 import { Titlebar } from "@revolt/app/interface/desktop/Titlebar";
 import { useClient, useClientLifecycle } from "@revolt/client";
+import {
+  rememberPendingInvite,
+  resumePendingInvite,
+} from "@revolt/common";
 import { State } from "@revolt/client/Controller";
 import { NotificationsWorker } from "@revolt/client/NotificationsWorker";
 import { useModals } from "@revolt/modal";
@@ -52,6 +56,11 @@ const Interface = (props: { children: JSX.Element }) => {
   createEffect(() => {
     if (!isLoggedIn()) {
       state.layout.setNextPath(pathname);
+      // Also stash the invite code somewhere the verify round-trip can't lose
+      // it (localStorage, not the in-memory nextPath). This is the normal
+      // path: click an invite link while logged out → bounced here to sign up.
+      const inviteCode = pathname.match(/^\/invite\/([^/?#]+)/)?.[1];
+      if (inviteCode) rememberPendingInvite(inviteCode);
       console.debug(
         "[Interface] not logged in — recorded nextPath:",
         pathname,
@@ -59,6 +68,19 @@ const Interface = (props: { children: JSX.Element }) => {
         lifecycle.state(),
       );
     }
+  });
+
+  // Finish an interrupted invite-join. `nextPath` only survives inside the tab
+  // that opened `/invite/:code`; when signup completes through an emailed link
+  // in a different tab/browser, the member lands with no server and nothing
+  // retries. This joins them from a localStorage-stashed code once the client
+  // is ready, on every authenticated load until it succeeds. See
+  // resumePendingInvite.ts. (Bunjie, 2026-09-10: the heal timer is a net, this
+  // shouldn't happen in the first place.)
+  createEffect(() => {
+    if (!isLoggedIn() || !lifecycle.loadedOnce()) return;
+    if (!client()?.user) return;
+    resumePendingInvite(client() as never);
   });
 
   // Apply a waiting update the moment it costs the member nothing.
@@ -152,6 +174,23 @@ const Interface = (props: { children: JSX.Element }) => {
             </Button>
           </UpdateBanner>
         </Show>
+
+        {/* Connection-lost notice. During a server update the API restarts and
+            every client's socket drops for a few seconds — without a word for
+            it, members read that as "the platform is broken" and post about it
+            in public. Bunjie, 2026-09-10: "have a message when the server is
+            getting an update so they have vis that they'll need to wait a few."
+            Only shown after the first successful load, so it never covers the
+            normal startup connect. */}
+        <Show when={lifecycle.loadedOnce() && isDisconnected()}>
+          <ReconnectBanner>
+            <Text size="small">
+              Reconnecting to NAC… if we're in the middle of an update this is
+              normal — it'll be back in a moment.
+            </Text>
+          </ReconnectBanner>
+        </Show>
+
         <Switch fallback={<CircularProgress />}>
           <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>
             <Navigate href="/login" />
@@ -213,6 +252,22 @@ const UpdateBanner = styled("div", {
     padding: "var(--gap-sm) var(--gap-md)",
     color: "var(--md-sys-color-on-primary-container)",
     background: "var(--md-sys-color-primary-container)",
+  },
+});
+
+/**
+ * Banner shown while the client is reconnecting (e.g. during a server update)
+ */
+const ReconnectBanner = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    gap: "var(--gap-md)",
+    padding: "var(--gap-sm) var(--gap-md)",
+    color: "var(--md-sys-color-on-tertiary-container)",
+    background: "var(--md-sys-color-tertiary-container)",
   },
 });
 

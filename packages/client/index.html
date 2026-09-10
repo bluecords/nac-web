@@ -20,6 +20,32 @@
     <div id="root"></div>
     <div id="floating"></div>
 
+    <!--
+      Old-browser fallback. The app is built for `esnext` and will not even
+      parse on a browser without ES-module support (iOS 8-10.2 Safari, old
+      Android WebView, IE) — those users get a permanent white screen with no
+      hint why. Browsers that DO support modules ignore a `nomodule` script;
+      browsers that don't will run it and skip the module below. Written plain
+      for non-technical members after Bunjie spent an hour on a support call
+      for exactly this (a 70-something on iOS 8), 2026-09-10.
+    -->
+    <script nomodule>
+      document.getElementById("root").innerHTML =
+        '<div style="max-width:34rem;margin:14vh auto 0;padding:0 1.5rem;' +
+        'font-family:-apple-system,system-ui,sans-serif;color:#e8e8e8;line-height:1.65">' +
+        '<h1 style="font-size:1.4rem;margin:0 0 .75rem">NAC needs a newer browser</h1>' +
+        "<p>The software on your phone or tablet is too old to run NAC. Here's how to fix it:</p>" +
+        "<p><b>On an iPhone or iPad:</b> open <b>Settings</b>, tap <b>General</b>, " +
+        "tap <b>Software Update</b>, and install what it offers. Then come back and try again.</p>" +
+        "<p><b>If it says your software is up to date</b>, the device itself is too old for NAC. " +
+        "Open <b>community.nac.social</b> on a computer or a newer phone instead — " +
+        "your account is the same everywhere.</p>" +
+        '<p style="opacity:.6;font-size:.95rem;margin-top:1.5rem">Stuck? Ask in the ' +
+        "NAC Help channel or message an admin — we'll help.</p>" +
+        "</div>";
+      document.body.style.background = "#111";
+    </script>
+
     <script src="/src/index.tsx" type="module"></script>
   </body>
 </html>
