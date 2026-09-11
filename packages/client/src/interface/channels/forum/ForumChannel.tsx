@@ -298,6 +298,12 @@ export function ForumChannel(props: ChannelPageProps) {
 
     const mode = sortMode();
     return [...list].sort((a, b) => {
+      // Pinned posts float to the top regardless of sort mode - reported by
+      // Bunjie 2026-09-11: "Pinned forum posts should be at the top... other
+      // posts are mixing in." Only the tiebreak among pinned/unpinned posts
+      // themselves comes from the active sort mode below.
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+
       if (mode === "top") {
         const diff = reactionCount(b) - reactionCount(a);
         if (diff) return diff;
