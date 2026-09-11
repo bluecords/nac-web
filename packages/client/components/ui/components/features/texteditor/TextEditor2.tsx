@@ -129,6 +129,10 @@ export function TextEditor2(props: Props) {
         /* Enable browser spellchecking */
         EditorView.contentAttributes.of({ spellcheck: "true" }),
 
+        /* Mobile keyboards default to lowercase without this - the first
+           letter of a message/comment never got capitalised automatically. */
+        EditorView.contentAttributes.of({ autocapitalize: "sentences" }),
+
         /* Mount keymaps */
         enterKeymap,
         arrowUpKeymap,
