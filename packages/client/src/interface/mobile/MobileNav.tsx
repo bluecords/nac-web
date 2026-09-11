@@ -1,4 +1,4 @@
-import { For, JSX, Show, createMemo } from "solid-js";
+import { For, JSX, Show, createEffect, createMemo, onCleanup } from "solid-js";
 
 import { Channel, Server as ServerI } from "stoat.js";
 
@@ -23,7 +23,7 @@ import { useMobileNav } from "./MobileNavContext";
 export function MobileNav(_props: {
   menuGenerator: (t: ServerI | Channel) => JSX.Directives["floating"];
 }) {
-  const { navOpen, openNav, closeNav, openMembers, openMessages, editMode, setEditMode } =
+  const { isMobile, navOpen, openNav, closeNav, openMembers, openMessages, editMode, setEditMode } =
     useMobileNav();
   const { openModal } = useModals();
   const params = useSmartParams();
@@ -50,6 +50,26 @@ export function MobileNav(_props: {
   const server = createMemo(() =>
     params().serverId ? client()?.servers.get(params().serverId!) : undefined,
   );
+
+  // Android/Discord-style back button: while a channel is open and the
+  // drawer is closed, back should reveal the channel drawer instead of
+  // navigating away. Kept as one buffer entry in browser history whenever
+  // we're in that state; consuming it (a back press) reopens the drawer
+  // instead of letting the real navigation happen. A second back with the
+  // drawer already open falls through to normal history navigation.
+  // Requested by Bunjie 2026-09-11: "It's what they're used to."
+  createEffect(() => {
+    if (isMobile() && params().channelId && !navOpen()) {
+      history.pushState(null, "", location.href);
+    }
+  });
+
+  const onPopState = () => {
+    if (!isMobile() || !params().channelId || navOpen()) return;
+    openNav();
+  };
+  window.addEventListener("popstate", onPopState);
+  onCleanup(() => window.removeEventListener("popstate", onPopState));
 
   const orderedServers = createMemo(() => {
     const c = client();
