@@ -216,7 +216,6 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
               ? tooltip.content
               : tooltip!.aria!;
 
-          // Tooltips are hover-only — skip on touch devices
           if (navigator.maxTouchPoints === 0) {
             element.addEventListener("mouseenter", onMouseEnter);
             element.addEventListener("mouseleave", onMouseLeave);
@@ -224,6 +223,78 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
             onCleanup(() => {
               element.removeEventListener("mouseenter", onMouseEnter);
               element.removeEventListener("mouseleave", onMouseLeave);
+            });
+          } else {
+            // Touch has no hover, so a tooltip (e.g. "who reacted") was
+            // simply unreachable on mobile — this element's own tap usually
+            // does something else (a reaction toggles on tap), so we can't
+            // just show the tooltip on tap either. Long-press to peek,
+            // release to dismiss, mirroring the contextMenu long-press
+            // below. Reported by Bunjie 2026-09-11: "there's no way to see
+            // who reacted to a comment."
+            let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+            let startX = 0;
+            let startY = 0;
+            let peeking = false;
+
+            function suppressOneClick(e: MouseEvent) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              element.removeEventListener("click", suppressOneClick, true);
+            }
+
+            function onPointerDown(e: PointerEvent) {
+              if (e.pointerType !== "touch") return;
+              startX = e.clientX;
+              startY = e.clientY;
+              longPressTimer = setTimeout(() => {
+                peeking = true;
+                trigger("tooltip", true);
+                if (navigator.vibrate) navigator.vibrate(30);
+              }, 500);
+            }
+
+            function onPointerMove(e: PointerEvent) {
+              if (e.pointerType !== "touch" || !longPressTimer) return;
+              if (
+                Math.abs(e.clientX - startX) > 8 ||
+                Math.abs(e.clientY - startY) > 8
+              ) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+              }
+            }
+
+            function onPointerUp(e: PointerEvent) {
+              if (e.pointerType !== "touch") return;
+              if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+              }
+              if (peeking) {
+                peeking = false;
+                trigger("tooltip", false);
+                // The finger lifting synthesises a click on this same
+                // element next — without this it would immediately toggle
+                // whatever tapping this element normally does (e.g. the
+                // reaction just peeked at), right after releasing the peek.
+                element.addEventListener("click", suppressOneClick, true);
+              }
+            }
+
+            element.addEventListener("pointerdown", onPointerDown);
+            element.addEventListener("pointermove", onPointerMove);
+            element.addEventListener("pointerup", onPointerUp);
+            element.addEventListener("pointercancel", onPointerUp);
+
+            onCleanup(() => {
+              element.removeEventListener("pointerdown", onPointerDown);
+              element.removeEventListener("pointermove", onPointerMove);
+              element.removeEventListener("pointerup", onPointerUp);
+              element.removeEventListener("pointercancel", onPointerUp);
+              element.removeEventListener("click", suppressOneClick, true);
+              if (longPressTimer) clearTimeout(longPressTimer);
             });
           }
         }
