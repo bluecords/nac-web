@@ -84,6 +84,12 @@ export function ChannelHeader(props: Props) {
           </HeaderIcon>
           <NonBreakingText
             class={typography({ class: "title", size: "medium" })}
+            // Flex items shrink by default even with `white-space: nowrap` -
+            // the box shrinks but the text doesn't, so it visually spills
+            // into whatever comes next (the topic, here). The topic link
+            // already has `min-width: 0` so it's the one meant to truncate;
+            // this just stops the title competing with it for the squeeze.
+            style={{ "flex-shrink": 0 }}
             onClick={() =>
               openModal({
                 type: "channel_info",
