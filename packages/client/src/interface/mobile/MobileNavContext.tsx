@@ -16,6 +16,13 @@ interface MobileNavContextValue {
   searchOpen: Accessor<boolean>;
   openSearch: () => void;
   closeSearch: () => void;
+  /**
+   * When a forum post is open on mobile, this holds the callback to close it
+   * (return to the post list). The hardware/browser back button checks this
+   * first, before falling through to the channel-drawer behavior below it.
+   */
+  forumBackHandler: Accessor<(() => void) | undefined>;
+  setForumBackHandler: (handler: (() => void) | undefined) => void;
 }
 
 const MobileNavContext = createContext<MobileNavContextValue>();
@@ -32,6 +39,9 @@ export function MobileNavProvider(props: { children: JSX.Element }) {
   const [messagesOpen, setMessagesOpen] = createSignal(false);
   const [editMode, setEditMode] = createSignal(false);
   const [searchOpen, setSearchOpen] = createSignal(false);
+  const [forumBackHandler, setForumBackHandler] = createSignal<
+    (() => void) | undefined
+  >(undefined);
 
   if (mq) {
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
@@ -66,6 +76,8 @@ export function MobileNavProvider(props: { children: JSX.Element }) {
         searchOpen,
         openSearch: () => setSearchOpen(true),
         closeSearch: () => setSearchOpen(false),
+        forumBackHandler,
+        setForumBackHandler: (handler) => setForumBackHandler(() => handler),
       }}
     >
       {props.children}
