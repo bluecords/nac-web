@@ -19,7 +19,7 @@ import isEqual from "lodash.isequal";
 import { Channel, Message as MessageInterface } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { useClient, useClientLifecycle } from "@revolt/client";
+import { isIgnored, useClient, useClientLifecycle } from "@revolt/client";
 import { State } from "@revolt/client/Controller";
 import { useTime } from "@revolt/i18n";
 import { useState } from "@revolt/state";
@@ -728,6 +728,7 @@ export function Messages(props: Props) {
     const lastReadId = props.lastReadId() ?? "0";
 
     let blockedMessages = 0;
+    let ignoredMessages = 0;
     let insertedUnreadDivider = false;
 
     /**
@@ -741,6 +742,20 @@ export function Messages(props: Props) {
         });
 
         blockedMessages = 0;
+      }
+    };
+
+    /**
+     * Create ignored message divider
+     */
+    const createIgnoredMessageCount = () => {
+      if (ignoredMessages) {
+        messagesWithTail.push({
+          t: 3,
+          count: ignoredMessages,
+        });
+
+        ignoredMessages = 0;
       }
     };
 
@@ -806,9 +821,12 @@ export function Messages(props: Props) {
 
       if (message.author?.relationship === "Blocked") {
         blockedMessages++;
+      } else if (message.authorId && isIgnored(message.authorId)) {
+        ignoredMessages++;
       } else {
-        // Push any blocked messages if they haven't been yet
+        // Push any blocked/ignored messages if they haven't been yet
         createBlockedMessageCount();
+        createIgnoredMessageCount();
 
         // Add message to list, retrieve if it exists in the cache
         messagesWithTail.push(
@@ -831,8 +849,9 @@ export function Messages(props: Props) {
       }
     });
 
-    // Push remainder of blocked messages
+    // Push remainder of blocked/ignored messages
     createBlockedMessageCount();
+    createIgnoredMessageCount();
 
     // Strip unread divider if it is the first item
     // (hence would show alone at the bottom of messages)
@@ -1002,6 +1021,11 @@ type ListEntry =
       // Blocked messages
       t: 2;
       count: number;
+    }
+  | {
+      // Ignored messages
+      t: 3;
+      count: number;
     };
 
 /**
@@ -1037,6 +1061,12 @@ function Entry(
       </Match>
       <Match when={local.t === 2}>
         <BlockedMessage count={(other as ListEntry & { t: 2 }).count} />
+      </Match>
+      <Match when={local.t === 3}>
+        <BlockedMessage
+          kind="ignored"
+          count={(other as ListEntry & { t: 3 }).count}
+        />
       </Match>
     </Switch>
   );

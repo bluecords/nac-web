@@ -197,6 +197,19 @@ export type Modals =
       server: Server;
     }
   | {
+      type: "mod_view";
+      member: ServerMember;
+      invitedByName?: string;
+    }
+  | {
+      type: "timeout_member";
+      member: ServerMember;
+    }
+  | {
+      type: "transfer_ownership";
+      member: ServerMember;
+    }
+  | {
       type: "mfa_enable_totp";
       identifier: string;
       secret: string;

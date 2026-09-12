@@ -33,6 +33,7 @@ import { EditCategoryModal } from "./modals/EditCategory";
 import { EditEmailModal } from "./modals/EditEmail";
 import { EditPasswordModal } from "./modals/EditPassword";
 import { EditUsernameModal } from "./modals/EditUsername";
+import { EmbedConsentModal } from "./modals/EmbedConsent";
 import { EmojiPreviewModal } from "./modals/EmojiPreview";
 import { Error2Modal } from "./modals/Error2";
 import { FavoritesListModal } from "./modals/FavoritesList";
@@ -46,9 +47,9 @@ import { MFAEnableTOTPModal } from "./modals/MFAEnableTOTP";
 import { MFAFlowModal } from "./modals/MFAFlow";
 import { MFARecoveryModal } from "./modals/MFARecovery";
 import { MessagesListModal } from "./modals/MessagesList";
+import { ModViewModal } from "./modals/ModView";
 import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { OnboardingModal } from "./modals/Onboarding";
-import { EmbedConsentModal } from "./modals/EmbedConsent";
 import { PolicyChangeModal } from "./modals/PolicyChange";
 import { RemoveMemberModal } from "./modals/RemoveMember";
 import { RenameSessionModal } from "./modals/RenameSession";
@@ -62,6 +63,8 @@ import { SettingsModal } from "./modals/Settings";
 import { SignOutSessionsModal } from "./modals/SignOutSessions";
 import { SignedOutModal } from "./modals/SignedOut";
 import { SponsorNacModal } from "./modals/SponsorNac";
+import { TimeoutMemberModal } from "./modals/TimeoutMember";
+import { TransferOwnershipModal } from "./modals/TransferOwnership";
 import { UserProfileModal } from "./modals/UserProfile";
 import { UserProfileMutualFriendsModal } from "./modals/UserProfileMutualFriends";
 import { UserProfileMutualGroupsModal } from "./modals/UserProfileMutualGroups";
@@ -168,6 +171,12 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <MFARecoveryModal {...modalProps} />;
     case "messages_list":
       return <MessagesListModal {...modalProps} />;
+    case "mod_view":
+      return <ModViewModal {...modalProps} />;
+    case "timeout_member":
+      return <TimeoutMemberModal {...modalProps} />;
+    case "transfer_ownership":
+      return <TransferOwnershipModal {...modalProps} />;
     case "onboarding":
       return <OnboardingModal {...modalProps} />;
     case "policy_change":

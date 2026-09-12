@@ -10,11 +10,12 @@ import {
 } from "solid-js";
 
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
+import { useNavigate } from "@solidjs/router";
 import { useQuery } from "@tanstack/solid-query";
 import { Server, ServerMember, ServerRole } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { useClient } from "@revolt/client";
+import { isIgnored, toggleIgnored, useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import {
   Avatar,
@@ -51,6 +52,7 @@ import {
 export function MemberList(props: { server: Server }) {
   const { t } = useLingui();
   const client = useClient();
+  const navigate = useNavigate();
   const { openModal, showError } = useModals();
 
   const [search, setSearch] = createSignal("");
@@ -69,16 +71,22 @@ export function MemberList(props: { server: Server }) {
   // avoids depending on that interaction at all.
   const [roleMenuFor, setRoleMenuFor] = createSignal<string>();
 
+  // Same self-contained pattern as `roleMenuFor` above, for the per-row
+  // "..." actions menu - not the shared `use:floating` menu system, for the
+  // same reason (see the comment on `roleMenuFor`).
+  const [actionsMenuFor, setActionsMenuFor] = createSignal<string>();
+
   function onDocumentClick(e: MouseEvent) {
-    if (!roleMenuFor()) return;
     const target = e.target as HTMLElement;
-    if (target.closest("[data-role-menu-root]")) return;
-    setRoleMenuFor(undefined);
+    if (roleMenuFor() && !target.closest("[data-role-menu-root]")) {
+      setRoleMenuFor(undefined);
+    }
+    if (actionsMenuFor() && !target.closest("[data-actions-menu-root]")) {
+      setActionsMenuFor(undefined);
+    }
   }
   onMount(() => document.addEventListener("click", onDocumentClick, true));
-  onCleanup(() =>
-    document.removeEventListener("click", onDocumentClick, true),
-  );
+  onCleanup(() => document.removeEventListener("click", onDocumentClick, true));
 
   const members = useQuery(() => ({
     queryKey: ["members", props.server.id],
@@ -107,7 +115,10 @@ export function MemberList(props: { server: Server }) {
   }));
 
   const attributionByUser = createMemo(() => {
-    const map = new Map<string, { invited_by?: string; invite_code?: string }>();
+    const map = new Map<
+      string,
+      { invited_by?: string; invite_code?: string }
+    >();
     for (const row of attribution.data ?? []) map.set(row.user, row);
     return map;
   });
@@ -270,6 +281,71 @@ export function MemberList(props: { server: Server }) {
       (m) => m.id.user === row.invited_by,
     );
     return inviter?.displayName ?? row.invited_by;
+  }
+
+  /**
+   * Permission gates for the per-row menu. Mirror `UserContextMenu`'s
+   * `canEditIdentity`/`canEditRoles`/`canKick`/`canBan` exactly - those are
+   * the already-correct checks; this list just adds the two NEW actions
+   * (timeout, transfer ownership) that didn't exist anywhere before tonight.
+   */
+  function canEditIdentity(member: ServerMember) {
+    return (
+      (props.server.havePermission("ManageNicknames") ||
+        props.server.havePermission("RemoveAvatars")) &&
+      member.inferiorTo(props.server.member!)
+    );
+  }
+
+  function canEditRoles(member: ServerMember) {
+    return (
+      props.server.owner?.self ||
+      (props.server.havePermission("AssignRoles") &&
+        member.inferiorTo(props.server.member!))
+    );
+  }
+
+  function canKick(member: ServerMember) {
+    return (
+      !member.user?.self &&
+      props.server.havePermission("KickMembers") &&
+      member.inferiorTo(props.server.member!)
+    );
+  }
+
+  function canBan(member: ServerMember) {
+    return (
+      !member.user?.self &&
+      props.server.havePermission("BanMembers") &&
+      member.inferiorTo(props.server.member!)
+    );
+  }
+
+  function canTimeout(member: ServerMember) {
+    return (
+      !member.user?.self &&
+      props.server.havePermission("TimeoutMembers") &&
+      member.inferiorTo(props.server.member!) &&
+      // The server refuses to timeout anyone who themselves holds
+      // TimeoutMembers - an anti-escalation rule independent of rank
+      // (member_edit.rs: `IsElevated` if the TARGET has this permission).
+      // Caught by clicking Timeout on a real Moderator-role member in the
+      // dev sandbox, not by reading the model - the client had no gate for
+      // it at all before this.
+      !member.hasPermission(props.server, "TimeoutMembers")
+    );
+  }
+
+  function canTransferOwnership(member: ServerMember) {
+    return props.server.owner?.self && !member.user?.self;
+  }
+
+  function openDm(member: ServerMember) {
+    member.user?.openDM().then((channel) => navigate(`/channel/${channel.id}`));
+  }
+
+  function copyUserId(member: ServerMember) {
+    navigator.clipboard.writeText(member.id.user);
   }
 
   return (
@@ -505,24 +581,82 @@ export function MemberList(props: { server: Server }) {
                         </RolesCell>
                       </Td>
                       <Td>
-                        <Row gap="xs">
-                          <Button
-                            group="standard"
-                            onPress={() =>
-                              openModal({ type: "kick_member", member })
+                        <ActionsCell data-actions-menu-root>
+                          <ActionsButton
+                            type="button"
+                            aria-label={t`Member actions`}
+                            onClick={() =>
+                              setActionsMenuFor((current) =>
+                                current === member.id.user
+                                  ? undefined
+                                  : member.id.user,
+                              )
                             }
                           >
-                            <Trans>Kick</Trans>
-                          </Button>
-                          <Button
-                            group="standard"
-                            onPress={() =>
-                              openModal({ type: "ban_member", member })
-                            }
-                          >
-                            <Trans>Ban</Trans>
-                          </Button>
-                        </Row>
+                            •••
+                          </ActionsButton>
+                          <Show when={actionsMenuFor() === member.id.user}>
+                            <MemberActionsMenu
+                              member={member}
+                              invitedByName={displayInviter(member.id.user)}
+                              canEditIdentity={canEditIdentity(member)}
+                              canEditRoles={canEditRoles(member)}
+                              canTimeout={canTimeout(member)}
+                              canKick={canKick(member)}
+                              canBan={canBan(member)}
+                              canTransferOwnership={canTransferOwnership(
+                                member,
+                              )}
+                              isIgnored={
+                                !!member.user && isIgnored(member.user.id)
+                              }
+                              onOpenProfile={() =>
+                                openModal({
+                                  type: "user_profile",
+                                  user: member.user!,
+                                })
+                              }
+                              onMessage={() => openDm(member)}
+                              onToggleIgnore={() =>
+                                toggleIgnored(member.user!.id)
+                              }
+                              onChangeNickname={() =>
+                                openModal({ type: "server_identity", member })
+                              }
+                              onManageRoles={() =>
+                                openModal({
+                                  type: "user_profile_roles",
+                                  member,
+                                })
+                              }
+                              onModView={() =>
+                                openModal({
+                                  type: "mod_view",
+                                  member,
+                                  invitedByName:
+                                    displayInviter(member.id.user) ?? undefined,
+                                })
+                              }
+                              onTimeout={() =>
+                                openModal({ type: "timeout_member", member })
+                              }
+                              onKick={() =>
+                                openModal({ type: "kick_member", member })
+                              }
+                              onBan={() =>
+                                openModal({ type: "ban_member", member })
+                              }
+                              onTransferOwnership={() =>
+                                openModal({
+                                  type: "transfer_ownership",
+                                  member,
+                                })
+                              }
+                              onCopyId={() => copyUserId(member)}
+                              onClose={() => setActionsMenuFor(undefined)}
+                            />
+                          </Show>
+                        </ActionsCell>
                       </Td>
                     </tr>
                   )}
@@ -583,14 +717,124 @@ function MemberRoleMenu(props: {
             <input
               type="checkbox"
               checked={props.member.roles.includes(role.id)}
-              onChange={(e) =>
-                props.onToggle(role.id, e.currentTarget.checked)
-              }
+              onChange={(e) => props.onToggle(role.id, e.currentTarget.checked)}
             />
           </RoleOption>
         )}
       </For>
     </RoleMenuPopover>
+  );
+}
+
+/**
+ * The Discord-style "..." row menu - `[RULED BY BUNJIE]` 2026-09-12, replacing
+ * the old always-visible Kick/Ban button pair. Same self-contained popover
+ * pattern as `MemberRoleMenu` above (anchored under its own button, closed by
+ * `MemberList`'s shared document-click listener via the `data-actions-menu-root`
+ * marker), for the same reason: this table renders inside the Settings modal,
+ * and the shared `use:floating` menu system has never been proven from there.
+ *
+ * Every action here calls something that actually exists end-to-end -
+ * `member.edit()` for timeout, `server.edit({ owner })` for the transfer -
+ * except the two Discord has that stoatchat has no backing for at all
+ * (Unverify Member, Ignore), which are left out rather than wired to nothing.
+ */
+function MemberActionsMenu(props: {
+  member: ServerMember;
+  invitedByName: string | null;
+  canEditIdentity: boolean;
+  canEditRoles: boolean;
+  canTimeout: boolean;
+  canKick: boolean;
+  canBan: boolean;
+  canTransferOwnership: boolean | undefined;
+  isIgnored: boolean;
+  onOpenProfile: () => void;
+  onMessage: () => void;
+  onChangeNickname: () => void;
+  onManageRoles: () => void;
+  onModView: () => void;
+  onTimeout: () => void;
+  onKick: () => void;
+  onBan: () => void;
+  onTransferOwnership: () => void;
+  onToggleIgnore: () => void;
+  onCopyId: () => void;
+  onClose: () => void;
+}) {
+  function run(action: () => void) {
+    action();
+    props.onClose();
+  }
+
+  return (
+    <ActionsMenuPopover>
+      <Show when={props.member.user}>
+        <MenuItem type="button" onClick={() => run(props.onOpenProfile)}>
+          <Trans>Profile</Trans>
+        </MenuItem>
+      </Show>
+      <Show when={props.member.user?.relationship === "Friend"}>
+        <MenuItem type="button" onClick={() => run(props.onMessage)}>
+          <Trans>Message</Trans>
+        </MenuItem>
+      </Show>
+      <Show when={props.member.user && !props.member.user.self}>
+        <MenuItem type="button" onClick={() => run(props.onToggleIgnore)}>
+          <Switch fallback={<Trans>Ignore</Trans>}>
+            <Match when={props.isIgnored}>
+              <Trans>Unignore</Trans>
+            </Match>
+          </Switch>
+        </MenuItem>
+      </Show>
+      <Show when={props.canEditIdentity}>
+        <MenuItem type="button" onClick={() => run(props.onChangeNickname)}>
+          <Trans>Change Nickname</Trans>
+        </MenuItem>
+      </Show>
+      <Show when={props.canEditRoles}>
+        <MenuItem type="button" onClick={() => run(props.onManageRoles)}>
+          <Trans>Roles…</Trans>
+        </MenuItem>
+      </Show>
+      <MenuDivider />
+      <MenuItem type="button" onClick={() => run(props.onModView)}>
+        <Trans>Open in Mod View</Trans>
+      </MenuItem>
+      <Show when={props.canTimeout || props.canKick || props.canBan}>
+        <MenuDivider />
+        <Show when={props.canTimeout}>
+          <MenuItem type="button" onClick={() => run(props.onTimeout)}>
+            <Trans>Timeout…</Trans>
+          </MenuItem>
+        </Show>
+        <Show when={props.canKick}>
+          <MenuItem type="button" destructive onClick={() => run(props.onKick)}>
+            <Trans>Kick</Trans>
+          </MenuItem>
+        </Show>
+        <Show when={props.canBan}>
+          <MenuItem type="button" destructive onClick={() => run(props.onBan)}>
+            <Trans>Ban</Trans>
+          </MenuItem>
+        </Show>
+      </Show>
+      <Show when={props.canTransferOwnership}>
+        <MenuDivider />
+        <MenuItem
+          type="button"
+          destructive
+          onClick={() => run(props.onTransferOwnership)}
+        >
+          <Trans>Transfer Ownership</Trans>
+        </MenuItem>
+      </Show>
+      <MenuDivider />
+      <MenuItem type="button" onClick={() => run(props.onCopyId)}>
+        <Trans>Copy User ID</Trans>
+      </MenuItem>
+    </ActionsMenuPopover>
   );
 }
 
@@ -714,6 +958,102 @@ const RoleAddButton = styled("button", {
       borderColor: "var(--md-sys-color-primary)",
       color: "var(--md-sys-color-primary)",
     },
+  },
+});
+
+/**
+ * Row and its "..." trigger together - same shape as `RolesCell` above.
+ */
+const ActionsCell = styled("div", {
+  base: {
+    position: "relative",
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+});
+
+const ActionsButton = styled("button", {
+  base: {
+    width: "26px",
+    height: "20px",
+    flexShrink: 0,
+    borderRadius: "var(--borderRadius-xs)",
+    border: "1px solid transparent",
+    background: "transparent",
+    color: "var(--md-sys-color-on-surface-variant)",
+    font: "inherit",
+    fontSize: "12px",
+    letterSpacing: "1px",
+    lineHeight: 1,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+
+    "&:hover": {
+      borderColor: "var(--md-sys-color-outline-variant)",
+      color: "var(--md-sys-color-on-surface)",
+      background:
+        "color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)",
+    },
+  },
+});
+
+/**
+ * Anchored to `ActionsCell` - opens under and right-aligned to its "..."
+ * button, same pattern as `RoleMenuPopover`.
+ */
+const ActionsMenuPopover = styled("div", {
+  base: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    right: 0,
+    zIndex: 999,
+    width: "220px",
+    padding: "6px",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    borderRadius: "var(--borderRadius-xs)",
+    background: "var(--md-sys-color-surface-container)",
+    color: "var(--md-sys-color-on-surface)",
+    boxShadow: "0 4px 16px var(--md-sys-color-shadow)",
+    userSelect: "none",
+  },
+});
+
+const MenuItem = styled("button", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+    textAlign: "left",
+    padding: "7px 10px",
+    borderRadius: "var(--borderRadius-xs)",
+    border: "none",
+    background: "none",
+    font: "inherit",
+    fontSize: "12.5px",
+    color: "var(--md-sys-color-on-surface)",
+    cursor: "pointer",
+
+    "&:hover": {
+      background:
+        "color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)",
+    },
+  },
+  variants: {
+    destructive: {
+      true: { color: "var(--md-sys-color-error)" },
+    },
+  },
+});
+
+const MenuDivider = styled("div", {
+  base: {
+    height: "1px",
+    margin: "4px 0",
+    background: "var(--md-sys-color-outline-variant)",
   },
 });
 
