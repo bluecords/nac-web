@@ -49,6 +49,18 @@ export function MobileMemberProfile(props: Props) {
     server().havePermission("KickMembers") &&
     props.member.inferiorTo(server().member!);
 
+  // Same gate as the desktop member menu and the Members page: the server
+  // refuses to timeout anyone who themselves holds TimeoutMembers
+  // (`IsElevated` in member_edit.rs). Phones had no Timeout at all, so a
+  // moderator without Manage Server (no Members page) could not use a
+  // permission their role grants. `[RULED BY BUNJIE]` 2026-09-12: "Mods
+  // should be able to put people in timeout".
+  const canTimeout = () =>
+    !user().self &&
+    server().havePermission("TimeoutMembers") &&
+    props.member.inferiorTo(server().member!) &&
+    !props.member.hasPermission(server(), "TimeoutMembers");
+
   const canBan = () =>
     !user().self &&
     server().havePermission("BanMembers") &&
@@ -223,6 +235,16 @@ export function MobileMemberProfile(props: Props) {
               icon="assignment_ind"
             >
               Edit Roles
+            </ActionButton>
+          </Show>
+          <Show when={canTimeout()}>
+            <ActionButton
+              onClick={() =>
+                openModal({ type: "timeout_member", member: props.member })
+              }
+              icon="timer"
+            >
+              Timeout
             </ActionButton>
           </Show>
           <Show when={canKick()}>
