@@ -1,4 +1,12 @@
-import { For, JSX, Show, createEffect, createMemo, onCleanup } from "solid-js";
+import {
+  For,
+  JSX,
+  Show,
+  createEffect,
+  createMemo,
+  on,
+  onCleanup,
+} from "solid-js";
 
 import { Channel, Server as ServerI } from "stoat.js";
 
@@ -34,7 +42,8 @@ export function MobileNav(_props: {
     setEditMode,
     forumBackHandler,
   } = useMobileNav();
-  const { openModal } = useModals();
+  const modals = useModals();
+  const { openModal } = modals;
   const params = useSmartParams();
   const client = useClient();
   const user = useUser();
@@ -73,10 +82,36 @@ export function MobileNav(_props: {
     }
   });
 
+  // Same idiom, one level higher: a modal (image viewer, settings, etc.) is
+  // the topmost thing on screen, so it gets its own buffer entry too. Without
+  // this, back fell through to whatever was underneath - Bunjie 2026-09-12:
+  // opening an image from a forum or chat channel and pressing back left the
+  // viewer open while the drawer opened invisibly behind it. Only reacts to
+  // the FIRST modal opening (none open -> one open); stacked modals aren't a
+  // pattern used elsewhere in the app today.
+  createEffect(
+    on(
+      () => modals.isOpen(),
+      (open) => {
+        if (isMobile() && open) {
+          history.pushState(null, "", location.href);
+        }
+      },
+      { defer: true },
+    ),
+  );
+
   const onPopState = () => {
     if (!isMobile()) return;
 
-    // A forum post open on mobile gets unwound first: back returns to the
+    // Topmost layer first: a modal covers everything else, so close it
+    // before considering what's underneath.
+    if (modals.isOpen()) {
+      modals.pop();
+      return;
+    }
+
+    // A forum post open on mobile gets unwound next: back returns to the
     // post list instead of revealing the drawer underneath it. Only once no
     // post is open does back fall through to the drawer behavior below.
     const closeForumPost = forumBackHandler();
