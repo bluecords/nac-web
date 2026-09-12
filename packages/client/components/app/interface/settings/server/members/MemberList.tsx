@@ -869,9 +869,19 @@ const BulkBar = styled("div", {
 /**
  * The table scrolls horizontally inside itself rather than making the settings
  * page scroll sideways, which is what happens on a phone otherwise.
+ *
+ * `overflowY: "visible"` is load-bearing, not decorative: setting only
+ * `overflow-x` leaves the UA free to compute `overflow-y` as `auto` too (the
+ * browsers' own special case for a lone non-visible axis), which silently
+ * clips anything that overflows this box vertically - including the
+ * absolutely-positioned `RoleMenuPopover`/`ActionsMenuPopover` below, which
+ * anchor to a row and can extend past the bottom of this scroll box. That
+ * clipping is exactly what it looks like: a role list that stops partway
+ * through with no scrollbar and no error, as if something were drawn on top
+ * of it. Pin `overflow-y` explicitly so only the horizontal axis clips.
  */
 const Scroll = styled("div", {
-  base: { overflowX: "auto", width: "100%" },
+  base: { overflowX: "auto", overflowY: "visible", width: "100%" },
 });
 
 const Table = styled("table", {
