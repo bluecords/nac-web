@@ -13,7 +13,7 @@ import {
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Message } from "stoat.js";
-import { css, cva } from "styled-system/css";
+import { cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
@@ -560,7 +560,9 @@ export function ForumChannel(props: ChannelPageProps) {
                             </Meta>
                           </Body>
                           <div
-                            class={postMenuTrigger}
+                            class={postMenuTrigger({
+                              overImage: !isMobile() && images().length > 0,
+                            })}
                             title="Post actions"
                             use:floating={{
                               contextMenu: () => (
@@ -958,26 +960,52 @@ const InlineTags = styled("div", {
   },
 });
 
-const postMenuTrigger = css({
-  position: "absolute",
-  top: "var(--gap-sm)",
-  right: "var(--gap-sm)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-  width: "32px",
-  height: "32px",
-  borderRadius: "var(--borderRadius-full)",
-  cursor: "pointer",
-  // The muted `on-surface-variant` grey on the dark card was near-invisible
-  // (Bunjie: "3 dots on a dark background are hard to see"). Full-contrast icon
-  // sitting in its own chip, darker still on hover.
-  color: "var(--md-sys-color-on-surface)",
-  background: "var(--md-sys-color-surface-container-highest)",
-  "&:hover": {
-    background: "var(--md-sys-color-primary-container)",
-    color: "var(--md-sys-color-on-primary-container)",
+const postMenuTrigger = cva({
+  base: {
+    position: "absolute",
+    top: "var(--gap-sm)",
+    right: "var(--gap-sm)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    width: "32px",
+    height: "32px",
+    borderRadius: "var(--borderRadius-full)",
+    cursor: "pointer",
+  },
+  variants: {
+    // The desktop grid card stacks Media above Body, so this button's fixed
+    // top-right position sits ON the post image, not the card. The theme-token
+    // chip below is tuned for contrast against the flat card surface and isn't
+    // guaranteed to read against arbitrary image content - Bunjie 2026-09-12,
+    // comparing a screenshot where it was fine on mobile (thumbnail is beside
+    // the text there, never under the button) against desktop where it wasn't.
+    // Reuses the same fixed dark scrim + white icon already proven visible
+    // over images by TagOverlay/PinBadge/MoreBadge above.
+    overImage: {
+      true: {
+        color: "#fff",
+        background: "rgba(0, 0, 0, 0.6)",
+        "&:hover": {
+          background: "rgba(0, 0, 0, 0.8)",
+        },
+      },
+      false: {
+        // The muted `on-surface-variant` grey on the dark card was
+        // near-invisible (Bunjie: "3 dots on a dark background are hard to
+        // see"). Full-contrast icon in its own chip, darker still on hover.
+        color: "var(--md-sys-color-on-surface)",
+        background: "var(--md-sys-color-surface-container-highest)",
+        "&:hover": {
+          background: "var(--md-sys-color-primary-container)",
+          color: "var(--md-sys-color-on-primary-container)",
+        },
+      },
+    },
+  },
+  defaultVariants: {
+    overImage: false,
   },
 });
 
