@@ -17,6 +17,7 @@ import {
 import { styled } from "styled-system/jsx";
 
 import { useTime } from "@revolt/i18n";
+import { Markdown } from "@revolt/markdown";
 import { time } from "@revolt/markdown/elements";
 import { RenderAnchor } from "@revolt/markdown/plugins/anchors";
 import { UserMention } from "@revolt/markdown/plugins/mentions";
@@ -277,7 +278,12 @@ export function SystemMessage(props: Props) {
           </Show>
         </Match>
         <Match when={props.systemMessage.type === "text"}>
-          {(props.systemMessage as TextSystemMessage).content}
+          {/* Server-authored text (e.g. the safety-report announcement in
+              the moderation channel) - rendered as markdown so its line
+              breaks survive and its message link can be clicked. As plain
+              text the whole announcement ran together on one line and the
+              link was inert. */}
+          <Markdown content={(props.systemMessage as TextSystemMessage).content} />
         </Match>
       </Switch>
     </Base>
