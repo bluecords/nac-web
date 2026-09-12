@@ -8,6 +8,7 @@ import {
   onCleanup,
   onMount,
 } from "solid-js";
+import { Portal } from "solid-js/web";
 
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { useNavigate } from "@solidjs/router";
@@ -75,6 +76,55 @@ export function MemberList(props: { server: Server }) {
   // "..." actions menu - not the shared `use:floating` menu system, for the
   // same reason (see the comment on `roleMenuFor`).
   const [actionsMenuFor, setActionsMenuFor] = createSignal<string>();
+
+  // Viewport coordinates for whichever popover is open, captured from the
+  // trigger button at the moment it's clicked.
+  //
+  // WHY THIS EXISTS: both popovers used to be `position: absolute` inside
+  // the row, which put them at the mercy of every scrollable ancestor
+  // between the row and the viewport. That's not one container - the
+  // Members table has its own horizontal-scroll wrapper AND the whole
+  // Settings pane is `use:scrollable` (overflow-y: auto) so long settings
+  // pages can scroll internally. A search that narrows the table to one row
+  // shrinks the table wrapper to that row's height; a row anywhere but the
+  // very top of the settings pane leaves too little room below it in the
+  // pane's own scroll box. Either one clips the popover to a sliver -
+  // reported live as "the roles list looks covered up." Fixing one
+  // ancestor's overflow (tried first) only ever moves the bug to the next
+  // one up.
+  //
+  // The actual fix: portal the popover to `#floating` - the same top-layer
+  // mount `SettingsModal` itself already uses to sit above the app - and
+  // position it `fixed` from the button's own `getBoundingClientRect()`.
+  // `fixed` positioning is resolved against the viewport, not any scrolling
+  // ancestor, so there is no container left to clip it.
+  //
+  // `fixed` still measures from the viewport, not the page - a row near the
+  // bottom of a short browser window is a real case here, since the
+  // Settings modal is one fixed-height view with no page scroll of its own.
+  // Opening downward from a trigger that's already near the bottom would
+  // just move the cutoff from "clipped by a container" to "runs off the
+  // bottom of the screen with nothing to scroll." `verticalAnchor` picks
+  // `top` (open down) when there's reasonable room below the button, and
+  // `bottom` (open up, anchored to the button's top edge) when there isn't -
+  // `bottom` positioning needs no estimate of the popover's real height,
+  // since the box just grows upward from a fixed edge instead.
+  type VerticalAnchor = { top: number; bottom: undefined } | { top: undefined; bottom: number };
+
+  function verticalAnchor(rect: DOMRect, minSpaceBelow: number): VerticalAnchor {
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < minSpaceBelow && rect.top > spaceBelow) {
+      return { top: undefined, bottom: window.innerHeight - rect.top + 4 };
+    }
+    return { top: rect.bottom + 4, bottom: undefined };
+  }
+
+  const [roleMenuAnchor, setRoleMenuAnchor] = createSignal<
+    VerticalAnchor & { left: number }
+  >();
+  const [actionsMenuAnchor, setActionsMenuAnchor] = createSignal<
+    VerticalAnchor & { right: number }
+  >();
 
   function onDocumentClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
@@ -559,24 +609,43 @@ export function MemberList(props: { server: Server }) {
                           <RoleAddButton
                             type="button"
                             aria-label={t`Edit roles`}
-                            onClick={() =>
-                              setRoleMenuFor((current) =>
-                                current === member.id.user
-                                  ? undefined
-                                  : member.id.user,
-                              )
-                            }
+                            onClick={(e) => {
+                              const opening = roleMenuFor() !== member.id.user;
+                              if (opening) {
+                                const rect = (
+                                  e.currentTarget as HTMLElement
+                                ).getBoundingClientRect();
+                                // Rough height: title row + one row per role.
+                                const estimatedHeight =
+                                  24 + roles().length * 32 + 16;
+                                setRoleMenuAnchor({
+                                  ...verticalAnchor(rect, estimatedHeight),
+                                  left: rect.left,
+                                });
+                              }
+                              setRoleMenuFor(opening ? member.id.user : undefined);
+                            }}
                           >
                             +
                           </RoleAddButton>
-                          <Show when={roleMenuFor() === member.id.user}>
-                            <MemberRoleMenu
-                              member={member}
-                              roles={roles()}
-                              onToggle={(roleId, checked) =>
-                                toggleMemberRole(member, roleId, checked)
-                              }
-                            />
+                          <Show
+                            when={
+                              roleMenuFor() === member.id.user &&
+                              roleMenuAnchor()
+                            }
+                          >
+                            {(anchor) => (
+                              <Portal mount={document.getElementById("floating")!}>
+                                <MemberRoleMenu
+                                  member={member}
+                                  roles={roles()}
+                                  anchor={anchor()}
+                                  onToggle={(roleId, checked) =>
+                                    toggleMemberRole(member, roleId, checked)
+                                  }
+                                />
+                              </Portal>
+                            )}
                           </Show>
                         </RolesCell>
                       </Td>
@@ -585,76 +654,108 @@ export function MemberList(props: { server: Server }) {
                           <ActionsButton
                             type="button"
                             aria-label={t`Member actions`}
-                            onClick={() =>
-                              setActionsMenuFor((current) =>
-                                current === member.id.user
-                                  ? undefined
-                                  : member.id.user,
-                              )
-                            }
+                            onClick={(e) => {
+                              const opening =
+                                actionsMenuFor() !== member.id.user;
+                              if (opening) {
+                                const rect = (
+                                  e.currentTarget as HTMLElement
+                                ).getBoundingClientRect();
+                                // Rough height: the menu's longest realistic
+                                // combination of items + two dividers.
+                                setActionsMenuAnchor({
+                                  ...verticalAnchor(rect, 340),
+                                  right: window.innerWidth - rect.right,
+                                });
+                              }
+                              setActionsMenuFor(
+                                opening ? member.id.user : undefined,
+                              );
+                            }}
                           >
                             •••
                           </ActionsButton>
-                          <Show when={actionsMenuFor() === member.id.user}>
-                            <MemberActionsMenu
-                              member={member}
-                              invitedByName={displayInviter(member.id.user)}
-                              canEditIdentity={canEditIdentity(member)}
-                              canEditRoles={canEditRoles(member)}
-                              canTimeout={canTimeout(member)}
-                              canKick={canKick(member)}
-                              canBan={canBan(member)}
-                              canTransferOwnership={canTransferOwnership(
-                                member,
-                              )}
-                              isIgnored={
-                                !!member.user && isIgnored(member.user.id)
-                              }
-                              onOpenProfile={() =>
-                                openModal({
-                                  type: "user_profile",
-                                  user: member.user!,
-                                })
-                              }
-                              onMessage={() => openDm(member)}
-                              onToggleIgnore={() =>
-                                toggleIgnored(member.user!.id)
-                              }
-                              onChangeNickname={() =>
-                                openModal({ type: "server_identity", member })
-                              }
-                              onManageRoles={() =>
-                                openModal({
-                                  type: "user_profile_roles",
-                                  member,
-                                })
-                              }
-                              onModView={() =>
-                                openModal({
-                                  type: "mod_view",
-                                  member,
-                                  invitedByName:
-                                    displayInviter(member.id.user) ?? undefined,
-                                })
-                              }
-                              onTimeout={() =>
-                                openModal({ type: "timeout_member", member })
-                              }
-                              onKick={() =>
-                                openModal({ type: "kick_member", member })
-                              }
-                              onBan={() =>
-                                openModal({ type: "ban_member", member })
-                              }
-                              onTransferOwnership={() =>
-                                openModal({
-                                  type: "transfer_ownership",
-                                  member,
-                                })
-                              }
-                              onCopyId={() => copyUserId(member)}
-                              onClose={() => setActionsMenuFor(undefined)}
-                            />
+                          <Show
+                            when={
+                              actionsMenuFor() === member.id.user &&
+                              actionsMenuAnchor()
+                            }
+                          >
+                            {(anchor) => (
+                              <Portal
+                                mount={document.getElementById("floating")!}
+                              >
+                                <MemberActionsMenu
+                                  member={member}
+                                  anchor={anchor()}
+                                  invitedByName={displayInviter(
+                                    member.id.user,
+                                  )}
+                                  canEditIdentity={canEditIdentity(member)}
+                                  canEditRoles={canEditRoles(member)}
+                                  canTimeout={canTimeout(member)}
+                                  canKick={canKick(member)}
+                                  canBan={canBan(member)}
+                                  canTransferOwnership={canTransferOwnership(
+                                    member,
+                                  )}
+                                  isIgnored={
+                                    !!member.user && isIgnored(member.user.id)
+                                  }
+                                  onOpenProfile={() =>
+                                    openModal({
+                                      type: "user_profile",
+                                      user: member.user!,
+                                    })
+                                  }
+                                  onMessage={() => openDm(member)}
+                                  onToggleIgnore={() =>
+                                    toggleIgnored(member.user!.id)
+                                  }
+                                  onChangeNickname={() =>
+                                    openModal({
+                                      type: "server_identity",
+                                      member,
+                                    })
+                                  }
+                                  onManageRoles={() =>
+                                    openModal({
+                                      type: "user_profile_roles",
+                                      member,
+                                    })
+                                  }
+                                  onModView={() =>
+                                    openModal({
+                                      type: "mod_view",
+                                      member,
+                                      invitedByName:
+                                        displayInviter(member.id.user) ??
+                                        undefined,
+                                    })
+                                  }
+                                  onTimeout={() =>
+                                    openModal({
+                                      type: "timeout_member",
+                                      member,
+                                    })
+                                  }
+                                  onKick={() =>
+                                    openModal({ type: "kick_member", member })
+                                  }
+                                  onBan={() =>
+                                    openModal({ type: "ban_member", member })
+                                  }
+                                  onTransferOwnership={() =>
+                                    openModal({
+                                      type: "transfer_ownership",
+                                      member,
+                                    })
+                                  }
+                                  onCopyId={() => copyUserId(member)}
+                                  onClose={() => setActionsMenuFor(undefined)}
+                                />
+                              </Portal>
+                            )}
                           </Show>
                         </ActionsCell>
                       </Td>
@@ -689,21 +790,37 @@ export function MemberList(props: { server: Server }) {
  * chips. Every role, toggled independently and immediately: no selecting
  * the row first, no separate apply step.
  *
- * Self-positioned (absolute, anchored by `RolesCell`'s `position: relative`)
- * rather than routed through the shared floating/context-menu system - that
- * positions at the mouse cursor, which is right for an actual right-click
- * menu but not for a button-anchored checklist meant to stay open across
- * several toggles. Closing on an outside click is handled once, centrally,
- * by `MemberList`'s own document listener via the `data-role-menu-root`
- * marker on `RolesCell`.
+ * Portaled to `#floating` and positioned `fixed` from the trigger button's
+ * own viewport rect (see `roleMenuAnchor` above for why: this row sits
+ * inside two different scrollable ancestors, either of which can clip a
+ * plain absolutely-positioned popover). Still not routed through the shared
+ * `use:floating` context-menu system - that positions at the mouse cursor,
+ * right for an actual right-click menu but not for a button-anchored
+ * checklist meant to stay open across several toggles. Closing on an
+ * outside click is handled once, centrally, by `MemberList`'s own document
+ * listener via the `data-role-menu-root` marker - present on both the
+ * trigger's cell AND this popover itself, since portaling moves the popover
+ * out from under the cell in the DOM tree.
  */
 function MemberRoleMenu(props: {
   member: ServerMember;
   roles: ServerRole[];
+  anchor:
+    | { top: number; bottom: undefined; left: number }
+    | { top: undefined; bottom: number; left: number };
   onToggle: (roleId: string, checked: boolean) => void;
 }) {
   return (
-    <RoleMenuPopover>
+    <RoleMenuPopover
+      data-role-menu-root
+      style={{
+        position: "fixed",
+        top: props.anchor.top !== undefined ? `${props.anchor.top}px` : undefined,
+        bottom:
+          props.anchor.bottom !== undefined ? `${props.anchor.bottom}px` : undefined,
+        left: `${props.anchor.left}px`,
+      }}
+    >
       <MenuTitle>
         <Trans>Roles</Trans>
       </MenuTitle>
@@ -728,11 +845,14 @@ function MemberRoleMenu(props: {
 
 /**
  * The Discord-style "..." row menu - `[RULED BY BUNJIE]` 2026-09-12, replacing
- * the old always-visible Kick/Ban button pair. Same self-contained popover
- * pattern as `MemberRoleMenu` above (anchored under its own button, closed by
- * `MemberList`'s shared document-click listener via the `data-actions-menu-root`
- * marker), for the same reason: this table renders inside the Settings modal,
- * and the shared `use:floating` menu system has never been proven from there.
+ * the old always-visible Kick/Ban button pair. Same portal-and-fixed-position
+ * pattern as `MemberRoleMenu` above, for the same reason (see `roleMenuAnchor`
+ * above): this table sits inside two different scrollable ancestors, and the
+ * shared `use:floating` menu system has never been proven from inside the
+ * Settings modal. Closed by `MemberList`'s shared document-click listener via
+ * the `data-actions-menu-root` marker - present on both the trigger's cell
+ * AND this popover, since portaling moves the popover out from under the
+ * cell in the DOM tree.
  *
  * Every action here calls something that actually exists end-to-end -
  * `member.edit()` for timeout, `server.edit({ owner })` for the transfer -
@@ -741,6 +861,9 @@ function MemberRoleMenu(props: {
  */
 function MemberActionsMenu(props: {
   member: ServerMember;
+  anchor:
+    | { top: number; bottom: undefined; right: number }
+    | { top: undefined; bottom: number; right: number };
   invitedByName: string | null;
   canEditIdentity: boolean;
   canEditRoles: boolean;
@@ -768,7 +891,16 @@ function MemberActionsMenu(props: {
   }
 
   return (
-    <ActionsMenuPopover>
+    <ActionsMenuPopover
+      data-actions-menu-root
+      style={{
+        position: "fixed",
+        top: props.anchor.top !== undefined ? `${props.anchor.top}px` : undefined,
+        bottom:
+          props.anchor.bottom !== undefined ? `${props.anchor.bottom}px` : undefined,
+        right: `${props.anchor.right}px`,
+      }}
+    >
       <Show when={props.member.user}>
         <MenuItem type="button" onClick={() => run(props.onOpenProfile)}>
           <Trans>Profile</Trans>
@@ -870,15 +1002,13 @@ const BulkBar = styled("div", {
  * The table scrolls horizontally inside itself rather than making the settings
  * page scroll sideways, which is what happens on a phone otherwise.
  *
- * `overflowY: "visible"` is load-bearing, not decorative: setting only
- * `overflow-x` leaves the UA free to compute `overflow-y` as `auto` too (the
- * browsers' own special case for a lone non-visible axis), which silently
- * clips anything that overflows this box vertically - including the
- * absolutely-positioned `RoleMenuPopover`/`ActionsMenuPopover` below, which
- * anchor to a row and can extend past the bottom of this scroll box. That
- * clipping is exactly what it looks like: a role list that stops partway
- * through with no scrollbar and no error, as if something were drawn on top
- * of it. Pin `overflow-y` explicitly so only the horizontal axis clips.
+ * `overflowY: "visible"` is still pinned explicitly even though the role and
+ * actions popovers no longer live inside this box (they're portaled to
+ * `#floating` now - see `roleMenuAnchor` above for the full story). Left in
+ * place on general principle: setting only `overflow-x` leaves the UA free
+ * to compute `overflow-y` as `auto` too (the browsers' own special case for a
+ * lone non-visible axis), which would silently clip anything else that ever
+ * ends up overflowing this box vertically.
  */
 const Scroll = styled("div", {
   base: { overflowX: "auto", overflowY: "visible", width: "100%" },
@@ -924,15 +1054,12 @@ const RolesCell = styled("div", {
 });
 
 /**
- * Anchored to `RolesCell` (`position: relative` there, this `absolute`) -
- * always opens directly under the row it belongs to, regardless of where
- * that row sits in the table or that the whole page is inside a modal.
+ * Positioning (`position`, `top`/`bottom`, `left`) is set inline per-instance
+ * from the trigger button's real viewport position (see `MemberRoleMenu`) -
+ * this base only carries the parts that never change.
  */
 const RoleMenuPopover = styled("div", {
   base: {
-    position: "absolute",
-    top: "calc(100% + 4px)",
-    left: 0,
     zIndex: 999,
     width: "210px",
     padding: "6px",
@@ -1010,14 +1137,11 @@ const ActionsButton = styled("button", {
 });
 
 /**
- * Anchored to `ActionsCell` - opens under and right-aligned to its "..."
- * button, same pattern as `RoleMenuPopover`.
+ * Positioning is set inline per-instance, same as `RoleMenuPopover` above -
+ * see `MemberActionsMenu`.
  */
 const ActionsMenuPopover = styled("div", {
   base: {
-    position: "absolute",
-    top: "calc(100% + 4px)",
-    right: 0,
     zIndex: 999,
     width: "220px",
     padding: "6px",
