@@ -98,11 +98,18 @@ export function SettingsSidebar(props: {
 
 /**
  * Base layout of the sidebar
+ *
+ * Was `flex: "1 0 218px"` - flex-grow: 1 with `justify-content: flex-end`
+ * pushing the actual menu (capped at 300px below) flush against the content
+ * divider, leaving blank space to grow into on its own left. Paired with
+ * `CloseAction`'s old unbounded growth on the other side of the window, the
+ * two gutters ate roughly a quarter of a normal desktop width for nothing
+ * rendered in either of them. Sized to its own content now.
  */
 const Base = styled("div", {
   base: {
     display: "flex",
-    flex: "1 0 218px",
+    flex: "0 0 auto",
     paddingLeft: "8px",
     justifyContent: "flex-end",
   },

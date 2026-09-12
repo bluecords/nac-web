@@ -22,6 +22,13 @@ export function SettingsContent(props: {
 }) {
   const { navigate } = useSettingsNavigation();
 
+  // The members table is the one settings page that's fundamentally a wide
+  // data grid - everything else here is a form/list that reads fine at the
+  // default width. Widened only for it rather than raising the cap globally,
+  // since the other pages were never asked for and haven't been checked at
+  // a wider measure.
+  const wide = () => props.page() === "members";
+
   return (
     <div
       use:scrollable={{
@@ -29,7 +36,7 @@ export function SettingsContent(props: {
       }}
     >
       <Show when={props.page()}>
-        <InnerContent>
+        <InnerContent wide={wide()}>
           <InnerColumn>
             <Text class="title" size="large">
               <Breadcrumbs
@@ -77,6 +84,12 @@ const base = cva({
 
 /**
  * Settings pane
+ *
+ * `flexGrow: 1` so this is the element that claims the width freed up by
+ * trimming the sidebar and `CloseAction` below off their old `flexGrow: 1`
+ * - previously two unbounded gutters either side of a hard-capped 740px
+ * column ate roughly a quarter of the window on a normal desktop width
+ * with nothing rendered in either of them but a menu and one button.
  */
 const InnerContent = styled("div", {
   base: {
@@ -84,10 +97,19 @@ const InnerContent = styled("div", {
     minWidth: 0,
     width: "100%",
     display: "flex",
-    maxWidth: "740px",
+    flexGrow: 1,
     padding: "80px 32px",
     justifyContent: "stretch",
     zIndex: 1,
+  },
+  variants: {
+    wide: {
+      true: { maxWidth: "1200px" },
+      false: { maxWidth: "740px" },
+    },
+  },
+  defaultVariants: {
+    wide: false,
   },
 });
 
@@ -106,10 +128,14 @@ const InnerColumn = styled("div", {
 
 /**
  * Positioning for close button
+ *
+ * Was `flexGrow: 1` with nothing else in this column to fill - on a wide
+ * window that grew into hundreds of pixels of dead space just to center one
+ * button. Sized to its own content now; `InnerContent` above claims the
+ * width this frees.
  */
 const CloseAction = styled("div", {
   base: {
-    flexGrow: 1,
     flexShrink: 0,
     padding: "80px 8px",
     visibility: "visible",

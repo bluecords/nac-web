@@ -2,9 +2,10 @@ import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
 
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { useQuery } from "@tanstack/solid-query";
-import { Server, ServerMember } from "stoat.js";
+import { Server, ServerMember, ServerRole } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
+import { ContextMenu } from "@revolt/app/menus/ContextMenu";
 import { useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import {
@@ -199,6 +200,31 @@ export function MemberList(props: { server: Server }) {
       if (!member.roles.includes(roleId)) return;
       await member.edit({ roles: member.roles.filter((r) => r !== roleId) });
     });
+  }
+
+  /**
+   * Toggle one role on one member directly, no selection required.
+   *
+   * The bulk bar above is for "change many at once" - it stayed exactly as
+   * it was. This is the other half Bunjie asked for: the previous version
+   * had no faster path for "just give this one person Admin-F" than
+   * checking their box, then reaching for the bulk-bar dropdown.
+   */
+  async function toggleMemberRole(
+    member: ServerMember,
+    roleId: string,
+    checked: boolean,
+  ) {
+    if (checked === member.roles.includes(roleId)) return;
+    const roles = checked
+      ? [...member.roles, roleId]
+      : member.roles.filter((r) => r !== roleId);
+    try {
+      await member.edit({ roles });
+      members.refetch();
+    } catch (error) {
+      showError(error);
+    }
   }
 
   function applyNickname() {
@@ -404,15 +430,15 @@ export function MemberList(props: { server: Server }) {
                         </Show>
                       </Td>
                       <Td>
-                        <Show
-                          when={member.roles.length}
-                          fallback={
-                            <NoRole>
-                              <Trans>no role assigned</Trans>
-                            </NoRole>
-                          }
-                        >
-                          <Row gap="xs" wrap>
+                        <RolesCell>
+                          <Show
+                            when={member.roles.length}
+                            fallback={
+                              <NoRole>
+                                <Trans>no role assigned</Trans>
+                              </NoRole>
+                            }
+                          >
                             <For each={member.orderedRoles}>
                               {(role) => (
                                 <Chip>
@@ -425,8 +451,25 @@ export function MemberList(props: { server: Server }) {
                                 </Chip>
                               )}
                             </For>
-                          </Row>
-                        </Show>
+                          </Show>
+                          <RoleAddButton
+                            aria-label={t`Edit roles`}
+                            use:floating={{
+                              contextMenu: () => (
+                                <MemberRoleMenu
+                                  member={member}
+                                  roles={roles()}
+                                  onToggle={(roleId, checked) =>
+                                    toggleMemberRole(member, roleId, checked)
+                                  }
+                                />
+                              ),
+                              contextMenuHandler: "click",
+                            }}
+                          >
+                            +
+                          </RoleAddButton>
+                        </RolesCell>
                       </Td>
                       <Td>
                         <Row gap="xs">
@@ -474,6 +517,45 @@ export function MemberList(props: { server: Server }) {
   );
 }
 
+/**
+ * Popover role editor for a single member - the "+" next to their role
+ * chips. Every role, toggled independently and immediately: no selecting
+ * the row first, no separate apply step. Stays open across several toggles
+ * because `ContextMenu` already stops the click that would otherwise
+ * dismiss it (`onMouseDown` -> `stopImmediatePropagation`, see
+ * `@revolt/app/menus/ContextMenu`) - only a click genuinely outside closes it.
+ */
+function MemberRoleMenu(props: {
+  member: ServerMember;
+  roles: ServerRole[];
+  onToggle: (roleId: string, checked: boolean) => void;
+}) {
+  return (
+    <ContextMenu style={{ padding: "6px", width: "210px" }}>
+      <MenuTitle>
+        <Trans>Roles</Trans>
+      </MenuTitle>
+      <For each={props.roles}>
+        {(role) => (
+          <RoleOption>
+            <Show when={role.colour}>
+              <Swatch style={{ background: role.colour! }} />
+            </Show>
+            <RoleOptionName>{role.name}</RoleOptionName>
+            <input
+              type="checkbox"
+              checked={props.member.roles.includes(role.id)}
+              onChange={(e) =>
+                props.onToggle(role.id, e.currentTarget.checked)
+              }
+            />
+          </RoleOption>
+        )}
+      </For>
+    </ContextMenu>
+  );
+}
+
 const Grow = styled("div", {
   base: { flexGrow: 1, minWidth: "200px" },
 });
@@ -511,13 +593,13 @@ const Scroll = styled("div", {
 });
 
 const Table = styled("table", {
-  base: { width: "100%", borderCollapse: "collapse", minWidth: "760px" },
+  base: { width: "100%", borderCollapse: "collapse", minWidth: "680px" },
 });
 
 const Th = styled("th", {
   base: {
     textAlign: "left",
-    padding: "10px 12px",
+    padding: "8px 12px",
     borderBottom: "1px solid var(--md-sys-color-outline-variant)",
     color: "var(--md-sys-color-on-surface-variant)",
     fontSize: "11px",
@@ -530,10 +612,83 @@ const Th = styled("th", {
 
 const Td = styled("td", {
   base: {
-    padding: "10px 12px",
+    padding: "7px 12px",
     borderBottom: "1px solid var(--md-sys-color-surface-variant)",
     verticalAlign: "middle",
   },
+});
+
+/**
+ * Row and its inline "+" trigger together
+ */
+const RolesCell = styled("div", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    flexWrap: "wrap",
+  },
+});
+
+const RoleAddButton = styled("button", {
+  base: {
+    width: "20px",
+    height: "20px",
+    flexShrink: 0,
+    borderRadius: "50%",
+    border: "1px dashed var(--md-sys-color-outline)",
+    background: "transparent",
+    color: "var(--md-sys-color-on-surface-variant)",
+    font: "inherit",
+    fontSize: "13px",
+    lineHeight: 1,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+
+    "&:hover": {
+      borderColor: "var(--md-sys-color-primary)",
+      color: "var(--md-sys-color-primary)",
+    },
+  },
+});
+
+const MenuTitle = styled("div", {
+  base: {
+    fontSize: "10.5px",
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: "var(--md-sys-color-on-surface-variant)",
+    padding: "6px 10px 4px",
+  },
+});
+
+const RoleOption = styled("label", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+    padding: "7px 10px",
+    borderRadius: "var(--borderRadius-xs)",
+    fontSize: "12.5px",
+    cursor: "pointer",
+
+    "&:hover": {
+      background:
+        "color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)",
+    },
+
+    "& input": {
+      marginLeft: "auto",
+      cursor: "pointer",
+    },
+  },
+});
+
+const RoleOptionName = styled("span", {
+  base: { flexGrow: 1 },
 });
 
 const Muted = styled("span", {
