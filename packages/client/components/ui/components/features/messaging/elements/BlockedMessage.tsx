@@ -1,4 +1,5 @@
 import { Plural } from "@lingui-solid/solid/macro";
+import { Show } from "solid-js";
 import { styled } from "styled-system/jsx";
 
 import { iconSize } from "@revolt/ui/components/utils";
@@ -30,9 +31,15 @@ const Base = styled("div", {
 
 interface Props {
   /**
-   * Number of blocked messages
+   * Number of collapsed messages
    */
   count: number;
+  /**
+   * Whether these are from a blocked user (a real relationship) or an
+   * ignored one (a purely client-local preference, no server relationship
+   * at all) - the wording must not claim more than is true of each.
+   */
+  kind?: "blocked" | "ignored";
 }
 
 /**
@@ -43,11 +50,22 @@ export function BlockedMessage(props: Props) {
     <Base>
       <Ripple />
       <MdClose {...iconSize(16)} />{" "}
-      <Plural
-        value={props.count}
-        one="# blocked message"
-        other="# blocked messages"
-      />
+      <Show
+        when={props.kind === "ignored"}
+        fallback={
+          <Plural
+            value={props.count}
+            one="# blocked message"
+            other="# blocked messages"
+          />
+        }
+      >
+        <Plural
+          value={props.count}
+          one="# ignored message"
+          other="# ignored messages"
+        />
+      </Show>
     </Base>
   );
 }

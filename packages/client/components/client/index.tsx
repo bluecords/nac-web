@@ -29,6 +29,13 @@ export {
 } from "./Favorites";
 export type { Favorite } from "./Favorites";
 export {
+  addIgnored,
+  getIgnored,
+  isIgnored,
+  removeIgnored,
+  toggleIgnored,
+} from "./Ignored";
+export {
   grantMediaConsent,
   MEDIA_ACK_KEY,
   mediaConsentGranted,

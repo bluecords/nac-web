@@ -5,8 +5,11 @@ import type { Channel, Message, ServerMember, User } from "stoat.js";
 
 import {
   addFavorite,
+  addIgnored,
   isFavorite,
+  isIgnored,
   removeFavorite,
+  removeIgnored,
   useClient,
 } from "@revolt/client";
 import { useModals } from "@revolt/modal";
@@ -30,6 +33,7 @@ import MdPersonAddAlt from "@material-design-icons/svg/outlined/person_add_alt.s
 import MdPersonRemove from "@material-design-icons/svg/outlined/person_remove.svg?component-solid";
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
 import MdStar from "@material-design-icons/svg/outlined/star_outline.svg?component-solid";
+import MdVisibilityOff from "@material-design-icons/svg/outlined/visibility_off.svg?component-solid";
 import MdChecked from "@material-symbols/svg-400/outlined/check_box.svg?component-solid";
 import MdUnchecked from "@material-symbols/svg-400/outlined/check_box_outline_blank.svg?component-solid";
 
@@ -194,6 +198,24 @@ export function UserContextMenu(props: {
         username: props.user.displayName ?? props.user.username,
         avatarURL: props.user.avatarURL ?? null,
       });
+    }
+  }
+
+  /**
+   * Whether this user is ignored - purely client-local, same as favouriting.
+   * Unlike Block, there is no server-side relationship for this: it only
+   * collapses their messages in the client that ignored them.
+   */
+  const ignored = () => isIgnored(props.user.id);
+
+  /**
+   * Toggle ignored status for this user
+   */
+  function toggleIgnoreUser() {
+    if (ignored()) {
+      removeIgnored(props.user.id);
+    } else {
+      addIgnored(props.user.id);
     }
   }
 
@@ -542,6 +564,13 @@ export function UserContextMenu(props: {
             <Trans>Remove friend</Trans>
           </ContextMenuButton>
         </Show>
+        <ContextMenuButton icon={MdVisibilityOff} onClick={toggleIgnoreUser}>
+          <Switch fallback={<Trans>Ignore user</Trans>}>
+            <Match when={ignored()}>
+              <Trans>Unignore user</Trans>
+            </Match>
+          </Switch>
+        </ContextMenuButton>
         <Show when={props.user.relationship !== "Blocked"}>
           <ContextMenuButton icon={MdBlock} onClick={blockUser} destructive>
             <Trans>Block user</Trans>

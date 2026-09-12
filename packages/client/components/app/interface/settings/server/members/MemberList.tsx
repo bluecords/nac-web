@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/solid-query";
 import { Server, ServerMember, ServerRole } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { useClient } from "@revolt/client";
+import { isIgnored, toggleIgnored, useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import {
   Avatar,
@@ -607,6 +607,9 @@ export function MemberList(props: { server: Server }) {
                               canTransferOwnership={canTransferOwnership(
                                 member,
                               )}
+                              isIgnored={
+                                !!member.user && isIgnored(member.user.id)
+                              }
                               onOpenProfile={() =>
                                 openModal({
                                   type: "user_profile",
@@ -614,6 +617,9 @@ export function MemberList(props: { server: Server }) {
                                 })
                               }
                               onMessage={() => openDm(member)}
+                              onToggleIgnore={() =>
+                                toggleIgnored(member.user!.id)
+                              }
                               onChangeNickname={() =>
                                 openModal({ type: "server_identity", member })
                               }
@@ -742,6 +748,7 @@ function MemberActionsMenu(props: {
   canKick: boolean;
   canBan: boolean;
   canTransferOwnership: boolean | undefined;
+  isIgnored: boolean;
   onOpenProfile: () => void;
   onMessage: () => void;
   onChangeNickname: () => void;
@@ -751,6 +758,7 @@ function MemberActionsMenu(props: {
   onKick: () => void;
   onBan: () => void;
   onTransferOwnership: () => void;
+  onToggleIgnore: () => void;
   onCopyId: () => void;
   onClose: () => void;
 }) {
@@ -769,6 +777,15 @@ function MemberActionsMenu(props: {
       <Show when={props.member.user?.relationship === "Friend"}>
         <MenuItem type="button" onClick={() => run(props.onMessage)}>
           <Trans>Message</Trans>
+        </MenuItem>
+      </Show>
+      <Show when={props.member.user && !props.member.user.self}>
+        <MenuItem type="button" onClick={() => run(props.onToggleIgnore)}>
+          <Switch fallback={<Trans>Ignore</Trans>}>
+            <Match when={props.isIgnored}>
+              <Trans>Unignore</Trans>
+            </Match>
+          </Switch>
         </MenuItem>
       </Show>
       <Show when={props.canEditIdentity}>
