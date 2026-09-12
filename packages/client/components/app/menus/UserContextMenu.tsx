@@ -33,6 +33,7 @@ import MdPersonAddAlt from "@material-design-icons/svg/outlined/person_add_alt.s
 import MdPersonRemove from "@material-design-icons/svg/outlined/person_remove.svg?component-solid";
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
 import MdStar from "@material-design-icons/svg/outlined/star_outline.svg?component-solid";
+import MdTimer from "@material-design-icons/svg/outlined/timer.svg?component-solid";
 import MdVisibilityOff from "@material-design-icons/svg/outlined/visibility_off.svg?component-solid";
 import MdChecked from "@material-symbols/svg-400/outlined/check_box.svg?component-solid";
 import MdUnchecked from "@material-symbols/svg-400/outlined/check_box_outline_blank.svg?component-solid";
@@ -144,6 +145,16 @@ export function UserContextMenu(props: {
   function editRoles() {
     openModal({
       type: "user_profile_roles",
+      member: props.member!,
+    });
+  }
+
+  /**
+   * Timeout the member
+   */
+  function timeoutMember() {
+    openModal({
+      type: "timeout_member",
       member: props.member!,
     });
   }
@@ -300,6 +311,25 @@ export function UserContextMenu(props: {
       !props.user.self &&
       props.member?.server?.havePermission("KickMembers") &&
       props.member.inferiorTo(props.member.server.member!)
+    );
+  }
+
+  /**
+   * Whether the user can timeout this member
+   *
+   * Until this existed, the only Timeout button was on Server Settings ->
+   * Members, which needs ManageServer - so Moderator-M/F, who hold
+   * TimeoutMembers but not ManageServer, had the permission and no way to
+   * use it. Same gate as the Members page toolkit, including the server's
+   * anti-escalation rule: it refuses to timeout anyone who themselves holds
+   * TimeoutMembers (`IsElevated` in member_edit.rs).
+   */
+  function canTimeout() {
+    return (
+      !props.user.self &&
+      props.member?.server?.havePermission("TimeoutMembers") &&
+      props.member.inferiorTo(props.member.server.member!) &&
+      !props.member.hasPermission(props.member.server, "TimeoutMembers")
     );
   }
 
@@ -504,12 +534,11 @@ export function UserContextMenu(props: {
         </Show>
       </Show>
 
-      {/* Moderation: kick, ban */}
-      {/** TODO: #287 timeout users */}
+      {/* Moderation: timeout, kick, ban */}
       <Show
         when={
           canRemoveMemberFromGroup() ||
-          (props.member && (canKick() || canBan()))
+          (props.member && (canTimeout() || canKick() || canBan()))
         }
       >
         <ContextMenuDivider />
@@ -520,6 +549,11 @@ export function UserContextMenu(props: {
             destructive
           >
             <Trans>Remove Member</Trans>
+          </ContextMenuButton>
+        </Show>
+        <Show when={canTimeout()}>
+          <ContextMenuButton icon={MdTimer} onClick={timeoutMember}>
+            <Trans>Timeout member</Trans>
           </ContextMenuButton>
         </Show>
         <Show when={canKick()}>
