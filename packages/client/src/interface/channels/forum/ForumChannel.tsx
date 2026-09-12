@@ -24,7 +24,10 @@ import { useState } from "@revolt/state";
 import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
 
+import MdChatBubble from "@material-design-icons/svg/outlined/chat_bubble.svg?component-solid";
+import MdFavorite from "@material-design-icons/svg/outlined/favorite.svg?component-solid";
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
+import MdPushPin from "@material-design-icons/svg/outlined/push_pin.svg?component-solid";
 
 import { MobileSearchOverlay } from "../../mobile/MobileSearchOverlay";
 import { ChannelHeader } from "../ChannelHeader";
@@ -315,10 +318,28 @@ export function ForumChannel(props: ChannelPageProps) {
     });
   });
 
-  // First image attachment on a post, if any - used for the list's thumbnail
-  // preview (matching Discord forum "grid view" cover images).
-  function thumbnailFor(post: Message) {
-    return post.attachments?.find((file) => file.metadata.type === "Image");
+  // Image attachments on a post, if any - a single image fills the card's
+  // media area; more than one renders as a 2x2 collage with a "+N" badge.
+  function imagesFor(post: Message) {
+    return post.attachments?.filter((file) => file.metadata.type === "Image") ?? [];
+  }
+
+  // "3d ago" while recent, a real date once a post is far enough back that
+  // relative time stops being useful - approved design, 2026-09-12 (a post
+  // migrated from Discord 18 months ago read worse as "565d ago").
+  function formatPostDate(date: Date): string {
+    const diffMs = Date.now() - date.getTime();
+    const diffDays = diffMs / 86_400_000;
+    if (diffDays < 1) {
+      const diffHours = diffMs / 3_600_000;
+      return diffHours < 1 ? "just now" : `${Math.floor(diffHours)}h ago`;
+    }
+    if (diffDays < 30) return `${Math.floor(diffDays)}d ago`;
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   }
 
   // One-line body preview for the post list. Collapsed to the first non-empty
@@ -420,65 +441,118 @@ export function ForumChannel(props: ChannelPageProps) {
                   </Empty>
                 </Show>
 
-                <For each={visiblePosts()}>
-                  {(post) => (
-                    <PostCard onClick={() => setSelectedPostId(post.id)}>
-                      <Avatar src={post.animatedAvatarURL} size={32} />
-                      <PostInfo>
-                        <Text class="label" size="large">
-                          {post.forumTitle}
-                        </Text>
-                        <Show when={snippet(post)}>
-                          <Snippet>{snippet(post)}</Snippet>
-                        </Show>
-                        <Meta>
-                          <Text class="label" size="small">
-                            {post.username}
-                          </Text>
-                          <Show when={post.forumTags?.length}>
-                            <For each={post.forumTags}>
-                              {(tag) => <Tag>{tag}</Tag>}
-                            </For>
+                <PostGrid mobile={isMobile()}>
+                  <For each={visiblePosts()}>
+                    {(post) => {
+                      const images = () => imagesFor(post);
+                      return (
+                        <PostCard
+                          mobile={isMobile()}
+                          onClick={() => setSelectedPostId(post.id)}
+                        >
+                          <Show when={images().length}>
+                            <Media mobile={isMobile()}>
+                              <Show
+                                when={images().length === 1}
+                                fallback={
+                                  <Collage>
+                                    <For each={images().slice(0, 4)}>
+                                      {(file) => (
+                                        <MediaImg
+                                          src={file.createFileURL()}
+                                          loading="lazy"
+                                        />
+                                      )}
+                                    </For>
+                                    <Show when={images().length > 4}>
+                                      <MoreBadge>
+                                        +{images().length - 4}
+                                      </MoreBadge>
+                                    </Show>
+                                  </Collage>
+                                }
+                              >
+                                <MediaImg
+                                  src={images()[0].createFileURL()}
+                                  loading="lazy"
+                                />
+                              </Show>
+                              <Show when={post.forumTags?.length}>
+                                <TagOverlay>
+                                  <For each={post.forumTags}>
+                                    {(tag) => <OverlayTag>{tag}</OverlayTag>}
+                                  </For>
+                                </TagOverlay>
+                              </Show>
+                              <Show when={post.pinned}>
+                                <PinBadge title="Pinned post">
+                                  <MdPushPin />
+                                </PinBadge>
+                              </Show>
+                            </Media>
                           </Show>
-                          <Show when={reactionCount(post)}>
-                            <Text class="label" size="small">
-                              {reactionCount(post)} ▲
+                          <Body>
+                            <Show when={!images().length && post.pinned}>
+                              <PinBadge inline title="Pinned post">
+                                <MdPushPin />
+                              </PinBadge>
+                            </Show>
+                            <Text class="label" size="large">
+                              {post.forumTitle}
                             </Text>
-                          </Show>
-                          <Show when={replyCountFor(post.id)}>
-                            <Text class="label" size="small">
-                              {replyCountFor(post.id)} 💬
-                            </Text>
-                          </Show>
-                        </Meta>
-                      </PostInfo>
-                      <Show when={thumbnailFor(post)}>
-                        {(file) => (
-                          <Thumbnail
-                            src={file().createFileURL()}
-                            loading="lazy"
-                          />
-                        )}
-                      </Show>
-                      <div
-                        class={postMenuTrigger}
-                        title="Post actions"
-                        use:floating={{
-                          contextMenu: () => (
-                            <ForumPostCardMenu
-                              post={post}
-                              openPost={() => setSelectedPostId(post.id)}
-                            />
-                          ),
-                          contextMenuHandler: "click",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MdMoreVert />
-                      </div>
-                    </PostCard>
-                  )}
-                </For>
+                            <Show when={snippet(post)}>
+                              <Snippet>{snippet(post)}</Snippet>
+                            </Show>
+                            <Show when={!images().length && post.forumTags?.length}>
+                              <InlineTags>
+                                <For each={post.forumTags}>
+                                  {(tag) => <Tag>{tag}</Tag>}
+                                </For>
+                              </InlineTags>
+                            </Show>
+                            <Meta>
+                              <Avatar src={post.animatedAvatarURL} size={18} />
+                              <Text class="label" size="small">
+                                {post.username}
+                              </Text>
+                              <Text class="label" size="small">
+                                &middot; {formatPostDate(post.createdAt)}
+                              </Text>
+                              <Stats>
+                                <Show when={reactionCount(post)}>
+                                  <Stat like>
+                                    <MdFavorite /> {reactionCount(post)}
+                                  </Stat>
+                                </Show>
+                                <Show when={replyCountFor(post.id)}>
+                                  <Stat>
+                                    <MdChatBubble /> {replyCountFor(post.id)}
+                                  </Stat>
+                                </Show>
+                              </Stats>
+                            </Meta>
+                          </Body>
+                          <div
+                            class={postMenuTrigger}
+                            title="Post actions"
+                            use:floating={{
+                              contextMenu: () => (
+                                <ForumPostCardMenu
+                                  post={post}
+                                  openPost={() => setSelectedPostId(post.id)}
+                                />
+                              ),
+                              contextMenuHandler: "click",
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MdMoreVert />
+                          </div>
+                        </PostCard>
+                      );
+                    }}
+                  </For>
+                </PostGrid>
               </Container>
             }
           >
@@ -685,25 +759,159 @@ const Empty = styled("div", {
   },
 });
 
-const PostCard = styled("div", {
+// Panda strips a raw "@media" key inside styled()/css() silently - see the
+// dated NOTE in Container.tsx (messaging). Desktop/mobile here is therefore
+// decided in JS via `isMobile()` and a variant prop, same as `FilterChip`'s
+// `active` variant above, not a CSS breakpoint.
+const PostGrid = styled("div", {
   base: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
     gap: "var(--gap-md)",
-    padding: "var(--gap-md)",
-    borderRadius: "var(--borderRadius-lg)",
-    background: "var(--md-sys-color-surface-container)",
-    cursor: "pointer",
-    "&:hover": {
-      background: "var(--md-sys-color-surface-container-high)",
+  },
+  variants: {
+    mobile: {
+      true: {
+        gridTemplateColumns: "1fr",
+      },
     },
   },
 });
 
-const PostInfo = styled("div", {
+const PostCard = styled("div", {
   base: {
+    position: "relative",
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: "var(--borderRadius-lg)",
+    background: "var(--md-sys-color-surface-container)",
+    cursor: "pointer",
+    overflow: "hidden",
+    "&:hover": {
+      background: "var(--md-sys-color-surface-container-high)",
+    },
+  },
+  variants: {
+    mobile: {
+      true: {
+        flexDirection: "row",
+      },
+    },
+  },
+});
+
+const Media = styled("div", {
+  base: {
+    position: "relative",
+    flexShrink: 0,
+    aspectRatio: "16 / 9",
+    background: "var(--md-sys-color-surface-container-highest)",
+  },
+  variants: {
+    mobile: {
+      true: {
+        width: "104px",
+        aspectRatio: "1 / 1",
+      },
+    },
+  },
+});
+
+const MediaImg = styled("img", {
+  base: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+});
+
+const Collage = styled("div", {
+  base: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gridTemplateRows: "1fr 1fr",
+    gap: "1px",
+    width: "100%",
+    height: "100%",
+  },
+});
+
+const MoreBadge = styled("div", {
+  base: {
+    position: "absolute",
+    bottom: "6px",
+    right: "6px",
+    padding: "1px 6px",
+    borderRadius: "var(--borderRadius-sm)",
+    background: "rgba(0, 0, 0, 0.6)",
+    color: "#fff",
+    fontSize: "11px",
+    fontWeight: 600,
+  },
+});
+
+const TagOverlay = styled("div", {
+  base: {
+    position: "absolute",
+    left: "8px",
+    bottom: "8px",
+    display: "flex",
+    gap: "4px",
+    flexWrap: "wrap",
+    maxWidth: "calc(100% - 16px)",
+  },
+});
+
+const OverlayTag = styled("span", {
+  base: {
+    padding: "2px 8px",
+    borderRadius: "var(--borderRadius-full)",
+    background: "rgba(0, 0, 0, 0.6)",
+    color: "#fff",
+    fontSize: "11px",
+    fontWeight: 600,
+  },
+});
+
+const PinBadge = styled("div", {
+  base: {
+    position: "absolute",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "24px",
+    height: "24px",
+    borderRadius: "var(--borderRadius-full)",
+    background: "rgba(0, 0, 0, 0.6)",
+    color: "var(--md-sys-color-primary)",
+    "& svg": {
+      width: "13px",
+      height: "13px",
+    },
+  },
+  variants: {
+    inline: {
+      // Sits over the media's top-right corner when there's an image;
+      // becomes a small static badge next to the title when there isn't.
+      false: {
+        top: "8px",
+        right: "8px",
+      },
+    },
+  },
+  defaultVariants: {
+    inline: false,
+  },
+});
+
+const Body = styled("div", {
+  base: {
+    position: "relative",
     display: "flex",
     flexDirection: "column",
     gap: "var(--gap-xs)",
+    padding: "var(--gap-md)",
     minWidth: 0,
     flexGrow: 1,
   },
@@ -713,14 +921,23 @@ const Snippet = styled("span", {
   base: {
     fontSize: "13px",
     color: "var(--md-sys-color-on-surface-variant)",
+    lineClamp: 2,
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    maxWidth: "100%",
+  },
+});
+
+const InlineTags = styled("div", {
+  base: {
+    display: "flex",
+    gap: "4px",
+    flexWrap: "wrap",
   },
 });
 
 const postMenuTrigger = css({
+  position: "absolute",
+  top: "var(--gap-sm)",
+  right: "var(--gap-sm)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -744,18 +961,40 @@ const Meta = styled("div", {
   base: {
     display: "flex",
     alignItems: "center",
-    gap: "var(--gap-sm)",
+    gap: "6px",
     color: "var(--md-sys-color-on-surface-variant)",
+    marginTop: "auto",
+    paddingTop: "4px",
   },
 });
 
-const Thumbnail = styled("img", {
+const Stats = styled("div", {
   base: {
-    width: "64px",
-    height: "64px",
-    borderRadius: "var(--borderRadius-md)",
-    objectFit: "cover",
-    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginLeft: "auto",
+  },
+});
+
+const Stat = styled("span", {
+  base: {
+    display: "flex",
+    alignItems: "center",
+    gap: "3px",
+    fontSize: "12px",
+    fontWeight: 600,
+    "& svg": {
+      width: "13px",
+      height: "13px",
+    },
+  },
+  variants: {
+    like: {
+      true: {
+        color: "var(--md-sys-color-error)",
+      },
+    },
   },
 });
 
