@@ -1,11 +1,19 @@
-import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { useQuery } from "@tanstack/solid-query";
 import { Server, ServerMember, ServerRole } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { ContextMenu } from "@revolt/app/menus/ContextMenu";
 import { useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import {
@@ -51,6 +59,26 @@ export function MemberList(props: { server: Server }) {
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [nickname, setNickname] = createSignal("");
   const [busy, setBusy] = createSignal(false);
+
+  // Which member's role popover is open, if any. Self-contained rather than
+  // routed through the shared `use:floating` context-menu system: that
+  // positions at the mouse cursor for a right-click-style menu, this needs
+  // to anchor under a specific button and stay open across several toggles.
+  // Settings is also rendered inside a modal, which nothing using
+  // `use:floating` had been exercised from before - closing here directly
+  // avoids depending on that interaction at all.
+  const [roleMenuFor, setRoleMenuFor] = createSignal<string>();
+
+  function onDocumentClick(e: MouseEvent) {
+    if (!roleMenuFor()) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-role-menu-root]")) return;
+    setRoleMenuFor(undefined);
+  }
+  onMount(() => document.addEventListener("click", onDocumentClick, true));
+  onCleanup(() =>
+    document.removeEventListener("click", onDocumentClick, true),
+  );
 
   const members = useQuery(() => ({
     queryKey: ["members", props.server.id],
@@ -430,7 +458,7 @@ export function MemberList(props: { server: Server }) {
                         </Show>
                       </Td>
                       <Td>
-                        <RolesCell>
+                        <RolesCell data-role-menu-root>
                           <Show
                             when={member.roles.length}
                             fallback={
@@ -453,22 +481,27 @@ export function MemberList(props: { server: Server }) {
                             </For>
                           </Show>
                           <RoleAddButton
+                            type="button"
                             aria-label={t`Edit roles`}
-                            use:floating={{
-                              contextMenu: () => (
-                                <MemberRoleMenu
-                                  member={member}
-                                  roles={roles()}
-                                  onToggle={(roleId, checked) =>
-                                    toggleMemberRole(member, roleId, checked)
-                                  }
-                                />
-                              ),
-                              contextMenuHandler: "click",
-                            }}
+                            onClick={() =>
+                              setRoleMenuFor((current) =>
+                                current === member.id.user
+                                  ? undefined
+                                  : member.id.user,
+                              )
+                            }
                           >
                             +
                           </RoleAddButton>
+                          <Show when={roleMenuFor() === member.id.user}>
+                            <MemberRoleMenu
+                              member={member}
+                              roles={roles()}
+                              onToggle={(roleId, checked) =>
+                                toggleMemberRole(member, roleId, checked)
+                              }
+                            />
+                          </Show>
                         </RolesCell>
                       </Td>
                       <Td>
@@ -520,10 +553,15 @@ export function MemberList(props: { server: Server }) {
 /**
  * Popover role editor for a single member - the "+" next to their role
  * chips. Every role, toggled independently and immediately: no selecting
- * the row first, no separate apply step. Stays open across several toggles
- * because `ContextMenu` already stops the click that would otherwise
- * dismiss it (`onMouseDown` -> `stopImmediatePropagation`, see
- * `@revolt/app/menus/ContextMenu`) - only a click genuinely outside closes it.
+ * the row first, no separate apply step.
+ *
+ * Self-positioned (absolute, anchored by `RolesCell`'s `position: relative`)
+ * rather than routed through the shared floating/context-menu system - that
+ * positions at the mouse cursor, which is right for an actual right-click
+ * menu but not for a button-anchored checklist meant to stay open across
+ * several toggles. Closing on an outside click is handled once, centrally,
+ * by `MemberList`'s own document listener via the `data-role-menu-root`
+ * marker on `RolesCell`.
  */
 function MemberRoleMenu(props: {
   member: ServerMember;
@@ -531,7 +569,7 @@ function MemberRoleMenu(props: {
   onToggle: (roleId: string, checked: boolean) => void;
 }) {
   return (
-    <ContextMenu style={{ padding: "6px", width: "210px" }}>
+    <RoleMenuPopover>
       <MenuTitle>
         <Trans>Roles</Trans>
       </MenuTitle>
@@ -552,7 +590,7 @@ function MemberRoleMenu(props: {
           </RoleOption>
         )}
       </For>
-    </ContextMenu>
+    </RoleMenuPopover>
   );
 }
 
@@ -623,10 +661,35 @@ const Td = styled("td", {
  */
 const RolesCell = styled("div", {
   base: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     gap: "6px",
     flexWrap: "wrap",
+  },
+});
+
+/**
+ * Anchored to `RolesCell` (`position: relative` there, this `absolute`) -
+ * always opens directly under the row it belongs to, regardless of where
+ * that row sits in the table or that the whole page is inside a modal.
+ */
+const RoleMenuPopover = styled("div", {
+  base: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    zIndex: 999,
+    width: "210px",
+    padding: "6px",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    borderRadius: "var(--borderRadius-xs)",
+    background: "var(--md-sys-color-surface-container)",
+    color: "var(--md-sys-color-on-surface)",
+    boxShadow: "0 4px 16px var(--md-sys-color-shadow)",
+    userSelect: "none",
   },
 });
 
