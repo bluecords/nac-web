@@ -325,7 +325,14 @@ export function MemberList(props: { server: Server }) {
     return (
       !member.user?.self &&
       props.server.havePermission("TimeoutMembers") &&
-      member.inferiorTo(props.server.member!)
+      member.inferiorTo(props.server.member!) &&
+      // The server refuses to timeout anyone who themselves holds
+      // TimeoutMembers - an anti-escalation rule independent of rank
+      // (member_edit.rs: `IsElevated` if the TARGET has this permission).
+      // Caught by clicking Timeout on a real Moderator-role member in the
+      // dev sandbox, not by reading the model - the client had no gate for
+      // it at all before this.
+      !member.hasPermission(props.server, "TimeoutMembers")
     );
   }
 
