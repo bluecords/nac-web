@@ -23,8 +23,17 @@ import { useMobileNav } from "./MobileNavContext";
 export function MobileNav(_props: {
   menuGenerator: (t: ServerI | Channel) => JSX.Directives["floating"];
 }) {
-  const { isMobile, navOpen, openNav, closeNav, openMembers, openMessages, editMode, setEditMode } =
-    useMobileNav();
+  const {
+    isMobile,
+    navOpen,
+    openNav,
+    closeNav,
+    openMembers,
+    openMessages,
+    editMode,
+    setEditMode,
+    forumBackHandler,
+  } = useMobileNav();
   const { openModal } = useModals();
   const params = useSmartParams();
   const client = useClient();
@@ -65,7 +74,18 @@ export function MobileNav(_props: {
   });
 
   const onPopState = () => {
-    if (!isMobile() || !params().channelId || navOpen()) return;
+    if (!isMobile()) return;
+
+    // A forum post open on mobile gets unwound first: back returns to the
+    // post list instead of revealing the drawer underneath it. Only once no
+    // post is open does back fall through to the drawer behavior below.
+    const closeForumPost = forumBackHandler();
+    if (closeForumPost) {
+      closeForumPost();
+      return;
+    }
+
+    if (!params().channelId || navOpen()) return;
     openNav();
   };
   window.addEventListener("popstate", onPopState);

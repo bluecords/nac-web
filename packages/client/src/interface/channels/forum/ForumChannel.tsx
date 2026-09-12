@@ -29,6 +29,7 @@ import MdFavorite from "@material-design-icons/svg/outlined/favorite.svg?compone
 import MdMoreVert from "@material-design-icons/svg/outlined/more_vert.svg?component-solid";
 import MdPushPin from "@material-design-icons/svg/outlined/push_pin.svg?component-solid";
 
+import { useMobileNav } from "../../mobile/MobileNavContext";
 import { MobileSearchOverlay } from "../../mobile/MobileSearchOverlay";
 import { ChannelHeader } from "../ChannelHeader";
 import { ChannelPageProps } from "../ChannelPage";
@@ -62,12 +63,38 @@ export function ForumChannel(props: ChannelPageProps) {
   const state = useState();
 
   const [selectedPostId, setSelectedPostId] = createSignal<string>();
+  const { setForumBackHandler } = useMobileNav();
 
   // Right-hand sidebar, mirroring the text channel: members by default, or a
   // message-search / pinned-posts panel. Reset when the channel changes.
   const isMobile = () =>
     typeof window !== "undefined" &&
     window.matchMedia("(max-width: 768px)").matches;
+
+  // Closing a post - shared by the in-post back arrow and the hardware/browser
+  // back button (see the effect below and MobileNav.tsx's popstate handler).
+  function closePost() {
+    setSelectedPostId(undefined);
+    reload();
+  }
+
+  // On mobile, opening a post pushes one buffer entry into browser history -
+  // same idiom MobileNav.tsx uses for the channel drawer - and registers the
+  // close action as the thing back should do first. Without this, the
+  // hardware back button skipped the post entirely and opened the channel
+  // drawer on top of it, per Bunjie 2026-09-12: "when in a post should take
+  // you back to the forum list." Cleared when the post closes by any means
+  // (this effect, or unmounting/switching channels) so the drawer's own back
+  // handling resumes once no post is open.
+  createEffect(() => {
+    if (isMobile() && selectedPostId()) {
+      history.pushState(null, "", location.href);
+      setForumBackHandler(closePost);
+    } else {
+      setForumBackHandler(undefined);
+    }
+  });
+  onCleanup(() => setForumBackHandler(undefined));
 
   const [sidebarState, setSidebarState] = createSignal<SidebarState>({
     state: "default",
@@ -564,10 +591,7 @@ export function ForumChannel(props: ChannelPageProps) {
                   ? params().messageId
                   : undefined
               }
-              onBack={() => {
-                setSelectedPostId(undefined);
-                reload();
-              }}
+              onBack={closePost}
             />
           </Show>
         </MainColumn>
