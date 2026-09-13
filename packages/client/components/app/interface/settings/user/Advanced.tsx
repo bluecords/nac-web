@@ -1,11 +1,5 @@
-import { For } from "solid-js";
-
 import { useState } from "@revolt/state";
-import {
-  AVAILABLE_EXPERIMENTS,
-  EXPERIMENTS,
-} from "@revolt/state/stores/Experiments";
-import { CategoryButton, Checkbox, Column } from "@revolt/ui";
+import { Checkbox, Column } from "@revolt/ui";
 
 /**
  * Advanced settings
@@ -36,29 +30,6 @@ export default function AdvancedSettings() {
           Show 'copy ID' in context menus
         </Checkbox>
       </Column>
-      <CategoryButton.Group>
-        <For each={AVAILABLE_EXPERIMENTS}>
-          {(key) => (
-            <CategoryButton
-              action={
-                <Checkbox
-                  checked={state.experiments.isEnabled(key)}
-                  onChange={(event) =>
-                    state.experiments.setEnabled(
-                      key,
-                      event.currentTarget.checked,
-                    )
-                  }
-                />
-              }
-              description={EXPERIMENTS[key].description}
-              onClick={() => void 0}
-            >
-              {EXPERIMENTS[key].title}
-            </CategoryButton>
-          )}
-        </For>
-      </CategoryButton.Group>
     </Column>
   );
 }

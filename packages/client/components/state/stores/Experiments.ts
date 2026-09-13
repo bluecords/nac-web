@@ -5,12 +5,12 @@ import { AbstractStore } from ".";
 /**
  * Union type of available experiments.
  */
-export type Experiment = "gif_picker" | "plugins";
+export type Experiment = never;
 
 /**
  * Currently active experiments.
  */
-export const AVAILABLE_EXPERIMENTS: Experiment[] = ["gif_picker", "plugins"];
+export const AVAILABLE_EXPERIMENTS: Experiment[] = [];
 
 /**
  * Experiments enabled by default.
@@ -27,16 +27,7 @@ export const ALWAYS_ON_DEVELOPMENT_EXPERIMENTS: Experiment[] = [];
  */
 export const EXPERIMENTS: {
   [key in Experiment]: { title: string; description: string };
-} = {
-  gif_picker: {
-    title: "GIF Picker Placeholder",
-    description: "Not available yet.",
-  },
-  plugins: {
-    title: "Plugins v2 Placeholder",
-    description: "Not available yet.",
-  },
-};
+} = {};
 
 export interface TypeExperiments {
   /**
