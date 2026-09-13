@@ -13,6 +13,7 @@ export type UnicodeEmojiPacks =
   | "fluent-flat"
   | "mutant"
   | "noto"
+  | "noto-animated"
   //  | "openmoji"
   | "twemoji";
 
@@ -22,9 +23,25 @@ export const UNICODE_EMOJI_PACKS: UnicodeEmojiPacks[] = [
   "fluent-flat",
   "mutant",
   "noto",
+  "noto-animated",
   //  "openmoji",
   "twemoji",
 ];
+
+/**
+ * Packs served as animated GIF instead of static SVG.
+ *
+ * "noto-animated" is Google's official animated Noto Color Emoji set
+ * (googlefonts/noto-emoji, Apache-2.0) - coverage is partial (roughly a
+ * quarter of base gestures/faces, far less once every skin-tone/gender
+ * permutation and every country flag is counted in, since Google has not
+ * produced GIF art for all of those). unicodeEmojiUrl() still always
+ * builds a URL for the requested codepoint; UnicodeEmoji() falls back to
+ * the static "noto" SVG on a 404 rather than showing a broken image.
+ */
+const ANIMATED_UNICODE_EMOJI_PACKS = new Set<UnicodeEmojiPacks>([
+  "noto-animated",
+]);
 
 export const UNICODE_EMOJI_PACK_PUA: Record<string, string> = {
   // omit fluent-3d as it is the default (canonically \uE0E1)
@@ -33,18 +50,19 @@ export const UNICODE_EMOJI_PACK_PUA: Record<string, string> = {
   noto: "\uE0E4",
   //  openmoji: "\uE0E5",
   twemoji: "\uE0E6",
+  "noto-animated": "\uE0E7",
 };
 
 /**
  * Regex for matching emoji
  */
 export const RE_UNICODE_EMOJI = new RegExp(
-  "([\uE0E0-\uE0E6]?(?:" + emojiRegex().source + "))",
+  "([\uE0E0-\uE0E7]?(?:" + emojiRegex().source + "))",
   "g",
 );
 
 export const UNICODE_EMOJI_MIN_PACK = "\uE0E0".codePointAt(0)!;
-export const UNICODE_EMOJI_MAX_PACK = "\uE0E6".codePointAt(0)!;
+export const UNICODE_EMOJI_MAX_PACK = "\uE0E7".codePointAt(0)!;
 
 export const UNICODE_EMOJI_PUA_PACK: Record<string, UnicodeEmojiPacks> = {
   ["\uE0E0"]: "fluent-3d", // default entry
@@ -54,11 +72,12 @@ export const UNICODE_EMOJI_PUA_PACK: Record<string, UnicodeEmojiPacks> = {
   ["\uE0E4"]: "noto",
   //  ["\uE0E5"]: "openmoji",
   ["\uE0E6"]: "twemoji",
+  ["\uE0E7"]: "noto-animated",
 };
 
 export const startsWithPackPUA = (emoji: string) => {
   if (emoji.startsWith(":")) return false;
-  if (emoji.slice(0, 1).match("[\uE0E0-\uE0E6]")) return true;
+  if (emoji.slice(0, 1).match("[\uE0E0-\uE0E7]")) return true;
 
   return false;
 };
@@ -84,7 +103,8 @@ export function unicodeEmojiUrl(
   pack: UnicodeEmojiPacks = "fluent-3d",
   text: string,
 ) {
-  return `/emoji/${pack}/${toCodepoint(text)}.svg?v=1`;
+  const ext = ANIMATED_UNICODE_EMOJI_PACKS.has(pack) ? "gif" : "svg";
+  return `/emoji/${pack}/${toCodepoint(text)}.${ext}?v=1`;
 }
 
 /**
@@ -93,11 +113,16 @@ export function unicodeEmojiUrl(
 export function UnicodeEmoji(
   props: { emoji: string; pack?: UnicodeEmojiPacks } & Omit<
     ComponentProps<typeof EmojiBase>,
-    "loading" | "class" | "alt" | "draggable" | "src"
+    "loading" | "class" | "alt" | "draggable" | "src" | "onError"
   >,
 ) {
   const [local, remote] = splitProps(props, ["emoji"]);
   const state = useState();
+
+  const pack = () =>
+    props.pack ??
+    state.settings.getValue("appearance:unicode_emoji") ??
+    "fluent-3d";
 
   return (
     <EmojiBase
@@ -106,10 +131,19 @@ export function UnicodeEmoji(
       class="emoji"
       alt={local.emoji}
       draggable={false}
-      src={unicodeEmojiUrl(
-        props.pack ?? state.settings.getValue("appearance:unicode_emoji"),
-        props.emoji,
-      )}
+      src={unicodeEmojiUrl(pack(), local.emoji)}
+      onError={(event) => {
+        // Animated-pack coverage is partial - fall back to the static
+        // Noto SVG for the same codepoint instead of a broken image.
+        const img = event.currentTarget;
+        if (
+          ANIMATED_UNICODE_EMOJI_PACKS.has(pack()) &&
+          img.dataset.animatedFallback !== "1"
+        ) {
+          img.dataset.animatedFallback = "1";
+          img.src = unicodeEmojiUrl("noto", local.emoji);
+        }
+      }}
     />
   );
 }
