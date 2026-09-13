@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
-import { useUser } from "@revolt/client";
+import { useClient, useUser } from "@revolt/client";
 import {
   UNICODE_EMOJI_PACKS,
   UnicodeEmoji,
@@ -38,9 +38,25 @@ import MDPalette from "@material-design-icons/svg/outlined/palette.svg?component
  */
 export function AppearanceMenu() {
   const user = useUser();
+  const client = useClient();
   const state = useState();
   const { t } = useLingui();
   const [pickerRef, setPickerRef] = createSignal<HTMLDivElement>();
+
+  /**
+   * The animated emoji pack is a Sustainer/Admin perk, not a security
+   * boundary (the assets are public static files under /emoji/ like every
+   * other pack) - this only controls who sees it as a selectable option.
+   * NAC is single-server, so just check the one server we're in.
+   */
+  const canUseAnimatedEmoji = () =>
+    [...client().servers.values()][0]?.havePermission("UseAnimatedEmoji") ??
+    false;
+
+  const availableEmojiPacks = () =>
+    UNICODE_EMOJI_PACKS.filter(
+      (pack) => pack !== "noto-animated" || canUseAnimatedEmoji(),
+    );
 
   return (
     <Column gap="lg">
@@ -397,7 +413,7 @@ export function AppearanceMenu() {
             )
           }
         >
-          <For each={UNICODE_EMOJI_PACKS}>
+          <For each={availableEmojiPacks()}>
             {(pack) => <EmojiPack pack={pack} />}
           </For>
         </FloatingSelect>
@@ -425,6 +441,9 @@ function EmojiPack(props: { pack: UnicodeEmojiPacks }) {
           <Match when={props.pack === "fluent-flat"}>Fluent Flat</Match>
           <Match when={props.pack === "mutant"}>Mutant Remix</Match>
           <Match when={props.pack === "noto"}>Noto</Match>
+          <Match when={props.pack === "noto-animated"}>
+            <Trans>Noto Animated (Sustainer/Admin)</Trans>
+          </Match>
           {/* <Match when={props.pack === "openmoji"}>OpenMoji</Match> */}
           <Match when={props.pack === "twemoji"}>Twemoji</Match>
         </Switch>

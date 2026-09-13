@@ -483,6 +483,15 @@ export function ChannelPermissionsEditor(props: Props) {
         Any: t`Mention specific roles`,
       },
     },
+    {
+      heading: t`Misc`,
+      key: "UseAnimatedEmoji",
+      value: 2n ** 40n,
+      title: t`Use Animated Emoji Pack`,
+      description: {
+        Server: t`Select the animated Noto emoji pack in Appearance settings`,
+      },
+    },
   ];
 
   /**
