@@ -35,6 +35,7 @@ export {
   removeIgnored,
   toggleIgnored,
 } from "./Ignored";
+export { memberRoles, setMemberRole } from "./MemberRoleEdits";
 export {
   grantMediaConsent,
   MEDIA_ACK_KEY,

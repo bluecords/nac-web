@@ -3,6 +3,7 @@ import { For, Match, Switch } from "solid-js";
 import { Trans } from "@lingui-solid/solid/macro";
 import { styled } from "styled-system/jsx";
 
+import { memberRoles, setMemberRole } from "@revolt/client";
 import { Checkbox, Column, Dialog, DialogProps, Row } from "@revolt/ui";
 
 import { Modals } from "../types";
@@ -52,7 +53,7 @@ export function UserProfileRolesModal(
             <For each={props.member.server?.orderedRoles}>
               {(role) => (
                 <Checkbox
-                  checked={props.member.roles.includes(role.id)}
+                  checked={memberRoles(props.member).includes(role.id)}
                   disabled={
                     // this needs a better API
                     // not sure if this actually works
@@ -62,20 +63,13 @@ export function UserProfileRolesModal(
                         ?.rank ?? 0)
                   }
                   onChange={() =>
-                    props.member.edit({
-                      roles: [
-                        ...props.member.roles.filter(
-                          (roleId) => roleId !== role.id,
-                        ),
-                        ...(props.member.roles.includes(role.id)
-                          ? []
-                          : [role.id]),
-                      ].filter((roleId) =>
-                        props.member.server
-                          ? props.member.server.roles.has(roleId)
-                          : true,
-                      ),
-                    })
+                    // Queued per member, built from roles already asked for -
+                    // quick ticks used to undo each other (MemberRoleEdits.ts).
+                    setMemberRole(
+                      props.member,
+                      role.id,
+                      !memberRoles(props.member).includes(role.id),
+                    ).catch(() => {})
                   }
                 >
                   <Row align grow>

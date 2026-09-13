@@ -16,7 +16,13 @@ import { useQuery } from "@tanstack/solid-query";
 import { Server, ServerMember, ServerRole } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { isIgnored, toggleIgnored, useClient } from "@revolt/client";
+import {
+  isIgnored,
+  memberRoles,
+  setMemberRole,
+  toggleIgnored,
+  useClient,
+} from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import {
   Avatar,
@@ -279,15 +285,15 @@ export function MemberList(props: { server: Server }) {
 
   function addRole(roleId: string) {
     return bulk(t`Adding the role`, async (member) => {
-      if (member.roles.includes(roleId)) return;
-      await member.edit({ roles: [...member.roles, roleId] });
+      if (memberRoles(member).includes(roleId)) return;
+      await setMemberRole(member, roleId, true);
     });
   }
 
   function removeRole(roleId: string) {
     return bulk(t`Removing the role`, async (member) => {
-      if (!member.roles.includes(roleId)) return;
-      await member.edit({ roles: member.roles.filter((r) => r !== roleId) });
+      if (!memberRoles(member).includes(roleId)) return;
+      await setMemberRole(member, roleId, false);
     });
   }
 
@@ -304,12 +310,11 @@ export function MemberList(props: { server: Server }) {
     roleId: string,
     checked: boolean,
   ) {
-    if (checked === member.roles.includes(roleId)) return;
-    const roles = checked
-      ? [...member.roles, roleId]
-      : member.roles.filter((r) => r !== roleId);
+    // Queued per member and built from the roles already asked for, not the
+    // client's last-known copy - quick ticks used to overwrite each other
+    // (see components/client/MemberRoleEdits.ts).
     try {
-      await member.edit({ roles });
+      await setMemberRole(member, roleId, checked);
       members.refetch();
     } catch (error) {
       showError(error);
@@ -833,7 +838,7 @@ function MemberRoleMenu(props: {
             <RoleOptionName>{role.name}</RoleOptionName>
             <input
               type="checkbox"
-              checked={props.member.roles.includes(role.id)}
+              checked={memberRoles(props.member).includes(role.id)}
               onChange={(e) => props.onToggle(role.id, e.currentTarget.checked)}
             />
           </RoleOption>
