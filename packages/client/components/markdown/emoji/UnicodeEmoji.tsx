@@ -1,4 +1,4 @@
-import { ComponentProps, splitProps } from "solid-js";
+import { ComponentProps, createSignal, splitProps } from "solid-js";
 
 import emojiRegex from "emoji-regex";
 
@@ -113,7 +113,7 @@ export function unicodeEmojiUrl(
 export function UnicodeEmoji(
   props: { emoji: string; pack?: UnicodeEmojiPacks } & Omit<
     ComponentProps<typeof EmojiBase>,
-    "loading" | "class" | "alt" | "draggable" | "src" | "onError"
+    "loading" | "class" | "alt" | "draggable" | "src"
   >,
 ) {
   const [local, remote] = splitProps(props, ["emoji"]);
@@ -124,6 +124,24 @@ export function UnicodeEmoji(
     state.settings.getValue("appearance:unicode_emoji") ??
     "fluent-3d";
 
+  // Animated-pack coverage is partial. A failed load used to be handled by
+  // imperatively setting img.src in an error handler - but src is also a
+  // *reactive* attribute here (it reads pack()), and Solid re-applies a
+  // reactive attribute whenever its tracked signal re-evaluates, which
+  // silently overwrote that one-time imperative fix back to the still-404
+  // animated URL on the next unrelated re-render (visible in practice: it
+  // worked for a freshly-sent message, which renders once, but broke for
+  // sidebar channel names, which re-render often - a broken-image icon that
+  // never got a second chance because the old code's own "already handled"
+  // guard then blocked it from retrying). Fixed by making the fallback part
+  // of the same reactive graph instead of fighting it: `failed` is a real
+  // signal, and the URL Solid keeps re-applying already accounts for it.
+  const [failed, setFailed] = createSignal(false);
+  const effectivePack = () => {
+    const p = pack();
+    return failed() && ANIMATED_UNICODE_EMOJI_PACKS.has(p) ? "noto" : p;
+  };
+
   return (
     <EmojiBase
       {...remote}
@@ -131,17 +149,10 @@ export function UnicodeEmoji(
       class="emoji"
       alt={local.emoji}
       draggable={false}
-      src={unicodeEmojiUrl(pack(), local.emoji)}
-      onError={(event) => {
-        // Animated-pack coverage is partial - fall back to the static
-        // Noto SVG for the same codepoint instead of a broken image.
-        const img = event.currentTarget;
-        if (
-          ANIMATED_UNICODE_EMOJI_PACKS.has(pack()) &&
-          img.dataset.animatedFallback !== "1"
-        ) {
-          img.dataset.animatedFallback = "1";
-          img.src = unicodeEmojiUrl("noto", local.emoji);
+      src={unicodeEmojiUrl(effectivePack(), local.emoji)}
+      on:error={() => {
+        if (ANIMATED_UNICODE_EMOJI_PACKS.has(pack()) && !failed()) {
+          setFailed(true);
         }
       }}
     />
