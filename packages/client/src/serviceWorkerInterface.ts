@@ -48,8 +48,24 @@ if (import.meta.env.PROD) {
       console.info("Ready to work offline =)");
     },
     onRegistered(r) {
-      // Check for updates every hour
-      setInterval(() => r!.update(), 36e5);
+      // A once-an-hour interval meant a real client-visible fix could sit
+      // deployed for up to an hour before a session even checked for it -
+      // measured live 2026-09-13: still on the old build >20 minutes after
+      // deploy, on both a phone and a desktop browser, simply because
+      // neither had hit the hourly tick yet. Down to 2 minutes, which is
+      // cheap (one conditional-GET of a small worker script) and matches how
+      // this app is actually used - short, frequent visits, not one long
+      // session where an hourly check would eventually catch up anyway.
+      setInterval(() => r!.update(), 2 * 60 * 1000);
+
+      // The interval alone still leaves a real gap for how Bunjie actually
+      // uses NAC ("I don't use it 5 minutes straight, I check quickly") -
+      // a tab that's been backgrounded for an hour and gets glanced at for
+      // 30 seconds may never hit the interval at all before it's closed
+      // again. Check the instant it's actually being looked at instead.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") r!.update();
+      });
     },
   });
 
