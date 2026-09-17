@@ -5,6 +5,7 @@ import { State } from "..";
 import { TypeAuth } from "./Auth";
 import { TypeDraft } from "./Draft";
 import { TypeExperiments } from "./Experiments";
+import { TypeForumReads } from "./ForumReads";
 import { TypeKeybinds } from "./Keybinds";
 import { TypeLayout } from "./Layout";
 import { TypeLinkSafety } from "./LinkSafety";
@@ -22,6 +23,7 @@ export type Store = {
   auth: TypeAuth;
   draft: TypeDraft;
   experiments: TypeExperiments;
+  forumReads: TypeForumReads;
   keybinds: TypeKeybinds;
   layout: TypeLayout;
   linkSafety: TypeLinkSafety;
