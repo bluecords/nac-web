@@ -212,6 +212,46 @@ export function ForumChannel(props: ChannelPageProps) {
     c.removeListener("messageDelete", onMessageDelete);
   });
 
+  // What this member had already read when they walked in - captured BEFORE
+  // the ack below wipes it.
+  //
+  // Forum unread is channel-level: one `channel_unreads` row holding a single
+  // `last_id`, so no post carries a read state of its own and the post list
+  // has nothing of its own to mark. Opening the channel acks it immediately
+  // (the effect below, added 2026-09-07 so the sidebar dot could ever clear),
+  // which means by the time the list is on screen the only signal that existed
+  // is already gone. Bunjie, 2026-09-17: "we get notifications that there has
+  // been a new post/comment but once we open the channel there is no way to
+  // identify which post was updated."
+  //
+  // Taking a copy on entry gives the list something stable to measure against
+  // for as long as the member stays in the channel, without touching the ack
+  // (which is still correct - the channel HAS been read).
+  //
+  // Keyed on channel id because this component does not remount when the
+  // channel changes, and declared ahead of the ack effect on purpose: Solid
+  // runs effects in creation order, so this one reads the row first.
+  //
+  // `get` rather than `for`, because the no-row case has to stay
+  // distinguishable: no row means this member has never acked this channel, so
+  // there is no "last visit" for anything to be new since. Mark nothing rather
+  // than light up every post in the forum for a first-time visitor.
+  const [readBaseline, setReadBaseline] = createSignal<string>();
+  const [mentionBaseline, setMentionBaseline] = createSignal<Set<string>>(
+    new Set(),
+  );
+
+  createEffect(
+    on(
+      () => props.channel.id,
+      (id) => {
+        const unread = client().channelUnreads.get(id);
+        setReadBaseline(unread?.lastMessageId);
+        setMentionBaseline(new Set(unread?.messageMentionIds ?? []));
+      },
+    ),
+  );
+
   // Mark the channel read while it is being viewed.
   //
   // Acking only ever happened in `TextChannel`, so a member could open a forum,
@@ -277,6 +317,105 @@ export function ForumChannel(props: ChannelPageProps) {
 
   const replyCountFor = (postId: string) => replyCounts().get(postId) ?? 0;
 
+  const postIds = createMemo(() => new Set(posts().map((post) => post.id)));
+
+  /**
+   * Per-post activity the member has not seen yet, measured against the
+   * baseline captured on entry.
+   *
+   * A post is new if the post itself arrived after the baseline, or any reply
+   * to it did. ULIDs sort chronologically, so a plain string compare is the
+   * entire test - no timestamps to parse and no clock to trust.
+   *
+   * Mentions come from the same row and are kept separate because they earn a
+   * louder marker: "someone replied here" and "someone said your name here"
+   * are different news.
+   */
+  const unreadInfo = createMemo(() => {
+    const baseline = readBaseline();
+    const mentions = mentionBaseline();
+    const info = new Map<
+      string,
+      { isNew: boolean; newReplies: number; mentioned: boolean }
+    >();
+    if (!baseline && !mentions.size) return info;
+
+    const ids = postIds();
+    const after = (id: string) => !!baseline && id.localeCompare(baseline) > 0;
+    const entryFor = (postId: string) => {
+      let entry = info.get(postId);
+      if (!entry) {
+        entry = { isNew: false, newReplies: 0, mentioned: false };
+        info.set(postId, entry);
+      }
+      return entry;
+    };
+
+    for (const message of messages()) {
+      if (message.forumTitle) {
+        if (after(message.id)) entryFor(message.id).isNew = true;
+        if (mentions.has(message.id)) {
+          const entry = entryFor(message.id);
+          entry.mentioned = true;
+          entry.isNew = true;
+        }
+        continue;
+      }
+
+      // Only replies pointing at an actual post count towards that post - a
+      // reply to a reply would otherwise create a phantom entry keyed on a
+      // message that never appears in the list.
+      for (const replyId of message.replyIds ?? []) {
+        if (!ids.has(replyId)) continue;
+        if (after(message.id)) {
+          const entry = entryFor(replyId);
+          entry.newReplies += 1;
+          entry.isNew = true;
+        }
+        if (mentions.has(message.id)) {
+          const entry = entryFor(replyId);
+          entry.mentioned = true;
+          entry.isNew = true;
+        }
+      }
+    }
+
+    return info;
+  });
+
+  const unreadFor = (postId: string) => unreadInfo().get(postId);
+
+  /**
+   * Newest activity on each post: the later of the post's own id and its most
+   * recent reply. Same ULID-ordering trick as above.
+   *
+   * This is what "Latest" sorts by - see the comparator. Ordering by the post's
+   * own id meant a comment arriving an hour ago left its post buried under
+   * posts written yesterday that nobody had touched since, which is the other
+   * half of not being able to find what changed.
+   */
+  const lastActivity = createMemo(() => {
+    const ids = postIds();
+    const latest = new Map<string, string>();
+    for (const id of ids) latest.set(id, id);
+
+    for (const message of messages()) {
+      if (message.forumTitle) continue;
+      for (const replyId of message.replyIds ?? []) {
+        if (!ids.has(replyId)) continue;
+        const current = latest.get(replyId)!;
+        if (message.id.localeCompare(current) > 0) {
+          latest.set(replyId, message.id);
+        }
+      }
+    }
+
+    return latest;
+  });
+
+  const lastActivityFor = (postId: string) =>
+    lastActivity().get(postId) ?? postId;
+
   // Tags available to filter by: the channel's defined keywords, falling
   // back to whatever tags actually appear on posts (covers channels whose
   // allowed_tags were cleared but old posts still carry tags).
@@ -339,6 +478,14 @@ export function ForumChannel(props: ChannelPageProps) {
         if (diff) return diff;
       } else if (mode === "active") {
         const diff = replyCountFor(b.id) - replyCountFor(a.id);
+        if (diff) return diff;
+      } else {
+        // "Latest" means latest ACTIVITY, not latest post - a new comment
+        // floats its post back to the top. `[RULED BY BUNJIE]` 2026-09-17,
+        // asked about the interaction with pinned posts and answered "do what
+        // makes sense and we'll revisit it in the future". Pinned posts are
+        // unaffected: that check above returns before this runs.
+        const diff = lastActivityFor(b.id).localeCompare(lastActivityFor(a.id));
         if (diff) return diff;
       }
       return b.id.localeCompare(a.id);
@@ -472,11 +619,19 @@ export function ForumChannel(props: ChannelPageProps) {
                   <For each={visiblePosts()}>
                     {(post) => {
                       const images = () => imagesFor(post);
+                      const unread = () => unreadFor(post.id);
                       return (
                         <PostCard
                           mobile={isMobile()}
+                          unread={!!unread()?.isNew}
                           onClick={() => setSelectedPostId(post.id)}
                         >
+                          <Show when={unread()?.isNew}>
+                            <UnreadBar
+                              mention={!!unread()?.mentioned}
+                              aria-hidden="true"
+                            />
+                          </Show>
                           <Show when={images().length}>
                             <Media mobile={isMobile()}>
                               <Show
@@ -524,9 +679,21 @@ export function ForumChannel(props: ChannelPageProps) {
                                 <MdPushPin />
                               </PinBadge>
                             </Show>
-                            <Text class="label" size="large">
-                              {post.forumTitle}
-                            </Text>
+                            <Show when={unread()?.isNew}>
+                              <NewBadge mention={!!unread()?.mentioned}>
+                                <Show
+                                  when={unread()?.mentioned}
+                                  fallback={<Trans>New</Trans>}
+                                >
+                                  <Trans>Mentioned you</Trans>
+                                </Show>
+                              </NewBadge>
+                            </Show>
+                            <PostTitle unread={!!unread()?.isNew}>
+                              <Text class="label" size="large">
+                                {post.forumTitle}
+                              </Text>
+                            </PostTitle>
                             <Show when={snippet(post)}>
                               <Snippet>{snippet(post)}</Snippet>
                             </Show>
@@ -552,9 +719,27 @@ export function ForumChannel(props: ChannelPageProps) {
                                   </Stat>
                                 </Show>
                                 <Show when={replyCountFor(post.id)}>
-                                  <Stat>
-                                    <MdChatBubble /> {replyCountFor(post.id)}
-                                  </Stat>
+                                  {/* The count answers "is there anything here
+                                      I have not read?" when it can, and falls
+                                      back to the plain total when it cannot.
+                                      A bare total is the same grey whether the
+                                      member has read all of them or none. */}
+                                  <Show
+                                    when={unread()?.newReplies}
+                                    fallback={
+                                      <Stat>
+                                        <MdChatBubble />{" "}
+                                        {replyCountFor(post.id)}
+                                      </Stat>
+                                    }
+                                  >
+                                    {(count) => (
+                                      <Stat unread>
+                                        <MdChatBubble />{" "}
+                                        <Trans>{count()} new</Trans>
+                                      </Stat>
+                                    )}
+                                  </Show>
                                 </Show>
                               </Stats>
                             </Meta>
@@ -823,6 +1008,89 @@ const PostCard = styled("div", {
         flexDirection: "row",
       },
     },
+    // A post with activity the member has not seen sits on a lifted surface
+    // with a tinted outline, so the unread block reads as a group at a glance
+    // rather than one badge at a time.
+    unread: {
+      true: {
+        background: "var(--md-sys-color-surface-container-high)",
+        outline: "1px solid var(--md-sys-color-primary)",
+        outlineOffset: "-1px",
+      },
+    },
+  },
+});
+
+/**
+ * The accent bar down the leading edge of an unread card.
+ *
+ * Deliberately not the only marker: it is decorative, `aria-hidden`, and
+ * carries no information the badge and the reply count do not also state in
+ * words. Colour alone is never the signal.
+ */
+const UnreadBar = styled("div", {
+  base: {
+    position: "absolute",
+    insetInlineStart: 0,
+    top: "10px",
+    bottom: "10px",
+    width: "3px",
+    borderStartEndRadius: "3px",
+    borderEndEndRadius: "3px",
+    background: "var(--md-sys-color-primary)",
+    pointerEvents: "none",
+    zIndex: 1,
+  },
+  variants: {
+    mention: {
+      true: {
+        background: "var(--md-sys-color-error)",
+      },
+    },
+  },
+});
+
+/**
+ * "New", or "Mentioned you" when the member's name is in there somewhere.
+ */
+const NewBadge = styled("span", {
+  base: {
+    alignSelf: "flex-start",
+    padding: "2px 8px",
+    borderRadius: "var(--borderRadius-full)",
+    background: "var(--md-sys-color-primary)",
+    color: "var(--md-sys-color-on-primary)",
+    fontSize: "10px",
+    fontWeight: 800,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+  },
+  variants: {
+    mention: {
+      true: {
+        background: "var(--md-sys-color-error)",
+        color: "var(--md-sys-color-on-error)",
+      },
+    },
+  },
+});
+
+/**
+ * An unread post's title goes full-strength; a read one keeps the quieter
+ * default it has always had.
+ */
+const PostTitle = styled("div", {
+  base: {
+    minWidth: 0,
+  },
+  variants: {
+    unread: {
+      true: {
+        color: "var(--md-sys-color-on-surface)",
+        fontWeight: 700,
+      },
+    },
   },
 });
 
@@ -1045,6 +1313,12 @@ const Stat = styled("span", {
     like: {
       true: {
         color: "var(--md-sys-color-error)",
+      },
+    },
+    unread: {
+      true: {
+        color: "var(--md-sys-color-primary)",
+        fontWeight: 800,
       },
     },
   },
