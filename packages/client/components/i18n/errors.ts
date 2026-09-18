@@ -176,6 +176,13 @@ export function useError() {
       typeof (error as { message: never }).message === "string"
     ) {
       const message = (error as { message: string }).message.trim();
+
+      // upload rejected by the media server (the SDK folds the JSON body
+      // into the message) - don't show members the raw response
+      if (message.includes('"FileTooLarge"')) {
+        return t`That file is too large. Please choose a smaller one.`;
+      }
+
       if (message) return message;
     } else if (typeof error === "string") {
       //Strip HTML from string

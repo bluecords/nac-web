@@ -6,7 +6,8 @@ import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { API, User } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, prepareImageUpload } from "@revolt/common";
+import { useError } from "@revolt/i18n";
 import {
   CategoryButton,
   CircularProgress,
@@ -27,6 +28,7 @@ interface Props {
 export function UserProfileEditor(props: Props) {
   const { t } = useLingui();
   const client = useClient();
+  const err = useError();
   const queryClient = useQueryClient();
 
   const profile = useQuery(() => ({
@@ -108,7 +110,10 @@ export function UserProfileEditor(props: Props) {
         try {
           changes.avatar = await client().uploadFile(
             "avatars",
-            editGroup.controls.avatar.value[0],
+            await prepareImageUpload(
+              "avatars",
+              editGroup.controls.avatar.value[0],
+            ),
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
         } catch (error) {
@@ -136,7 +141,10 @@ export function UserProfileEditor(props: Props) {
           changes.profile ??= {};
           changes.profile.background = await client().uploadFile(
             "backgrounds",
-            editGroup.controls.banner.value[0],
+            await prepareImageUpload(
+              "backgrounds",
+              editGroup.controls.banner.value[0],
+            ),
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
 
@@ -221,6 +229,15 @@ export function UserProfileEditor(props: Props) {
             <CircularProgress />
           </Show>
         </Row>
+        <Show when={editGroup.errors?.error}>
+          <Text
+            class="label"
+            size="small"
+            style={{ color: "var(--md-sys-color-error)" }}
+          >
+            {err(editGroup.errors!.error)}
+          </Text>
+        </Show>
       </Column>
     </form>
   );

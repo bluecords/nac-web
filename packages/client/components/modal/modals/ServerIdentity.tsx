@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { API } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, prepareImageUpload } from "@revolt/common";
 import { Column, Dialog, DialogProps, Form2 } from "@revolt/ui";
 
 import { useModals } from "..";
@@ -56,7 +56,7 @@ export function ServerIdentityModal(
         try {
           changes.avatar = await client().uploadFile(
             "avatars",
-            group.controls.avatar.value[0],
+            await prepareImageUpload("avatars", group.controls.avatar.value[0]),
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
         } catch (error) {
