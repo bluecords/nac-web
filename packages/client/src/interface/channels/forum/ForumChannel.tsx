@@ -21,6 +21,10 @@ import { Keybind, KeybindAction } from "@revolt/keybinds";
 import { useModals } from "@revolt/modal";
 import { useSmartParams } from "@revolt/routing";
 import { useState } from "@revolt/state";
+import {
+  computeUnreadInfo,
+  isChannelFullyRead,
+} from "@revolt/state/stores/forumUnread";
 import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
 
@@ -359,66 +363,9 @@ export function ForumChannel(props: ChannelPageProps) {
    * louder marker: "someone replied here" and "someone said your name here"
    * are different news.
    */
-  const unreadInfo = createMemo(() => {
-    const record = state.forumReads.record(props.channel.id);
-    const info = new Map<
-      string,
-      { isNew: boolean; newReplies: number; mentioned: boolean }
-    >();
-    if (!record || !record.floor) return info;
-
-    const ids = postIds();
-    const mentioned = new Set(record.mentioned);
-
-    // Each post has its own cutoff: whatever the member last saw IN that post,
-    // or the channel floor if they have never opened it. This is the whole
-    // difference from the channel-level version - reading one post moves only
-    // that post's cutoff, and leaving the channel moves nothing at all.
-    const cutoffFor = (postId: string) => {
-      const seen = record.seen[postId];
-      return seen && seen.localeCompare(record.floor) > 0 ? seen : record.floor;
-    };
-
-    const entryFor = (postId: string) => {
-      let entry = info.get(postId);
-      if (!entry) {
-        entry = {
-          isNew: false,
-          newReplies: 0,
-          mentioned: mentioned.has(postId),
-        };
-        info.set(postId, entry);
-      }
-      return entry;
-    };
-
-    for (const postId of mentioned) {
-      if (ids.has(postId)) entryFor(postId).isNew = true;
-    }
-
-    for (const message of messages()) {
-      if (message.forumTitle) {
-        if (message.id.localeCompare(cutoffFor(message.id)) > 0) {
-          entryFor(message.id).isNew = true;
-        }
-        continue;
-      }
-
-      // Only replies pointing at an actual post count towards that post - a
-      // reply to a reply would otherwise create a phantom entry keyed on a
-      // message that never appears in the list.
-      for (const replyId of message.replyIds ?? []) {
-        if (!ids.has(replyId)) continue;
-        if (message.id.localeCompare(cutoffFor(replyId)) > 0) {
-          const entry = entryFor(replyId);
-          entry.newReplies += 1;
-          entry.isNew = true;
-        }
-      }
-    }
-
-    return info;
-  });
+  const unreadInfo = createMemo(() =>
+    computeUnreadInfo(messages(), state.forumReads.record(props.channel.id)),
+  );
 
   const unreadFor = (postId: string) => unreadInfo().get(postId);
 
@@ -476,7 +423,7 @@ export function ForumChannel(props: ChannelPageProps) {
     if (loading() || !messages().length) return;
     const newest = props.channel.lastMessageId;
     if (!newest) return;
-    for (const entry of unreadInfo().values()) if (entry.isNew) return;
+    if (!isChannelFullyRead(unreadInfo())) return;
     state.forumReads.markChannelRead(props.channel.id, newest);
   });
 
