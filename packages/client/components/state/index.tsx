@@ -25,6 +25,7 @@ import { LinkSafety } from "./stores/LinkSafety";
 import { Locale } from "./stores/Locale";
 import { NotificationOptions } from "./stores/NotificationOptions";
 import { Ordering } from "./stores/Ordering";
+import { ForumReads } from "./stores/ForumReads";
 import { ReleaseNotes } from "./stores/ReleaseNotes";
 import { Settings } from "./stores/Settings";
 import { Sounds } from "./stores/Sounds";
@@ -71,6 +72,7 @@ export class State {
   auth = new Auth(this);
   draft = new Draft(this);
   experiments = new Experiments(this);
+  forumReads = new ForumReads(this);
   keybinds = new Keybinds(this);
   layout = new Layout(this);
   linkSafety = new LinkSafety(this);

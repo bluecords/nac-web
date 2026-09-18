@@ -21,6 +21,10 @@ import { Keybind, KeybindAction } from "@revolt/keybinds";
 import { useModals } from "@revolt/modal";
 import { useSmartParams } from "@revolt/routing";
 import { useState } from "@revolt/state";
+import {
+  computeUnreadInfo,
+  isChannelFullyRead,
+} from "@revolt/state/stores/forumUnread";
 import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
 import { Avatar, Button, Header, Text } from "@revolt/ui";
 
@@ -212,44 +216,86 @@ export function ForumChannel(props: ChannelPageProps) {
     c.removeListener("messageDelete", onMessageDelete);
   });
 
-  // What this member had already read when they walked in - captured BEFORE
-  // the ack below wipes it.
+  // Start tracking this channel's per-post read state, seeding the floor from
+  // the channel's own read marker BEFORE the ack below moves it.
   //
-  // Forum unread is channel-level: one `channel_unreads` row holding a single
-  // `last_id`, so no post carries a read state of its own and the post list
-  // has nothing of its own to mark. Opening the channel acks it immediately
-  // (the effect below, added 2026-09-07 so the sidebar dot could ever clear),
-  // which means by the time the list is on screen the only signal that existed
-  // is already gone. Bunjie, 2026-09-17: "we get notifications that there has
-  // been a new post/comment but once we open the channel there is no way to
-  // identify which post was updated."
+  // Forum unread on the server is channel-level: one `channel_unreads` row
+  // holding a single `last_id`. That is enough to light the sidebar dot and
+  // nothing more - it cannot say WHICH post changed, and opening the forum acks
+  // it, so the cutoff jumps to the newest message immediately. A first pass at
+  // this snapshotted the row on entry; Bunjie found the hole the same day
+  // ("Say 3 new posts and multiple comments on new posts are all gone after I
+  // open a single post?") and it was worse than he guessed - not opening a
+  // post, but leaving the channel at all, since the next visit re-read an
+  // already-acked row and saw everything as read.
   //
-  // Taking a copy on entry gives the list something stable to measure against
-  // for as long as the member stays in the channel, without touching the ack
-  // (which is still correct - the channel HAS been read).
+  // So the markers read from `state.forumReads` instead, which is keyed by post
+  // and persists. The seed only ever happens once per channel: re-seeding from
+  // an ack is precisely the bug being removed here.
   //
-  // Keyed on channel id because this component does not remount when the
-  // channel changes, and declared ahead of the ack effect on purpose: Solid
-  // runs effects in creation order, so this one reads the row first.
+  // Declared ahead of the ack effect on purpose - Solid runs effects in
+  // creation order, so this reads the row first. `get` rather than `for`
+  // because "no row" has to stay distinguishable from "read nothing": no row
+  // means this member has never acked the channel, and an empty floor then
+  // means a first-time visitor meets a calm list rather than every post in the
+  // forum lit up.
   //
-  // `get` rather than `for`, because the no-row case has to stay
-  // distinguishable: no row means this member has never acked this channel, so
-  // there is no "last visit" for anything to be new since. Mark nothing rather
-  // than light up every post in the forum for a first-time visitor.
-  const [readBaseline, setReadBaseline] = createSignal<string>();
-  const [mentionBaseline, setMentionBaseline] = createSignal<Set<string>>(
-    new Set(),
-  );
+  // The mention ids have to be grabbed in the same breath: `ack()` clears them
+  // from the local row (`Channel.ack`, `messageMentionIds.clear()`), and they
+  // cannot be resolved to POSTS until the messages have loaded, which is well
+  // after the ack. So capture the raw ids here and resolve them below.
+  const [pendingMentions, setPendingMentions] = createSignal<string[]>([]);
 
   createEffect(
     on(
       () => props.channel.id,
       (id) => {
         const unread = client().channelUnreads.get(id);
-        setReadBaseline(unread?.lastMessageId);
-        setMentionBaseline(new Set(unread?.messageMentionIds ?? []));
+        state.forumReads.seed(id, unread?.lastMessageId);
+        setPendingMentions([...(unread?.messageMentionIds ?? [])]);
       },
     ),
+  );
+
+  // Resolve captured mentions to the posts they belong to, once the messages
+  // they refer to are actually loaded. Written through to the store so they
+  // survive leaving the channel - the server's copy is already gone by now.
+  createEffect(
+    on([pendingMentions, messages], ([mentions, all]) => {
+      if (!mentions.length || !all.length) return;
+
+      const ids = new Set(all.filter((m) => m.forumTitle).map((m) => m.id));
+      // Keep the mention message's OWN id per post, not just which posts got
+      // mentioned - that id is what tells ForumReads how fresh this specific
+      // mention is, since the post's id alone can be much older than it.
+      const posts = new Map<string, string>();
+      const noteMention = (postId: string, mentionId: string) => {
+        const existing = posts.get(postId);
+        if (!existing || mentionId.localeCompare(existing) > 0) {
+          posts.set(postId, mentionId);
+        }
+      };
+
+      for (const mentionId of mentions) {
+        const message = all.find((m) => m.id === mentionId);
+        if (!message) continue;
+        if (message.forumTitle) {
+          noteMention(message.id, mentionId);
+          continue;
+        }
+        for (const replyId of message.replyIds ?? []) {
+          if (ids.has(replyId)) noteMention(replyId, mentionId);
+        }
+      }
+
+      if (posts.size) {
+        state.forumReads.addMentions(
+          props.channel.id,
+          [...posts].map(([postId, activityId]) => ({ postId, activityId })),
+        );
+      }
+      setPendingMentions([]);
+    }),
   );
 
   // Mark the channel read while it is being viewed.
@@ -331,57 +377,9 @@ export function ForumChannel(props: ChannelPageProps) {
    * louder marker: "someone replied here" and "someone said your name here"
    * are different news.
    */
-  const unreadInfo = createMemo(() => {
-    const baseline = readBaseline();
-    const mentions = mentionBaseline();
-    const info = new Map<
-      string,
-      { isNew: boolean; newReplies: number; mentioned: boolean }
-    >();
-    if (!baseline && !mentions.size) return info;
-
-    const ids = postIds();
-    const after = (id: string) => !!baseline && id.localeCompare(baseline) > 0;
-    const entryFor = (postId: string) => {
-      let entry = info.get(postId);
-      if (!entry) {
-        entry = { isNew: false, newReplies: 0, mentioned: false };
-        info.set(postId, entry);
-      }
-      return entry;
-    };
-
-    for (const message of messages()) {
-      if (message.forumTitle) {
-        if (after(message.id)) entryFor(message.id).isNew = true;
-        if (mentions.has(message.id)) {
-          const entry = entryFor(message.id);
-          entry.mentioned = true;
-          entry.isNew = true;
-        }
-        continue;
-      }
-
-      // Only replies pointing at an actual post count towards that post - a
-      // reply to a reply would otherwise create a phantom entry keyed on a
-      // message that never appears in the list.
-      for (const replyId of message.replyIds ?? []) {
-        if (!ids.has(replyId)) continue;
-        if (after(message.id)) {
-          const entry = entryFor(replyId);
-          entry.newReplies += 1;
-          entry.isNew = true;
-        }
-        if (mentions.has(message.id)) {
-          const entry = entryFor(replyId);
-          entry.mentioned = true;
-          entry.isNew = true;
-        }
-      }
-    }
-
-    return info;
-  });
+  const unreadInfo = createMemo(() =>
+    computeUnreadInfo(messages(), state.forumReads.record(props.channel.id)),
+  );
 
   const unreadFor = (postId: string) => unreadInfo().get(postId);
 
@@ -415,6 +413,33 @@ export function ForumChannel(props: ChannelPageProps) {
 
   const lastActivityFor = (postId: string) =>
     lastActivity().get(postId) ?? postId;
+
+  // Reading a post clears THAT post and nothing else. Re-runs as replies
+  // arrive, so a post left open on screen does not come back marked.
+  createEffect(() => {
+    const postId = selectedPostId();
+    if (!postId || !postIds().has(postId)) return;
+    state.forumReads.markPostRead(
+      props.channel.id,
+      postId,
+      lastActivityFor(postId),
+    );
+  });
+
+  // Once nothing is unread, collapse the per-post entries into the floor so
+  // `seen` stays proportional to what is actually unread rather than growing
+  // with the age of the channel.
+  //
+  // Guarded on the messages actually being loaded: `unreadInfo` is empty while
+  // the fetch is in flight, and advancing the floor on that emptiness would
+  // wipe every marker on entry - the exact failure this whole store replaced.
+  createEffect(() => {
+    if (loading() || !messages().length) return;
+    const newest = props.channel.lastMessageId;
+    if (!newest) return;
+    if (!isChannelFullyRead(unreadInfo())) return;
+    state.forumReads.markChannelRead(props.channel.id, newest);
+  });
 
   // Tags available to filter by: the channel's defined keywords, falling
   // back to whatever tags actually appear on posts (covers channels whose
