@@ -7,3 +7,4 @@ export {
   resumePendingInvite,
 } from "./lib/resumePendingInvite";
 export { insecureUniqueId } from "./lib/unique";
+export { prepareImageUpload } from "./lib/prepareImageUpload";

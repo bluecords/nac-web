@@ -3,7 +3,7 @@ import MdContentCopy from "@material-design-icons/svg/outlined/content_copy.svg?
 import MdDelete from "@material-design-icons/svg/outlined/delete.svg?component-solid";
 import MDPalette from "@material-design-icons/svg/outlined/palette.svg?component-solid";
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, prepareImageUpload } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import {
   Button,
@@ -79,7 +79,7 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
         try {
           changes.icon = await client().uploadFile(
             "icons",
-            editGroup.controls.icon.value[0],
+            await prepareImageUpload("icons", editGroup.controls.icon.value[0]),
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
         } catch (error) {

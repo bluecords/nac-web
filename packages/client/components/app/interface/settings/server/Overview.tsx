@@ -5,7 +5,7 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import type { API } from "stoat.js";
 
 import { useClient } from "@revolt/client";
-import { CONFIGURATION } from "@revolt/common";
+import { CONFIGURATION, prepareImageUpload } from "@revolt/common";
 import {
   CircularProgress,
   Column,
@@ -151,7 +151,7 @@ export default function ServerOverview(props: ServerSettingsProps) {
         try {
           changes.icon = await client().uploadFile(
             "icons",
-            editGroup.controls.icon.value[0],
+            await prepareImageUpload("icons", editGroup.controls.icon.value[0]),
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
         } catch (error) {
@@ -167,7 +167,10 @@ export default function ServerOverview(props: ServerSettingsProps) {
         try {
           changes.banner = await client().uploadFile(
             "banners",
-            editGroup.controls.banner.value[0],
+            await prepareImageUpload(
+              "banners",
+              editGroup.controls.banner.value[0],
+            ),
             CONFIGURATION.DEFAULT_MEDIA_URL,
           );
         } catch (error) {
