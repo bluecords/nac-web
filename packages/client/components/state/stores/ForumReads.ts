@@ -139,19 +139,35 @@ export class ForumReads extends AbstractStore<"forumReads", TypeForumReads> {
   /**
    * Note posts where the member has been mentioned, merging with what is
    * already known - the server hands these over once and then clears them.
+   *
+   * `activityId` is the id of the message that actually carries the mention
+   * (the post's own id for a mention in the post itself, the reply's id for
+   * a mention in a reply) - NOT the post's id, which can predate both the
+   * floor and anything already read in it while the mention itself is brand
+   * new. Comparing the mention's own recency, rather than gating on "has this
+   * post ever been opened" or "was this post created before the floor", is
+   * what lets a fresh mention re-flag a post the member already read, or an
+   * old post that only just received one.
    */
-  addMentions(channelId: string, postIds: string[]): void {
+  addMentions(
+    channelId: string,
+    mentions: { postId: string; activityId: string }[],
+  ): void {
     const record = this.record(channelId);
     if (!record) return;
 
     const merged = new Set(record.mentioned);
     let added = false;
-    for (const postId of postIds) {
-      if (merged.has(postId)) continue;
-      // A mention in a post already read past does not come back.
-      if (record.seen[postId] || postId.localeCompare(record.floor) <= 0) {
+    for (const { postId, activityId } of mentions) {
+      // The mention itself predates the floor - already acked away.
+      if (activityId.localeCompare(record.floor) <= 0) continue;
+      // The mention itself is not newer than what was already read in this
+      // post - it was seen along with everything else at the time.
+      const seenActivity = record.seen[postId];
+      if (seenActivity && activityId.localeCompare(seenActivity) <= 0) {
         continue;
       }
+      if (merged.has(postId)) continue;
       merged.add(postId);
       added = true;
     }

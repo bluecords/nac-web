@@ -265,21 +265,35 @@ export function ForumChannel(props: ChannelPageProps) {
       if (!mentions.length || !all.length) return;
 
       const ids = new Set(all.filter((m) => m.forumTitle).map((m) => m.id));
-      const posts = new Set<string>();
+      // Keep the mention message's OWN id per post, not just which posts got
+      // mentioned - that id is what tells ForumReads how fresh this specific
+      // mention is, since the post's id alone can be much older than it.
+      const posts = new Map<string, string>();
+      const noteMention = (postId: string, mentionId: string) => {
+        const existing = posts.get(postId);
+        if (!existing || mentionId.localeCompare(existing) > 0) {
+          posts.set(postId, mentionId);
+        }
+      };
 
       for (const mentionId of mentions) {
         const message = all.find((m) => m.id === mentionId);
         if (!message) continue;
         if (message.forumTitle) {
-          posts.add(message.id);
+          noteMention(message.id, mentionId);
           continue;
         }
         for (const replyId of message.replyIds ?? []) {
-          if (ids.has(replyId)) posts.add(replyId);
+          if (ids.has(replyId)) noteMention(replyId, mentionId);
         }
       }
 
-      if (posts.size) state.forumReads.addMentions(props.channel.id, [...posts]);
+      if (posts.size) {
+        state.forumReads.addMentions(
+          props.channel.id,
+          [...posts].map(([postId, activityId]) => ({ postId, activityId })),
+        );
+      }
       setPendingMentions([]);
     }),
   );
