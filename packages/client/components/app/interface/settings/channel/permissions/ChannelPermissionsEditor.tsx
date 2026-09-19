@@ -12,6 +12,8 @@ import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
 
+import { classFollowsChannel, roleChannelDefaults } from "./channelAccess";
+
 import {
   Button,
   Checkbox2,
@@ -116,9 +118,36 @@ export function ChannelPermissionsEditor(props: Props) {
   }
 
   /**
+   * What the editor opens with. A role being added to a channel for the first
+   * time starts from the permissions it already has (its own plus its class),
+   * so nothing has to be ticked in by hand. Roles whose class already follows
+   * this channel are left blank on purpose: they inherit from the class.
+   */
+  function startingValue() {
+    const [allow, deny] = currentValue();
+
+    if (props.type === "channel_role" && allow === 0n && deny === 0n) {
+      const channel = props.context as Channel;
+      const server = channel.server;
+      const role = server?.roles.get(props.roleId);
+
+      if (
+        server &&
+        role &&
+        !(role.class && classFollowsChannel(server, role.class, channel.id))
+      ) {
+        const start = roleChannelDefaults(server, role);
+        return [start.a, start.d];
+      }
+    }
+
+    return [allow, deny];
+  }
+
+  /**
    * Current edited values
    */
-  const [value, setValue] = createSignal(currentValue());
+  const [value, setValue] = createSignal(startingValue());
 
   if (needsFreshChannel) {
     onMount(() => {
@@ -127,7 +156,7 @@ export function ChannelPermissionsEditor(props: Props) {
         .api.get(`/channels/${channel.id as ""}`)
         .then((data) => {
           setFreshChannel(data);
-          setValue(currentValue());
+          setValue(startingValue());
         })
         .catch(() => setLoadFailed(true));
     });
