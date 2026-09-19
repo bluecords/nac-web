@@ -20,14 +20,44 @@ export function EditMessage(props: { message: Message }) {
   const client = useClient();
   const { openModal, isOpen, pop } = useModals();
 
-  const pendingFiles = () =>
-    state.draft.getDraft(props.message.channelId).files?.length ?? 0;
+  const pendingFileIds = () =>
+    state.draft.getDraft(props.message.channelId).files ?? [];
+  const pendingFiles = () => pendingFileIds().length;
 
   const initialValue = [state.draft.editingMessageContent || ""] as const;
 
   const change = useMutation(() => ({
-    mutationFn: (content: string) => props.message.edit({ content }),
-    onSuccess() {
+    mutationFn: async (data: { content?: string; fileIds: string[] }) => {
+      // attachments isn't in stoat-api's DataEditMessage type yet, but is sent
+      // over the wire and handled by the backend (same gap as forum_tags).
+      const edit: Parameters<Message["edit"]>[0] & { attachments?: string[] } =
+        {};
+      if (data.content) edit.content = data.content;
+      if (data.fileIds.length) {
+        edit.attachments = await state.draft.uploadFiles(
+          client(),
+          data.fileIds,
+        );
+      }
+
+      const before = props.message.attachments?.length ?? 0;
+      const result = await props.message.edit(edit);
+
+      // A server without attachment-edit support accepts the request and drops
+      // the files silently, so check they actually landed instead of trusting 200.
+      if (data.fileIds.length && (result.attachments?.length ?? 0) <= before) {
+        throw new Error(
+          "The server did not attach your files to this message.",
+        );
+      }
+
+      return result;
+    },
+    onSuccess(_result, data) {
+      for (const fileId of data.fileIds) {
+        state.draft.removeFile(props.message.channelId, fileId);
+      }
+
       state.draft.setEditingMessage(undefined);
     },
     onError(error) {
@@ -36,16 +66,27 @@ export function EditMessage(props: { message: Message }) {
   }));
 
   function saveMessage() {
-    const content = state.draft.editingMessageContent;
+    // A second Enter during a slow upload would attach the files twice.
+    if (change.isPending) return;
 
-    if (content?.length) {
+    const content = state.draft.editingMessageContent;
+    const fileIds = [...pendingFileIds()];
+
+    // Emptying the text is a delete request, as it always was. The one
+    // exception is a message with no text of its own (files only): adding
+    // files to it is a save, not a delete.
+    const canSaveWithoutText = fileIds.length > 0 && !props.message.content;
+    if (content?.length || canSaveWithoutText) {
       state.draft._setNodeReplacement?.(["_focus"]); // focus message box
-      if (content === props.message.content) {
+
+      const textChanged =
+        !!content?.length && content !== props.message.content;
+      if (!textChanged && !fileIds.length) {
         state.draft.setEditingMessage(undefined);
         return;
       }
 
-      change.mutate(content);
+      change.mutate({ content: textChanged ? content : undefined, fileIds });
     } else if (isOpen("delete_message")) {
       void props.message.delete();
       pop();
@@ -94,7 +135,7 @@ export function EditMessage(props: { message: Message }) {
 
       <Show when={pendingFiles() > 0}>
         <Text size="small">
-          {t`Files can't be added to a message that's already sent. They'll post as a new message.`}
+          {t`Attached files will be added to this message when you save.`}
         </Text>
       </Show>
     </>

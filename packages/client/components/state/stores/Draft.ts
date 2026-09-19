@@ -309,6 +309,71 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
   }
 
   /**
+   * Upload cached files to Autumn, skipping any already uploaded
+   * @param client Client
+   * @param fileIds IDs of cached files to upload
+   * @returns Autumn attachment IDs, in the same order as `fileIds`
+   */
+  async uploadFiles(client: Client, fileIds: string[]) {
+    const attachments: string[] = [];
+
+    // TODO: keep track of % upload progress
+    // we could visually show this in chat like
+    // on Discord mobile and allow individual
+    // files to be cancelled
+    for (const fileId of fileIds) {
+      // Prepare for upload
+      const body = new FormData();
+      const { file, autumnId, uploadProgress } = this.getFile(fileId);
+
+      // Use ID if already uploaded
+      if (autumnId) {
+        attachments.push(autumnId);
+        continue;
+      }
+
+      body.set("file", file);
+
+      // We have to use XMLHttpRequest because modern fetch duplex streams require QUIC or HTTP/2
+      const xhr = new XMLHttpRequest();
+
+      const [success, response] = await new Promise<[boolean, { id: string }]>(
+        (resolve) => {
+          xhr.upload.addEventListener("progress", (event) => {
+            if (event.lengthComputable) {
+              uploadProgress[1](event.loaded / event.total);
+            }
+          });
+
+          xhr.addEventListener("loadend", () => {
+            uploadProgress[1](1);
+            resolve([xhr.readyState === 4 && xhr.status === 200, xhr.response]);
+          });
+
+          xhr.open(
+            "POST",
+            `${client.configuration!.features.autumn.url}/attachments`,
+            true,
+          );
+
+          const [authHeader, authHeaderValue] = client.authenticationHeader;
+          xhr.setRequestHeader(authHeader, authHeaderValue);
+          xhr.responseType = "json";
+
+          xhr.send(body);
+        },
+      );
+
+      if (!success) throw "Upload Error";
+
+      attachments.push(response.id);
+      this.fileCache[fileId].autumnId = response.id;
+    }
+
+    return attachments;
+  }
+
+  /**
    * Get the draft for a channel and send it
    * @param client Client
    * @param channel Channel
@@ -344,58 +409,7 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
 
     // Add any files if attached
     if (files?.length) {
-      // TODO: keep track of % upload progress
-      // we could visually show this in chat like
-      // on Discord mobile and allow individual
-      // files to be cancelled
-      for (const fileId of files) {
-        // Prepare for upload
-        const body = new FormData();
-        const { file, autumnId, uploadProgress } = this.getFile(fileId);
-
-        // Use ID if already uploaded
-        if (autumnId) {
-          attachments.push(autumnId);
-          continue;
-        }
-
-        body.set("file", file);
-
-        // We have to use XMLHttpRequest because modern fetch duplex streams require QUIC or HTTP/2
-        const xhr = new XMLHttpRequest();
-
-        const [success, response] = await new Promise<
-          [boolean, { id: string }]
-        >((resolve) => {
-          xhr.upload.addEventListener("progress", (event) => {
-            if (event.lengthComputable) {
-              uploadProgress[1](event.loaded / event.total);
-            }
-          });
-
-          xhr.addEventListener("loadend", () => {
-            uploadProgress[1](1);
-            resolve([xhr.readyState === 4 && xhr.status === 200, xhr.response]);
-          });
-
-          xhr.open(
-            "POST",
-            `${client.configuration!.features.autumn.url}/attachments`,
-            true,
-          );
-
-          const [authHeader, authHeaderValue] = client.authenticationHeader;
-          xhr.setRequestHeader(authHeader, authHeaderValue);
-          xhr.responseType = "json";
-
-          xhr.send(body);
-        });
-
-        if (!success) throw "Upload Error";
-
-        attachments.push(response.id);
-        this.fileCache[fileId].autumnId = response.id;
-      }
+      attachments.push(...(await this.uploadFiles(client, files)));
     }
 
     // TODO: fix bug with backend
