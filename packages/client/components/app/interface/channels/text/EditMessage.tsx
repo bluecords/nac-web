@@ -1,5 +1,6 @@
-import { Match, Switch } from "solid-js";
+import { Match, Show, Switch } from "solid-js";
 
+import { useLingui } from "@lingui-solid/solid/macro";
 import { useMutation } from "@tanstack/solid-query";
 import { Message } from "stoat.js";
 import { css } from "styled-system/css";
@@ -14,9 +15,13 @@ import { TextEditor2 } from "@revolt/ui/components/features/texteditor/TextEdito
 import { useSearchSpace } from "@revolt/ui/components/utils/autoComplete";
 
 export function EditMessage(props: { message: Message }) {
+  const { t } = useLingui();
   const state = useState();
   const client = useClient();
   const { openModal, isOpen, pop } = useModals();
+
+  const pendingFiles = () =>
+    state.draft.getDraft(props.message.channelId).files?.length ?? 0;
 
   const initialValue = [state.draft.editingMessageContent || ""] as const;
 
@@ -36,6 +41,7 @@ export function EditMessage(props: { message: Message }) {
     if (content?.length) {
       state.draft._setNodeReplacement?.(["_focus"]); // focus message box
       if (content === props.message.content) {
+        state.draft.setEditingMessage(undefined);
         return;
       }
 
@@ -85,6 +91,12 @@ export function EditMessage(props: { message: Message }) {
           <Text size="small">Saving message...</Text>
         </Match>
       </Switch>
+
+      <Show when={pendingFiles() > 0}>
+        <Text size="small">
+          {t`Files can't be added to a message that's already sent. They'll post as a new message.`}
+        </Text>
+      </Show>
     </>
   );
 }
