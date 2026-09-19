@@ -21,9 +21,9 @@ import { ChannelPermissionsEditor } from "./channel/permissions/ChannelPermissio
 import Overview from "./server/Overview";
 import { ListServerBans } from "./server/bans/ListBans";
 import { EmojiList } from "./server/emojis/EmojiList";
+import { ListServerInvites } from "./server/invites/ListServerInvites";
 import { DiscordClaims } from "./server/members/DiscordClaims";
 import { MemberList } from "./server/members/MemberList";
-import { ListServerInvites } from "./server/invites/ListServerInvites";
 import { RoleClassesEditor } from "./server/roles/RoleClassesEditor";
 import { ServerRoleEditor } from "./server/roles/ServerRoleEditor";
 import { ServerRoleOverview } from "./server/roles/ServerRoleOverview";
@@ -129,6 +129,7 @@ const Config: SettingsConfiguration<Server> = {
         {
           hidden:
             !server.havePermission("ManageServer") &&
+            !server.havePermission("VerifyMembers") &&
             !server.havePermission("BanMembers"),
           title: <Trans>User Management</Trans>,
           entries: [
@@ -138,7 +139,9 @@ const Config: SettingsConfiguration<Server> = {
               // see the membership at all. The member sidebar is per-channel by
               // design and most NAC channels deny view by default, which is why
               // the owner's own account showed three people.
-              hidden: !server.havePermission("ManageServer"),
+              hidden:
+                !server.havePermission("ManageServer") &&
+                !server.havePermission("VerifyMembers"),
               id: "members",
               icon: <BiSolidGroup size={20} />,
               title: <Trans>Members</Trans>,
@@ -147,8 +150,11 @@ const Config: SettingsConfiguration<Server> = {
               // The queue of "this Discord account was mine" claims. Confirming
               // one hands that member six years of their own posts, their
               // reactions and their Discord role, so it is a human decision
-              // behind ManageServer - not something the claim does by itself.
-              hidden: !server.havePermission("ManageServer"),
+              // behind ManageServer or VerifyMembers - not something the claim
+              // does by itself.
+              hidden:
+                !server.havePermission("ManageServer") &&
+                !server.havePermission("VerifyMembers"),
               id: "discord_claims",
               icon: <BiSolidGroup size={20} />,
               title: <Trans>Discord identities</Trans>,

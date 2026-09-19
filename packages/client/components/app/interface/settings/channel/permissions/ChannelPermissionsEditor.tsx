@@ -360,6 +360,14 @@ export function ChannelPermissionsEditor(props: Props) {
       },
     },
     {
+      key: "VerifyMembers",
+      value: 2n ** 41n,
+      title: t`Verify Members`,
+      description: {
+        Server: t`Confirm members' Discord identities and see how members joined`,
+      },
+    },
+    {
       heading: t`Channels`,
       key: "ViewChannel",
       value: 2n ** 20n,
