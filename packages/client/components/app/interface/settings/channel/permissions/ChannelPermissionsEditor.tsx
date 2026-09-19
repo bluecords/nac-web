@@ -27,7 +27,11 @@ type Props =
   | { type: "channel_default"; context: Channel }
   | { type: "channel_role"; context: Channel; roleId: string }
   | { type: "group"; context: Channel }
-  | { type: "class_default"; context: Server; roleClass: "admin" | "member" | "free" };
+  | {
+      type: "class_default";
+      context: Server;
+      roleClass: "admin" | "member" | "free";
+    };
 
 // TODO: drop the "ForumChannel" widening once stoat-api is
 // regenerated/republished with ForumChannel on the Channel schema
@@ -126,6 +130,59 @@ export function ChannelPermissionsEditor(props: Props) {
           setValue(currentValue());
         })
         .catch(() => setLoadFailed(true));
+    });
+  }
+
+  /**
+   * For a server role that belongs to a class, the class it inherits from.
+   * Bits the role hasn't explicitly allowed or denied follow the class, so
+   * the toggles below show that inherited state instead of an empty box.
+   */
+  const roleClass = () =>
+    props.type === "server_role"
+      ? (props.context.roles?.get(props.roleId)?.class ?? undefined)
+      : undefined;
+
+  const classDefault = () => {
+    const cls = roleClass();
+    return cls === "admin" || cls === "member" || cls === "free"
+      ? (props.context as Server).getClassDefault(cls).permissions
+      : undefined;
+  };
+
+  function serverRoleBitOn(bit: bigint) {
+    const [a, d] = value();
+    const cd = classDefault();
+    if (!cd) return (a & bit) === bit;
+
+    const touched = a | d;
+    const effectiveAllow = (cd.a & ~touched) | a;
+    const effectiveDeny = (cd.d & ~touched) | d;
+    return (effectiveAllow & bit) === bit && (effectiveDeny & bit) !== bit;
+  }
+
+  function serverRoleBitInherited(bit: bigint) {
+    const cd = classDefault();
+    if (!cd) return false;
+
+    const [a, d] = value();
+    return ((a | d) & bit) !== bit && (cd.a & bit) === bit;
+  }
+
+  function toggleServerRoleBit(bit: bigint) {
+    const cd = classDefault();
+    if (!cd) {
+      setValue((v) => [v[0] ^ bit, v[1]]);
+      return;
+    }
+
+    const classGrants = (cd.a & bit) === bit && (cd.d & bit) !== bit;
+    const turnOff = serverRoleBitOn(bit);
+    setValue(([a, d]) => {
+      if (turnOff) return [a & ~bit, classGrants ? d | bit : d & ~bit];
+      // Back to inheriting when the class already grants it, so the role keeps
+      // following the class instead of pinning its own copy.
+      return classGrants ? [a & ~bit, d & ~bit] : [a | bit, d & ~bit];
     });
   }
 
@@ -547,11 +604,15 @@ export function ChannelPermissionsEditor(props: Props) {
                   <ChannelPermissionToggle
                     key={entry.key}
                     title={entry.title}
-                    description={description(entry) as string}
-                    value={(value()[0] & entry.value) == entry.value}
-                    onChange={() =>
-                      setValue((v) => [v[0] ^ BigInt(entry.value), v[1]])
+                    description={
+                      (description(entry) as string) +
+                      (serverRoleBitInherited(entry.value) &&
+                      serverRoleBitOn(entry.value)
+                        ? ` (from ${roleClass()} class)`
+                        : "")
                     }
+                    value={serverRoleBitOn(entry.value)}
+                    onChange={() => toggleServerRoleBit(entry.value)}
                     havePermission={
                       (props.context.permission & entry.value) === entry.value
                     }
