@@ -149,11 +149,8 @@ export function EmojiPicker() {
         variant="filled"
         placeholder="Search for emojis..."
         value={filter()}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }}
+        // No onMouseDown preventDefault here: it stops a tap from focusing the
+        // field, so on a phone (no autofocus) the keyboard could never open.
         onInput={(e) => setFilter(e.currentTarget.value)}
       />
       <Row class={compositionContent()}>
