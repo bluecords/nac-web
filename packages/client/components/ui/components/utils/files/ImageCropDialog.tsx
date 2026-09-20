@@ -195,6 +195,17 @@ export function ImageCropDialog(props: Props) {
       : { display: "none" };
   };
 
+  // On a phone the dialog becomes a full-screen sheet with an edge-to-edge
+  // photo, so the crop area is as big as the screen allows. Chosen in JS
+  // because Panda does not extract raw @media keys (see MessageToolbar.tsx).
+  const query = window.matchMedia("(max-width: 600px)");
+  const [sheet, setSheet] = createSignal(query.matches);
+  onMount(() => {
+    const onChange = () => setSheet(query.matches);
+    query.addEventListener("change", onChange);
+    onCleanup(() => query.removeEventListener("change", onChange));
+  });
+
   const circle = createMemo(() => props.rounded && props.aspect === 1);
 
   async function confirm() {
@@ -257,7 +268,10 @@ export function ImageCropDialog(props: Props) {
     <Portal mount={document.getElementById("floating")!}>
       <Dialog.Scrim
         padding={false}
-        style={{ padding: "16px", "--background": "rgba(0, 0, 0, 0.6)" }}
+        style={{
+          padding: sheet() ? "0" : "16px",
+          "--background": "rgba(0, 0, 0, 0.6)",
+        }}
         onPointerDown={(e) => {
           pressStartedOnScrim = e.target === e.currentTarget;
         }}
@@ -268,6 +282,7 @@ export function ImageCropDialog(props: Props) {
         }}
       >
         <Container
+          sheet={sheet()}
           ref={container}
           tabIndex={-1}
           role="dialog"
@@ -283,6 +298,7 @@ export function ImageCropDialog(props: Props) {
           </Hint>
 
           <Frame
+            bleed={sheet()}
             ref={frame}
             tabIndex={0}
             role="group"
@@ -290,7 +306,7 @@ export function ImageCropDialog(props: Props) {
             style={{
               "aspect-ratio": `${props.aspect}`,
               // the floor keeps it usable where vh resolves to 0 (some Android WebViews)
-              width: `max(200px, min(100%, ${60 * props.aspect}vh))`,
+              width: `max(200px, min(${sheet() ? "calc(100% + 32px)" : "100%"}, ${60 * props.aspect}vh))`,
             }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -350,7 +366,7 @@ export function ImageCropDialog(props: Props) {
             </Previews>
           </Show>
 
-          <Actions>
+          <Actions sheet={sheet()}>
             <Button variant="text" size="sm" onPress={props.onCancel}>
               <Trans>Cancel</Trans>
             </Button>
@@ -383,6 +399,19 @@ const Container = styled("div", {
     background: "var(--md-sys-color-surface-container-high)",
     outline: "none",
   },
+  variants: {
+    sheet: {
+      true: {
+        width: "100%",
+        height: "100%",
+        borderRadius: "0",
+        overflowY: "auto",
+        padding: "16px",
+        paddingTop: "max(16px, env(safe-area-inset-top))",
+        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+      },
+    },
+  },
 });
 
 const Title = styled("span", {
@@ -404,7 +433,9 @@ const Frame = styled("div", {
     position: "relative",
     overflow: "hidden",
     width: "100%",
-    margin: "0 auto",
+    alignSelf: "center",
+    // stops the column squashing the photo when the screen is short
+    flexShrink: 0,
 
     borderRadius: "12px",
     background: "var(--md-sys-color-surface-dim)",
@@ -429,6 +460,13 @@ const Frame = styled("div", {
       width: "100%",
       height: "100%",
       pointerEvents: "none",
+    },
+  },
+  variants: {
+    bleed: {
+      true: {
+        borderRadius: "0",
+      },
     },
   },
 });
@@ -461,5 +499,12 @@ const Actions = styled("div", {
     display: "flex",
     justifyContent: "end",
     marginBlockStart: "12px",
+  },
+  variants: {
+    sheet: {
+      true: {
+        marginBlockStart: "auto",
+      },
+    },
   },
 });
