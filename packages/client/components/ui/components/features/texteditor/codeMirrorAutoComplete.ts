@@ -6,6 +6,8 @@ import {
 import { EditorView, keymap } from "@codemirror/view";
 import { Accessor } from "solid-js";
 
+import { fallBackToStaticEmoji } from "@revolt/markdown/emoji/animatedFallback";
+
 import { scrollableStyles } from "../../../directives/scrollable";
 import { AutoCompleteSearchSpace } from "../../utils/autoComplete";
 import { codeMirrorAutoCompleteSource } from "./codeMirrorAutoCompleteSource";
@@ -126,6 +128,7 @@ export function codeMirrorAutoComplete(
             const img = document.createElement("img");
             img.classList.add("cm-emoji-preview");
             img.loading = "lazy";
+            fallBackToStaticEmoji(img);
             img.src = (completion as never as { url: string }).url || blankSvg;
             return img;
           } else if (completion.type == "user") {

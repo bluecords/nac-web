@@ -1,6 +1,7 @@
 import { CodeBlockNodeName } from "prosemirror-codemirror-block";
 import { MarkSpec, Schema } from "prosemirror-model";
 
+import { fallBackToStaticEmoji } from "../emoji/animatedFallback";
 import { mention } from "../plugins/mentions";
 
 /// Document schema for the data model used by CommonMark.
@@ -230,16 +231,16 @@ export const schema = new Schema({
         },
       ],
       toDOM(node) {
-        return [
-          "img",
-          {
-            unicode: node.attrs.id,
-            pack: node.attrs.pack,
-            src: node.attrs.src,
-            style:
-              "width: var(--emoji-size); height: var(--emoji-size); display: inline; object-fit: contain",
-          },
-        ];
+        const img = document.createElement("img");
+        img.setAttribute("unicode", node.attrs.id);
+        if (node.attrs.pack) img.setAttribute("pack", node.attrs.pack);
+        img.setAttribute(
+          "style",
+          "width: var(--emoji-size); height: var(--emoji-size); display: inline; object-fit: contain",
+        );
+        fallBackToStaticEmoji(img);
+        img.src = node.attrs.src;
+        return img;
       },
     },
 

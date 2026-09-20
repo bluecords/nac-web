@@ -14,6 +14,7 @@ import {
   RE_UNICODE_EMOJI,
   unicodeEmojiUrl,
 } from "@revolt/markdown/emoji/UnicodeEmoji";
+import { fallBackToStaticEmoji } from "@revolt/markdown/emoji/animatedFallback";
 import { userInformation } from "@revolt/markdown/users";
 import { useSmartParams } from "@revolt/routing";
 
@@ -166,6 +167,7 @@ class EmojiWidget extends WidgetType {
     const inner = document.createElement("span");
     const img = document.createElement("img");
     outer.classList.add("cm-emoji-widget");
+    fallBackToStaticEmoji(img);
     img.src = this.url;
     inner.appendChild(img);
     outer.appendChild(inner);
