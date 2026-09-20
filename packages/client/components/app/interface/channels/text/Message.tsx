@@ -160,15 +160,16 @@ export function Message(props: Props) {
           />
         </div>
       }
-      contextMenu={() => (
-        // On a phone the long-press menu leaves out the moderation actions
-        // (pin, remove reactions, move, delete others'); the three-dot menu
-        // has them all.
-        <MessageContextMenu
-          message={props.message}
-          moderation={isFinePointer()}
-        />
-      )}
+      // No long-press menu on a phone: it was too easy to trigger by accident,
+      // everything in it is in the toolbar that appears when the message is
+      // tapped (reply, react, edit, delete) or in its three-dot menu, and
+      // without it a long-press selects text the normal way. Right-click on
+      // desktop is unchanged.
+      contextMenu={
+        isFinePointer()
+          ? () => <MessageContextMenu message={props.message} />
+          : undefined
+      }
       timestamp={props.message.createdAt}
       edited={props.message.editedAt}
       mentioned={props.message.mentioned}
