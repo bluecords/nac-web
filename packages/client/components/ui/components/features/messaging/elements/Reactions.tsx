@@ -281,6 +281,12 @@ const AddReaction = styled(ReactionBase, {
     height: "33px",
     aspectRatio: "1/1",
     padding: "var(--gap-sm)",
+
+    // The plus icon has no fill of its own, so it drew black: nearly
+    // invisible on the dark button. Follow the text colour instead.
+    "& svg": {
+      fill: "currentColor",
+    },
   },
 });
 
