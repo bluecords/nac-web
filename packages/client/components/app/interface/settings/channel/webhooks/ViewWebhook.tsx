@@ -94,6 +94,7 @@ export function ViewWebhook(props: { webhook: ChannelWebhook }) {
           <Form2.FileInput
             control={editGroup.controls.avatar}
             accept="image/*"
+            crop
             label={t`Webhook Icon`}
             imageJustify={false}
           />

@@ -152,7 +152,12 @@ const FormFileInput = (
     hideErrors?: boolean;
   } & Pick<
     ComponentProps<typeof FileInput>,
-    "accept" | "imageAspect" | "imageRounded" | "imageJustify" | "allowRemoval"
+    | "accept"
+    | "imageAspect"
+    | "imageRounded"
+    | "imageJustify"
+    | "allowRemoval"
+    | "crop"
   >,
 ) => {
   const [local, remote] = splitProps(props, [

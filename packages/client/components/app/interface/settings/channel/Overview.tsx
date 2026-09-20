@@ -133,7 +133,11 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
           <Text class="label">
             <Trans>Channel Info</Trans>
           </Text>
-          <Form2.FileInput control={editGroup.controls.icon} accept="image/*" />
+          <Form2.FileInput
+            control={editGroup.controls.icon}
+            accept="image/*"
+            crop
+          />
           <Form2.TextField
             minlength={1}
             maxlength={32}

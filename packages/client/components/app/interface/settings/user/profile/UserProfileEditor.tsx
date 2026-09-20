@@ -178,12 +178,14 @@ export function UserProfileEditor(props: Props) {
         <Form2.FileInput
           control={editGroup.controls.avatar}
           accept="image/*"
+          crop
           label={t`Avatar`}
           imageJustify={false}
         />
         <Form2.FileInput
           control={editGroup.controls.banner}
           accept="image/*"
+          crop
           label={t`Banner`}
           imageAspect="232/100"
           imageRounded={false}
