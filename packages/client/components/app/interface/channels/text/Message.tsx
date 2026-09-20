@@ -24,6 +24,8 @@ import {
 } from "@revolt/ui";
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 
+import { isFinePointer } from "@revolt/ui/components/features/messaging/composition/picker/pointer";
+
 import { MessageContextMenu } from "../../../menus/MessageContextMenu";
 import {
   floatingUserMenus,
@@ -102,7 +104,9 @@ export function Message(props: Props) {
       embed.type === "Image" ||
       (embed.type === "Website" &&
         ((embed as WebsiteEmbed).specialContent?.type === "GIF" ||
-          (embed as WebsiteEmbed).originalUrl?.startsWith("https://tenor.com")));
+          (embed as WebsiteEmbed).originalUrl?.startsWith(
+            "https://tenor.com",
+          )));
 
     return (
       !!isMedia &&
@@ -156,7 +160,15 @@ export function Message(props: Props) {
           />
         </div>
       }
-      contextMenu={() => <MessageContextMenu message={props.message} />}
+      contextMenu={() => (
+        // On a phone the long-press menu leaves out the moderation actions
+        // (pin, remove reactions, move, delete others'); the three-dot menu
+        // has them all.
+        <MessageContextMenu
+          message={props.message}
+          moderation={isFinePointer()}
+        />
+      )}
       timestamp={props.message.createdAt}
       edited={props.message.editedAt}
       mentioned={props.message.mentioned}

@@ -14,6 +14,7 @@ import MdAdd from "@material-design-icons/svg/outlined/add.svg?component-solid";
 
 import { startsWithPackPUA } from "@revolt/markdown/emoji/UnicodeEmoji";
 import { CompositionMediaPicker } from "../composition";
+import { isFinePointer } from "../composition/picker/pointer";
 
 interface Props {
   /**
@@ -135,7 +136,12 @@ export function Reactions(props: Props) {
         >
           {(triggerProps) => (
             <div ref={triggerProps.ref} onClick={triggerProps.onClickEmoji}>
-              <AddReaction class="add">
+              <AddReaction
+                class="add"
+                // Hidden until the row is hovered, but a finger cannot hover,
+                // so on touch it is always shown.
+                style={{ opacity: isFinePointer() ? undefined : 1 }}
+              >
                 <Ripple />
                 <MdAdd />
               </AddReaction>

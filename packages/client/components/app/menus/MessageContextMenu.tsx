@@ -22,8 +22,8 @@ import MdReply from "@material-design-icons/svg/outlined/reply.svg?component-sol
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
 import MdShare from "@material-design-icons/svg/outlined/share.svg?component-solid";
 
-import MdSentimentContent from "@material-symbols/svg-400/outlined/sentiment_content.svg?component-solid";
 import MdDriveFileMove from "@material-symbols/svg-400/outlined/drive_file_move.svg?component-solid";
+import MdSentimentContent from "@material-symbols/svg-400/outlined/sentiment_content.svg?component-solid";
 
 import {
   ContextMenu,
@@ -34,12 +34,26 @@ import {
 
 /**
  * Context menu for messages
+ *
+ * `moderation` (default on) controls the actions that need Manage Messages:
+ * pin, remove reactions, move to channel, and deleting other people's
+ * messages. A phone long-press passes false: it is too easy to hit one of
+ * these by accident there, and the three-dot menu (which keeps the default)
+ * has all of them.
  */
-export function MessageContextMenu(props: { message?: Message; file?: File }) {
+export function MessageContextMenu(props: {
+  message?: Message;
+  file?: File;
+  moderation?: boolean;
+}) {
   const user = useUser();
   const state = useState();
   const client = useClient();
   const { openModal, showError } = useModals();
+
+  const canModerate = () =>
+    (props.moderation ?? true) &&
+    !!props.message?.channel?.havePermission("ManageMessages");
 
   /**
    * Reply to this message
@@ -178,8 +192,7 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
         </Show>
         <Show
           when={
-            props.message!.channel?.type === "DirectMessage" ||
-            props.message!.channel?.havePermission("ManageMessages")
+            props.message!.channel?.type === "DirectMessage" || canModerate()
           }
         >
           <ContextMenuButton
@@ -199,12 +212,7 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
             </Switch>
           </ContextMenuButton>
         </Show>
-        <Show
-          when={
-            props.message!.reactions.size &&
-            props.message!.channel?.havePermission("ManageMessages")
-          }
-        >
+        <Show when={props.message!.reactions.size && canModerate()}>
           <ContextMenuSubMenu
             icon={MdDeleteSweep}
             onClick={() => props.message!.clearReactions()}
@@ -226,12 +234,7 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
             </For>
           </ContextMenuSubMenu>
         </Show>
-        <Show
-          when={
-            props.message!.reactions.size &&
-            props.message!.channel?.havePermission("ManageMessages")
-          }
-        >
+        <Show when={props.message!.reactions.size && canModerate()}>
           <ContextMenuButton
             symbol={MdSentimentContent}
             onClick={() => props.message!.clearReactions()}
@@ -240,22 +243,12 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
             <Trans>Remove all reactions</Trans>
           </ContextMenuButton>
         </Show>
-        <Show
-          when={
-            props.message!.server &&
-            props.message!.channel?.havePermission("ManageMessages")
-          }
-        >
+        <Show when={props.message!.server && canModerate()}>
           <ContextMenuButton symbol={MdDriveFileMove} onClick={moveMessage}>
             <Trans>Move to channel</Trans>
           </ContextMenuButton>
         </Show>
-        <Show
-          when={
-            props.message!.author?.self ||
-            props.message!.channel?.havePermission("ManageMessages")
-          }
-        >
+        <Show when={props.message!.author?.self || canModerate()}>
           <ContextMenuButton
             icon={MdDelete}
             onClick={deleteMessage}
