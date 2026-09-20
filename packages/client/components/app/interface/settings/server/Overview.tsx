@@ -241,12 +241,14 @@ export default function ServerOverview(props: ServerSettingsProps) {
           <Form2.FileInput
             control={editGroup.controls.icon}
             accept="image/*"
+            crop
             label={t`Server Icon`}
             imageJustify={false}
           />
           <Form2.FileInput
             control={editGroup.controls.banner}
             accept="image/*"
+            crop
             label={t`Server Banner`}
             imageAspect="232/100"
             imageRounded={false}

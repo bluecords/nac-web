@@ -105,6 +105,7 @@ export function ServerIdentityModal(
           <Form2.FileInput
             control={group.controls.avatar}
             accept="image/*"
+            crop
             label={t`Server Avatar`}
             imageJustify={false}
           />

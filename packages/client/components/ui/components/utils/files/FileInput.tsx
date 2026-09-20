@@ -1,4 +1,4 @@
-import { Match, Show, Switch, splitProps } from "solid-js";
+import { Match, Show, Switch, createSignal, splitProps } from "solid-js";
 
 import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
@@ -8,6 +8,9 @@ import { ALLOWED_IMAGE_TYPES } from "@revolt/state";
 import { Button, Ripple } from "../../design";
 import { Row } from "../../layout";
 import { Symbol } from "../Symbol";
+
+import { ImageCropDialog } from "./ImageCropDialog";
+import { parseAspect } from "./cropMath";
 
 interface Props {
   /**
@@ -41,8 +44,40 @@ interface Props {
   imageJustify?: boolean;
   allowRemoval?: boolean;
 
+  /**
+   * Let the member choose which part of a picked photo to keep, cropped to
+   * `imageAspect` (square by default). Animated GIFs skip this because
+   * redrawing one would freeze it.
+   */
+  crop?: boolean;
+
   required: boolean;
   disabled: boolean;
+}
+
+/**
+ * Whether an image is animated, in which case cropping it (which redraws a
+ * single frame) would freeze it. GIFs always are; PNG and WebP only sometimes.
+ */
+async function isAnimated(file: File): Promise<boolean> {
+  if (file.type === "image/gif") return true;
+
+  try {
+    const head = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+    const text = (from: number, to: number) =>
+      String.fromCharCode(...head.subarray(from, to));
+
+    if (file.type === "image/webp") {
+      // extended-format header; bit 1 of its flags byte is "has animation"
+      return text(12, 16) === "VP8X" && (head[20] & 0x02) !== 0;
+    }
+    if (file.type === "image/png") {
+      return text(0, head.length).includes("acTL");
+    }
+  } catch {
+    // unreadable here means unreadable in the dialog too, which falls back
+  }
+  return false;
 }
 
 /**
@@ -54,14 +89,35 @@ export function FileInput(props: Props) {
     "onFiles",
     "multiple",
     "accept",
+    "crop",
   ]);
   let inputRef: HTMLInputElement | undefined;
+
+  // A photo waiting in the crop dialog. The form is not touched until the
+  // member confirms, so cancelling leaves their current picture alone.
+  const [cropping, setCropping] = createSignal<File>();
 
   /**
    * Handle file selection
    */
-  function onChange(e: Event & { currentTarget: HTMLInputElement }) {
-    if (e.currentTarget.files) {
+  async function onChange(e: Event & { currentTarget: HTMLInputElement }) {
+    // currentTarget is cleared once an event handler yields (the crop check awaits)
+    const input = e.currentTarget;
+
+    if (input.files) {
+      const picked = [...input.files];
+
+      if (
+        local.crop &&
+        local.accept === "image/*" &&
+        picked.length === 1 &&
+        ALLOWED_IMAGE_TYPES.includes(picked[0].type) &&
+        !(await isAnimated(picked[0]))
+      ) {
+        setCropping(picked[0]);
+        return;
+      }
+
       // NB. need to help out with the reactivity by
       //     first removing the array, and then setting
       //     the new one; otherwise no update! ¯\_(ツ)_/¯
@@ -69,17 +125,31 @@ export function FileInput(props: Props) {
 
       // If accept is an image, check all the files submitted if they match our accept values
       if (local.accept === "image/*") {
-        for (const file of e.currentTarget.files) {
+        for (const file of input.files) {
           if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
             // If they were stubborn enough to disable our filter for files then just ignore the file.
             // No need for feedback, they know what they did.
             local.onFiles(null);
-            e.currentTarget.files = null;
+            input.files = null;
             return;
           }
         }
       }
-      local.onFiles([...e.currentTarget.files]);
+      local.onFiles([...input.files]);
+    }
+  }
+
+  /**
+   * Crop dialog finished, hand the result to the form
+   */
+  function onCropped(file: File | undefined) {
+    setCropping(undefined);
+    // let the same file be picked again later
+    inputRef!.value = "";
+
+    if (file) {
+      local.onFiles(null);
+      local.onFiles([file]);
     }
   }
 
@@ -156,6 +226,21 @@ export function FileInput(props: Props) {
             </Button>
           </Show>
         </Row>
+        <Show when={cropping()} keyed>
+          {(file) => (
+            <ImageCropDialog
+              file={file}
+              aspect={parseAspect(props.imageAspect)}
+              rounded={props.imageRounded ?? true}
+              onConfirm={onCropped}
+              onCancel={() => onCropped(undefined)}
+              // could not read the picture: behave as before, upload it as chosen
+              onError={() => {
+                onCropped(file);
+              }}
+            />
+          )}
+        </Show>
       </Match>
     </Switch>
   );

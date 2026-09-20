@@ -239,6 +239,7 @@ export function ServerRoleEditor(props: { context: Server; roleId: string }) {
           <Form2.FileInput
             control={editGroup.controls.icon}
             accept="image/*"
+            crop
             label={t`Role Icon`}
             imageJustify={false}
           />
