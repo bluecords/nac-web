@@ -69,7 +69,12 @@ export function UserCard(
           onClick={openFull}
         />
 
-        <Profile.Actions user={props.user} member={props.member} width={2} />
+        <Profile.Actions
+          user={props.user}
+          member={props.member}
+          width={2}
+          onClose={props.onClose}
+        />
         <Profile.Roles member={props.member} />
         <Profile.Badges user={props.user} />
         <Profile.Status user={props.user} />
