@@ -178,8 +178,10 @@ Dialog.Scrim = styled("div", {
 const Container = styled("div", {
   base: {
     padding: "24px",
-    minWidth: "280px",
-    maxWidth: "560px",
+    // Never wider than the screen: one long unbreakable line (an invite link)
+    // pushed dialogs past a phone's edge and took their buttons with them.
+    minWidth: "min(280px, calc(100vw - 32px))",
+    maxWidth: "min(560px, calc(100vw - 32px))",
     borderRadius: "28px",
 
     display: "flex",
