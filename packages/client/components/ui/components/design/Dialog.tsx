@@ -62,8 +62,10 @@ export function Dialog(props: Props) {
             >
               <Container
                 style={{
+                  // Capped at the screen like the default: ten dialogs pass
+                  // 420-560px, which is wider than a phone.
                   "min-width": props.minWidth
-                    ? `${props.minWidth}px`
+                    ? `min(${props.minWidth}px, calc(100vw - 32px))`
                     : undefined,
                   padding: props.padding ? `${props.padding}px` : undefined,
                 }}
