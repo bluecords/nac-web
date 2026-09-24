@@ -61,7 +61,7 @@ export function UserContextMenu(props: {
   const state = useState();
   const client = useClient();
   const navigate = useNavigate();
-  const { openModal, modals } = useModals();
+  const { openModal, modals, showError } = useModals();
 
   // server context
   const params = useSmartParams();
@@ -234,28 +234,28 @@ export function UserContextMenu(props: {
    * Add friend
    */
   function addFriend() {
-    props.user.addFriend();
+    props.user.addFriend().catch(showError);
   }
 
   /**
    * Remove friend
    */
   function removeFriend() {
-    props.user.removeFriend();
+    props.user.removeFriend().catch(showError);
   }
 
   /**
    * Block user
    */
   function blockUser() {
-    props.user.blockUser();
+    props.user.blockUser().catch(showError);
   }
 
   /**
    * Unblock user
    */
   function unblockUser() {
-    props.user.unblockUser();
+    props.user.unblockUser().catch(showError);
   }
 
   /**
