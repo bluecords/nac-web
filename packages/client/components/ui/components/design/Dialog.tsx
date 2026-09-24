@@ -152,7 +152,10 @@ Dialog.Scrim = styled("div", {
     },
     padding: {
       true: {
-        padding: "80px",
+        // 80px each side left a phone ~215px for a dialog capped at
+        // 100vw - 32px, so dialogs started 80px in and ran off the right.
+        // Scales with the screen: ~15px on a phone, 80px on a wide monitor.
+        padding: "min(80px, 4vw)",
       },
     },
     overflow: {
