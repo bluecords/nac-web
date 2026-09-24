@@ -19,7 +19,9 @@ const base = cva({
     background: "var(--md-sys-color-surface-container-high)",
     boxShadow: "0 0 3px var(--md-sys-color-shadow)",
 
-    width: "340px",
+    // Never wider than a phone screen less a small margin: at 340px the card
+    // ran off a 375px screen and its "..." button could not be reached.
+    width: "min(340px, calc(100vw - 16px))",
     height: "400px",
 
     borderRadius: "var(--borderRadius-xl)",

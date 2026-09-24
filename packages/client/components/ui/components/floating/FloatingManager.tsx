@@ -130,7 +130,9 @@ function Floating(props: FloatingElement & { mouseX: number; mouseY: number }) {
 
   const position = useFloating(element, floating, {
     placement: placement(),
-    middleware: [offset(5), flip(), shift()],
+    // crossAxis: for a "right-start" card or menu, shift() alone only moves
+    // it vertically, so on a phone it hung off the right edge of the screen.
+    middleware: [offset(5), flip(), shift({ crossAxis: true, padding: 8 })],
     whileElementsMounted:
       props.show()?.tooltip || props.show()?.autoComplete
         ? autoUpdate
