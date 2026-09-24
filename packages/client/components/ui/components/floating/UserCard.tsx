@@ -48,8 +48,16 @@ export function UserCard(
     <div
       use:invisibleScrollable={{ class: base() }}
       on:pointerdown={(e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        // Keep the card from dismissing when clicking inside it - but not at
+        // the cost of interactive elements (Add Friend, block, etc.). Those
+        // rely on this same pointerdown to drive their own press state
+        // (solid-aria's createButton), and stopping it here meant the click
+        // landed, looked normal, and did nothing - no request ever left the
+        // browser. Only intercept clicks that aren't on a button.
+        if (!(e.target as HTMLElement).closest("button")) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
       }}
     >
       <Grid>
