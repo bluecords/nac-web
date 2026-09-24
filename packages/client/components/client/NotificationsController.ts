@@ -73,6 +73,29 @@ export function useNotifications() {
       } else {
         await enablePushSubscription();
       }
+    } else {
+      await resyncPushSubscription();
+    }
+  };
+
+  /**
+   * Re-register an already-enabled push subscription with the server.
+   * pushd deletes a session's subscription when the push service reports it
+   * dead, and nothing else would ever send a replacement - the device goes
+   * silent while still showing push as enabled. Safe to call often.
+   */
+  const resyncPushSubscription = async () => {
+    if (
+      settings.pushNotificationsState !== "allowed" ||
+      (supportsNotification && Notification.permission !== "granted")
+    ) {
+      return;
+    }
+
+    try {
+      await setUpServiceWorkerSubscription(getClient(), true);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -123,10 +146,14 @@ export function useNotifications() {
     toggleNotificationPermission,
     togglePushPermission,
     initNotifications,
+    resyncPushSubscription,
   };
 }
 
-async function setUpServiceWorkerSubscription(client: Client) {
+async function setUpServiceWorkerSubscription(
+  client: Client,
+  rotateIfStale = false,
+) {
   if (IS_DEV) {
     console.log("Skipping push worker in dev.");
     return;
@@ -143,14 +170,33 @@ async function setUpServiceWorkerSubscription(client: Client) {
     throw "Failed to get service worker";
   }
 
-  const subscription =
-    (await registration.pushManager.getSubscription()) ||
-    (await registration.pushManager.subscribe({
+  let subscription = await registration.pushManager.getSubscription();
+  let rotated = false;
+
+  // The browser can keep handing back an endpoint the push service has
+  // already expired, so re-posting it would only get it pruned again.
+  // Swap it for a fresh one weekly. Never on Apple: Safari may refuse
+  // subscribe() away from a tap, which would leave the device with nothing.
+  if (
+    rotateIfStale &&
+    subscription &&
+    !subscription.endpoint.includes(".push.apple.com") &&
+    subscriptionIsStale()
+  ) {
+    await subscription.unsubscribe().catch(() => {});
+    subscription = null;
+    rotated = true;
+  }
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: client.configuration!.vapid,
-    }));
+    });
+    markSubscriptionFresh();
+  }
 
-  client.api.post("/push/subscribe", {
+  const body = {
     endpoint: subscription.endpoint,
     p256dh: arrayBufferToBase64URL(
       subscription.getKey("p256dh") || new ArrayBuffer(),
@@ -158,7 +204,39 @@ async function setUpServiceWorkerSubscription(client: Client) {
     auth: arrayBufferToBase64URL(
       subscription.getKey("auth") || new ArrayBuffer(),
     ),
-  });
+  };
+
+  // Not fatal: every later start and foreground re-posts it.
+  client.api.post("/push/subscribe", body).catch(console.error);
+
+  // pushd prunes by session, not endpoint: a late failure report for the
+  // endpoint we just dropped would delete the new one. Post it again after.
+  if (rotated) {
+    setTimeout(
+      () => client.api.post("/push/subscribe", body).catch(console.error),
+      60 * 1000,
+    );
+  }
+}
+
+const SUBSCRIPTION_CREATED_KEY = "nac:push-subscription-created";
+const SUBSCRIPTION_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
+function subscriptionIsStale(): boolean {
+  try {
+    const created = Number(localStorage.getItem(SUBSCRIPTION_CREATED_KEY));
+    return !created || Date.now() - created > SUBSCRIPTION_MAX_AGE;
+  } catch {
+    return false;
+  }
+}
+
+function markSubscriptionFresh() {
+  try {
+    localStorage.setItem(SUBSCRIPTION_CREATED_KEY, String(Date.now()));
+  } catch {
+    // Storage unavailable: the subscription still works, it just won't rotate.
+  }
 }
 
 function arrayBufferToBase64URL(buffer: ArrayBuffer): string {

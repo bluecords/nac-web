@@ -28,7 +28,7 @@ export function NotificationsWorker() {
   const params = useSmartParams();
   const sound = useSound();
 
-  const { initNotifications } = useNotifications();
+  const { initNotifications, resyncPushSubscription } = useNotifications();
 
   /**
    * Handle incoming messages
@@ -232,11 +232,28 @@ export function NotificationsWorker() {
     initNotifications();
   }
 
+  /**
+   * Re-register push when the app comes back to the foreground, so a
+   * subscription pushd pruned is replaced without waiting for a reload.
+   * Installed mobile apps can resume for days without one.
+   */
+  let lastResync = Date.now();
+  function onVisible() {
+    if (document.visibilityState !== "visible") return;
+    if (Date.now() - lastResync < 60 * 60 * 1000) return;
+    lastResync = Date.now();
+    resyncPushSubscription();
+  }
+
   onMount(() => {
     document.addEventListener("click", tryRequest);
+    document.addEventListener("visibilitychange", onVisible);
   });
 
-  onCleanup(() => document.removeEventListener("click", tryRequest));
+  onCleanup(() => {
+    document.removeEventListener("click", tryRequest);
+    document.removeEventListener("visibilitychange", onVisible);
+  });
 
   return null;
 }
