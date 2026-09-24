@@ -140,9 +140,27 @@ function Floating(props: FloatingElement & { mouseX: number; mouseY: number }) {
   /**
    * Dismiss floating element when clicking elsewhere
    */
-  function onMouseDown() {
+  function onMouseDown(e: Event) {
     const currentlyShown = props.show();
     if (!currentlyShown?.contextMenu && !currentlyShown?.userCard) return;
+
+    // A press INSIDE the floating element is not "clicking elsewhere".
+    // Without this, pressing a button on the profile card closed the card on
+    // mousedown, before the button's own press completed - the button was
+    // gone, nothing happened, and the tap landed on whatever was behind it.
+    // The card used to hide this by preventDefault-ing every pointerdown,
+    // which in turn broke its buttons (nac-web#207).
+    if (e.target instanceof Node && floating()?.contains(e.target)) return;
+
+    // Same for a menu opened FROM the card (its "..." button): choosing an
+    // item there must not tear down the card, which would unmount the button
+    // that owns the menu before the item's click lands.
+    if (
+      currentlyShown.userCard &&
+      e.target instanceof Node &&
+      document.getElementById("floating")?.contains(e.target)
+    )
+      return;
 
     // A touch gesture that just opened this menu produces a synthesised
     // mousedown/click pair when the finger lifts. Do not consume the flag
