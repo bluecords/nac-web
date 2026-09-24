@@ -24,13 +24,30 @@ export function ProfileActions(props: {
   member?: ServerMember;
 }) {
   const navigate = useNavigate();
-  const { openModal } = useModals();
+  const { openModal, showError } = useModals();
 
   /**
    * Open direct message channel
    */
   function openDm() {
-    props.user.openDM().then((channel) => navigate(`/channel/${channel.id}`));
+    props.user
+      .openDM()
+      .then((channel) => navigate(`/channel/${channel.id}`))
+      .catch(showError);
+  }
+
+  /**
+   * Send or accept a friend request
+   */
+  function addFriend() {
+    props.user.addFriend().catch(showError);
+  }
+
+  /**
+   * Cancel a request or remove a friend
+   */
+  function removeFriend() {
+    props.user.removeFriend().catch(showError);
   }
 
   /**
@@ -47,20 +64,16 @@ export function ProfileActions(props: {
   return (
     <Actions width={props.width}>
       <Show when={props.user.relationship === "None" && !props.user.bot}>
-        <Button onPress={() => props.user.addFriend()}>Add Friend</Button>
+        <Button onPress={addFriend}>Add Friend</Button>
       </Show>
       <Show when={props.user.relationship === "Incoming"}>
-        <Button onPress={() => props.user.addFriend()}>
-          Accept friend request
-        </Button>
-        <IconButton onPress={() => props.user.removeFriend()}>
+        <Button onPress={addFriend}>Accept friend request</Button>
+        <IconButton onPress={removeFriend}>
           <MdCancel />
         </IconButton>
       </Show>
       <Show when={props.user.relationship === "Outgoing"}>
-        <Button onPress={() => props.user.removeFriend()}>
-          Cancel friend request
-        </Button>
+        <Button onPress={removeFriend}>Cancel friend request</Button>
       </Show>
       <Show when={props.user.relationship === "Friend"}>
         <Button onPress={openDm}>Message</Button>
