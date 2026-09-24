@@ -23,6 +23,8 @@ const Invite = styled("div", {
       fontSize: "1.4em",
       textAlign: "center",
       fontFamily: "var(--fonts-monospace)",
+      // The link has no spaces; let it wrap instead of widening the dialog.
+      overflowWrap: "anywhere",
     },
   },
 });
