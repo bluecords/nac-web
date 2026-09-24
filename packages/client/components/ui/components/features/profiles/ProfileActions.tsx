@@ -22,6 +22,12 @@ export function ProfileActions(props: {
 
   user: User;
   member?: ServerMember;
+
+  /**
+   * Close whatever is showing these actions (e.g. the floating card), so it
+   * does not stay open over the DM that Message navigates to
+   */
+  onClose?: () => void;
 }) {
   const navigate = useNavigate();
   const { openModal, showError } = useModals();
@@ -32,7 +38,10 @@ export function ProfileActions(props: {
   function openDm() {
     props.user
       .openDM()
-      .then((channel) => navigate(`/channel/${channel.id}`))
+      .then((channel) => {
+        navigate(`/channel/${channel.id}`);
+        props.onClose?.();
+      })
       .catch(showError);
   }
 
