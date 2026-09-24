@@ -38,6 +38,21 @@ export { floatingElements };
  */
 let suppressedDocumentClick = false;
 
+// The suppression covers ONE trailing click from the opening gesture. Android
+// often never delivers that click after a long-press, so the flag used to
+// linger and swallow the member's NEXT real tap - tapping "Create Invite" in
+// a channel's long-press menu opened the dialog but left the menu stuck on
+// top of it. The trailing click never comes with a pointerdown of its own,
+// so any new pointerdown means a new gesture: drop the stale suppression.
+// Capture phase, so it runs before the opener's own handler re-arms it.
+document.addEventListener(
+  "pointerdown",
+  () => {
+    suppressedDocumentClick = false;
+  },
+  true,
+);
+
 /**
  * Whether the next document mousedown/click belongs to the gesture that just
  * opened a menu. Reading does not clear it; `consumeSuppressedDocumentClick`
