@@ -75,6 +75,10 @@ export function ForumChannel(props: ChannelPageProps) {
     typeof window !== "undefined" &&
     window.matchMedia("(max-width: 768px)").matches;
 
+  // Per-forum, chosen by admins in channel settings: a text-first list or an
+  // image gallery (two columns on phones). Ruled by Bunjie 2026-09-24.
+  const galleryLayout = () => props.channel.galleryLayout ?? false;
+
   // Closing a post - shared by the in-post back arrow and the hardware/browser
   // back button (see the effect below and MobileNav.tsx's popstate handler).
   function closePost() {
@@ -132,7 +136,16 @@ export function ForumChannel(props: ChannelPageProps) {
           )) as unknown as {
             allowed_tags?: string[];
             solution_enabled?: boolean;
+            gallery_layout?: boolean;
           };
+          const gallery = data.gallery_layout ?? false;
+          if (gallery !== (props.channel.galleryLayout ?? false)) {
+            client().channels.updateUnderlyingObject(
+              id,
+              "galleryLayout",
+              gallery,
+            );
+          }
           const tags = data.allowed_tags ?? [];
           if (
             JSON.stringify(tags) !==
@@ -668,7 +681,10 @@ export function ForumChannel(props: ChannelPageProps) {
                   </Empty>
                 </Show>
 
-                <PostGrid mobile={isMobile()}>
+                <PostGrid
+                  mobile={isMobile() && !galleryLayout()}
+                  mobileGallery={isMobile() && galleryLayout()}
+                >
                   <For each={visiblePosts()}>
                     {(post) => {
                       const attachmentImages = () => imagesFor(post);
@@ -696,7 +712,7 @@ export function ForumChannel(props: ChannelPageProps) {
                       const unread = () => unreadFor(post.id);
                       return (
                         <PostCard
-                          mobile={isMobile()}
+                          mobile={isMobile() && !galleryLayout()}
                           unread={!!unread()?.isNew}
                           onClick={() => setSelectedPostId(post.id)}
                         >
@@ -707,7 +723,10 @@ export function ForumChannel(props: ChannelPageProps) {
                             />
                           </Show>
                           <Show when={images().length}>
-                            <Media mobile={isMobile()}>
+                            <Media
+                              mobile={isMobile() && !galleryLayout()}
+                              square={isMobile() && galleryLayout()}
+                            >
                               <Show
                                 when={images().length === 1}
                                 fallback={
@@ -734,7 +753,11 @@ export function ForumChannel(props: ChannelPageProps) {
                                   loading="lazy"
                                 />
                               </Show>
-                              <Show when={post.forumTags?.length}>
+                              {/* On a phone the tags sit in the text instead:
+                                  over a small thumbnail they covered it. */}
+                              <Show
+                                when={!isMobile() && post.forumTags?.length}
+                              >
                                 <TagOverlay>
                                   <For each={post.forumTags}>
                                     {(tag) => <OverlayTag>{tag}</OverlayTag>}
@@ -773,12 +796,27 @@ export function ForumChannel(props: ChannelPageProps) {
                               <Snippet>{cardSnippet()}</Snippet>
                             </Show>
                             <Show
-                              when={!images().length && post.forumTags?.length}
+                              when={
+                                (!images().length || isMobile()) &&
+                                post.forumTags?.length
+                              }
                             >
                               <InlineTags>
-                                <For each={post.forumTags}>
-                                  {(tag) => <Tag>{tag}</Tag>}
-                                </For>
+                                {/* Two narrow gallery columns: first tag and
+                                    a count, so tags never crowd the card. */}
+                                <Show
+                                  when={isMobile() && galleryLayout()}
+                                  fallback={
+                                    <For each={post.forumTags}>
+                                      {(tag) => <Tag>{tag}</Tag>}
+                                    </For>
+                                  }
+                                >
+                                  <Tag>{post.forumTags![0]}</Tag>
+                                  <Show when={post.forumTags!.length > 1}>
+                                    <Tag>+{post.forumTags!.length - 1}</Tag>
+                                  </Show>
+                                </Show>
                               </InlineTags>
                             </Show>
                             <Meta>
@@ -1063,6 +1101,13 @@ const PostGrid = styled("div", {
         gridTemplateColumns: "1fr",
       },
     },
+    // Gallery forums on a phone: two columns of image-first cards.
+    mobileGallery: {
+      true: {
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "var(--gap-sm)",
+      },
+    },
   },
 });
 
@@ -1182,6 +1227,13 @@ const Media = styled("div", {
     mobile: {
       true: {
         width: "104px",
+        aspectRatio: "1 / 1",
+      },
+    },
+    // Gallery on a phone: full card width, square, so comics and photos get
+    // room rather than a letterbox strip.
+    square: {
+      true: {
         aspectRatio: "1 / 1",
       },
     },
