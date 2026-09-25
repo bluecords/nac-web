@@ -12,7 +12,7 @@ import {
 } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
-import { Message } from "stoat.js";
+import { ImageEmbed, Message, WebsiteEmbed } from "stoat.js";
 import { cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
@@ -520,7 +520,35 @@ export function ForumChannel(props: ChannelPageProps) {
   // Image attachments on a post, if any - a single image fills the card's
   // media area; more than one renders as a 2x2 collage with a "+N" badge.
   function imagesFor(post: Message) {
-    return post.attachments?.filter((file) => file.metadata.type === "Image") ?? [];
+    return (
+      post.attachments?.filter((file) => file.metadata.type === "Image") ?? []
+    );
+  }
+
+  // A post that is just a link (Facebook, a news site...) has no attachment,
+  // so the card used to show only the bare URL. Its link preview's image goes
+  // in the same media area attached photos use - the approved card layout.
+  function linkPreviewFor(post: Message) {
+    const embed = post.embeds?.[0];
+    if (embed?.type === "Image") {
+      return { image: (embed as ImageEmbed).proxiedURL };
+    }
+    if (embed?.type === "Website") {
+      const site = embed as WebsiteEmbed;
+      return {
+        image: site.image?.proxiedURL,
+        text: site.description || site.title,
+      };
+    }
+    return undefined;
+  }
+
+  // Preview images are hosted by the linked site and can expire - Facebook's
+  // are signed links that die within days. A dead one drops the card back to
+  // the text layout instead of leaving an empty image box.
+  const [deadPreviews, setDeadPreviews] = createSignal<Set<string>>(new Set());
+  function markPreviewDead(id: string) {
+    setDeadPreviews((prev) => new Set(prev).add(id));
   }
 
   // "3d ago" while recent, a real date once a post is far enough back that
@@ -643,7 +671,28 @@ export function ForumChannel(props: ChannelPageProps) {
                 <PostGrid mobile={isMobile()}>
                   <For each={visiblePosts()}>
                     {(post) => {
-                      const images = () => imagesFor(post);
+                      const attachmentImages = () => imagesFor(post);
+                      const preview = () => linkPreviewFor(post);
+                      // Media URLs for the card: attached images, or failing
+                      // that the link preview's image while it still loads.
+                      const images = () => {
+                        const attached = attachmentImages();
+                        if (attached.length) {
+                          return attached.map((file) => file.createFileURL());
+                        }
+                        const image = preview()?.image;
+                        return image && !deadPreviews().has(post.id)
+                          ? [image]
+                          : [];
+                      };
+                      // A link-only post shows the preview's description
+                      // rather than the bare URL.
+                      const cardSnippet = () =>
+                        !attachmentImages().length &&
+                        preview()?.text &&
+                        /^https?:\/\/\S+$/.test(post.content?.trim() ?? "")
+                          ? preview()!.text!
+                          : snippet(post);
                       const unread = () => unreadFor(post.id);
                       return (
                         <PostCard
@@ -664,11 +713,8 @@ export function ForumChannel(props: ChannelPageProps) {
                                 fallback={
                                   <Collage>
                                     <For each={images().slice(0, 4)}>
-                                      {(file) => (
-                                        <MediaImg
-                                          src={file.createFileURL()}
-                                          loading="lazy"
-                                        />
+                                      {(src) => (
+                                        <MediaImg src={src} loading="lazy" />
                                       )}
                                     </For>
                                     <Show when={images().length > 4}>
@@ -680,7 +726,11 @@ export function ForumChannel(props: ChannelPageProps) {
                                 }
                               >
                                 <MediaImg
-                                  src={images()[0].createFileURL()}
+                                  src={images()[0]}
+                                  onError={() =>
+                                    !attachmentImages().length &&
+                                    markPreviewDead(post.id)
+                                  }
                                   loading="lazy"
                                 />
                               </Show>
@@ -719,10 +769,12 @@ export function ForumChannel(props: ChannelPageProps) {
                                 {post.forumTitle}
                               </Text>
                             </PostTitle>
-                            <Show when={snippet(post)}>
-                              <Snippet>{snippet(post)}</Snippet>
+                            <Show when={cardSnippet()}>
+                              <Snippet>{cardSnippet()}</Snippet>
                             </Show>
-                            <Show when={!images().length && post.forumTags?.length}>
+                            <Show
+                              when={!images().length && post.forumTags?.length}
+                            >
                               <InlineTags>
                                 <For each={post.forumTags}>
                                   {(tag) => <Tag>{tag}</Tag>}
