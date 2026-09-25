@@ -43,7 +43,7 @@ export function UserProfileModal(
           }}
         />
 
-        <Profile.Actions user={props.user} width={3} />
+        <Profile.Actions user={props.user} width={3} onClose={props.onClose} />
         <Profile.Status user={props.user} />
         <Profile.Badges user={props.user} />
         <Profile.Joined user={props.user} />
