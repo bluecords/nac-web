@@ -821,12 +821,16 @@ export function ForumChannel(props: ChannelPageProps) {
                             </Show>
                             <Meta>
                               <Avatar src={post.animatedAvatarURL} size={18} />
-                              <Text class="label" size="small">
-                                {post.username}
-                              </Text>
-                              <Text class="label" size="small">
-                                &middot; {formatPostDate(post.createdAt)}
-                              </Text>
+                              <MetaName>
+                                <Text class="label" size="small">
+                                  {post.username}
+                                </Text>
+                              </MetaName>
+                              <MetaFixed>
+                                <Text class="label" size="small">
+                                  &middot; {formatPostDate(post.createdAt)}
+                                </Text>
+                              </MetaFixed>
                               <Stats>
                                 <Show when={reactionCount(post)}>
                                   <Stat like>
@@ -1414,6 +1418,29 @@ const Meta = styled("div", {
     color: "var(--md-sys-color-on-surface-variant)",
     marginTop: "auto",
     paddingTop: "4px",
+    minWidth: 0,
+  },
+});
+
+// The meta row stays on ONE line. In a two-column Gallery card on a phone it
+// has ~160px, and with a comment count and a like count showing, the date
+// wrapped onto a second line ("· 13d" / "ago") - seen on Bunjie's handset
+// 2026-09-24. The username is the only part allowed to give way (ellipsis);
+// the date and counts never wrap.
+const MetaName = styled("span", {
+  base: {
+    display: "block",
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+});
+
+const MetaFixed = styled("span", {
+  base: {
+    flexShrink: 0,
+    whiteSpace: "nowrap",
   },
 });
 
@@ -1423,6 +1450,8 @@ const Stats = styled("div", {
     alignItems: "center",
     gap: "8px",
     marginLeft: "auto",
+    flexShrink: 0,
+    whiteSpace: "nowrap",
   },
 });
 
