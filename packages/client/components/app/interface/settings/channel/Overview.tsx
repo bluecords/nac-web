@@ -51,6 +51,9 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
   const [solutionEnabled, setSolutionEnabled] = createSignal(
     props.channel.solutionEnabled ?? false,
   );
+  const [galleryLayout, setGalleryLayout] = createSignal(
+    props.channel.galleryLayout ?? false,
+  );
   const [newTag, setNewTag] = createSignal("");
   /* eslint-enable solid/reactivity */
 
@@ -113,9 +116,12 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
     if (props.channel.type === "ForumChannel") {
       forumChanges.allowed_tags = allowedTags();
       forumChanges.solution_enabled = solutionEnabled();
+      forumChanges.gallery_layout = galleryLayout();
     }
 
-    await props.channel.edit({ ...changes, ...forumChanges } as Parameters<typeof props.channel.edit>[0]);
+    await props.channel.edit({ ...changes, ...forumChanges } as Parameters<
+      typeof props.channel.edit
+    >[0]);
   }
 
   const submit = Form2.useSubmitHandler(editGroup, onSubmit, onReset);
@@ -124,7 +130,8 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
     props.channel.type === "ForumChannel" &&
     (JSON.stringify(allowedTags()) !==
       JSON.stringify(props.channel.allowedTags ?? []) ||
-      solutionEnabled() !== (props.channel.solutionEnabled ?? false));
+      solutionEnabled() !== (props.channel.solutionEnabled ?? false) ||
+      galleryLayout() !== (props.channel.galleryLayout ?? false));
 
   return (
     <Column gap="xl">
@@ -232,8 +239,34 @@ export default function ChannelOverview(props: ChannelSettingsProps) {
                   checked={solutionEnabled()}
                   onChange={(e) => setSolutionEnabled(e.currentTarget.checked)}
                 />
-                <label for="solution-enabled" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
-                  <Trans>Allow post authors to mark a reply as the solution</Trans>
+                <label
+                  for="solution-enabled"
+                  style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                >
+                  <Trans>
+                    Allow post authors to mark a reply as the solution
+                  </Trans>
+                </label>
+              </Row>
+            </Column>
+            <Column gap="sm">
+              <Text class="label">
+                <Trans>Layout</Trans>
+              </Text>
+              <Row gap="md" style={{ "align-items": "center" }}>
+                <input
+                  type="checkbox"
+                  id="gallery-layout"
+                  checked={galleryLayout()}
+                  onChange={(e) => setGalleryLayout(e.currentTarget.checked)}
+                />
+                <label
+                  for="gallery-layout"
+                  style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                >
+                  <Trans>
+                    Show posts as an image gallery (two columns on phones)
+                  </Trans>
                 </label>
               </Row>
             </Column>
