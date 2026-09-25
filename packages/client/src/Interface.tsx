@@ -7,17 +7,19 @@ import { ChannelContextMenu, ServerContextMenu } from "@revolt/app";
 import { MessageCache } from "@revolt/app/interface/channels/text/MessageCache";
 import { Titlebar } from "@revolt/app/interface/desktop/Titlebar";
 import { useClient, useClientLifecycle } from "@revolt/client";
-import {
-  rememberPendingInvite,
-  resumePendingInvite,
-} from "@revolt/common";
 import { State } from "@revolt/client/Controller";
 import { NotificationsWorker } from "@revolt/client/NotificationsWorker";
+import { rememberPendingInvite, resumePendingInvite } from "@revolt/common";
 import { useModals } from "@revolt/modal";
 import { Navigate, useBeforeLeave, useLocation } from "@revolt/routing";
 import { useState } from "@revolt/state";
 import { LAYOUT_SECTIONS } from "@revolt/state/stores/Layout";
-import { Button, CircularProgress, Text } from "@revolt/ui";
+import {
+  Button,
+  CircularProgress,
+  Text,
+  dismissFloatingElements,
+} from "@revolt/ui";
 
 import { MobileMembersOverlay } from "./interface/mobile/MobileMembersOverlay";
 import { MobileMessagesOverlay } from "./interface/mobile/MobileMessagesOverlay";
@@ -35,7 +37,7 @@ import {
 const Interface = (props: { children: JSX.Element }) => {
   const state = useState();
   const client = useClient();
-  const { openModal, isOpen } = useModals();
+  const { openModal, isOpen, closeAll } = useModals();
   const { isLoggedIn, lifecycle } = useClientLifecycle();
   const { pathname } = useLocation();
 
@@ -47,8 +49,19 @@ const Interface = (props: { children: JSX.Element }) => {
           type: "settings",
           config: "user",
         });
-      } else if (typeof e.to === "string") {
-        state.layout.setLastActivePath(e.to);
+      } else {
+        if (typeof e.to === "string") {
+          state.layout.setLastActivePath(e.to);
+        }
+
+        // ONE rule for every card, menu and dialog: going somewhere closes
+        // them. Buttons like Message navigate from inside a profile card or
+        // window, and each one had to remember to close its own container -
+        // several did not, leaving the card on top of the DM it opened.
+        // Runs BEFORE the navigation, so dialogs the destination opens
+        // itself (an invite link's invite dialog) are untouched.
+        closeAll();
+        dismissFloatingElements();
       }
     }
   });
@@ -143,16 +156,16 @@ const Interface = (props: { children: JSX.Element }) => {
 
   return (
     <MobileNavProvider>
-    <MessageCache client={client()}>
-      <div
-        style={{
-          display: "flex",
-          "flex-direction": "column",
-          height: "100%",
-        }}
-      >
-        <Titlebar />
-        {/* An update NEVER interrupts. Bunjie, 2026-09-03: "leaving their
+      <MessageCache client={client()}>
+        <div
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            height: "100%",
+          }}
+        >
+          <Titlebar />
+          {/* An update NEVER interrupts. Bunjie, 2026-09-03: "leaving their
             unentered comment intact with a notice telling them that there was
             an update... let the post complete after the fact because 99.9% of
             whatever change has nothing to do with a post."
@@ -160,82 +173,82 @@ const Interface = (props: { children: JSX.Element }) => {
             So the new code is applied the moment nothing is typed-but-unsent,
             silently and with nothing lost, and until then this says so and
             leaves the decision with the member. */}
-        <Show when={pendingUpdate() || updateReady()}>
-          <UpdateBanner>
-            <Text size="small">
-              A new version is ready. Finish what you're typing — it'll update
-              on its own once your message is sent.
-            </Text>
-            <Button
-              variant="text"
-              onPress={() => (pendingUpdate() ?? updateApply())()}
-            >
-              Refresh now
-            </Button>
-          </UpdateBanner>
-        </Show>
+          <Show when={pendingUpdate() || updateReady()}>
+            <UpdateBanner>
+              <Text size="small">
+                A new version is ready. Finish what you're typing — it'll update
+                on its own once your message is sent.
+              </Text>
+              <Button
+                variant="text"
+                onPress={() => (pendingUpdate() ?? updateApply())()}
+              >
+                Refresh now
+              </Button>
+            </UpdateBanner>
+          </Show>
 
-        {/* Connection-lost notice. During a server update the API restarts and
+          {/* Connection-lost notice. During a server update the API restarts and
             every client's socket drops for a few seconds — without a word for
             it, members read that as "the platform is broken" and post about it
             in public. Bunjie, 2026-09-10: "have a message when the server is
             getting an update so they have vis that they'll need to wait a few."
             Only shown after the first successful load, so it never covers the
             normal startup connect. */}
-        <Show when={lifecycle.loadedOnce() && isDisconnected()}>
-          <ReconnectBanner>
-            <Text size="small">
-              Reconnecting to NAC… if we're in the middle of an update this is
-              normal — it'll be back in a moment.
-            </Text>
-          </ReconnectBanner>
-        </Show>
+          <Show when={lifecycle.loadedOnce() && isDisconnected()}>
+            <ReconnectBanner>
+              <Text size="small">
+                Reconnecting to NAC… if we're in the middle of an update this is
+                normal — it'll be back in a moment.
+              </Text>
+            </ReconnectBanner>
+          </Show>
 
-        <Switch fallback={<CircularProgress />}>
-          <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>
-            <Navigate href="/login" />
-          </Match>
-          <Match when={lifecycle.loadedOnce()}>
-            <Layout
-              disconnected={isDisconnected()}
-              style={{ "flex-grow": 1, "min-height": 0 }}
-              onDragOver={(e) => {
-                if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
-              }}
-              onDrop={(e) => e.preventDefault()}
-            >
-              <Sidebar
-                menuGenerator={(target) => ({
-                  contextMenu: () => {
-                    return (
-                      <>
-                        {target instanceof Server ? (
-                          <ServerContextMenu server={target} />
-                        ) : (
-                          <ChannelContextMenu channel={target} />
-                        )}
-                      </>
-                    );
-                  },
-                })}
-              />
-              <Content
-                sidebar={state.layout.getSectionState(
-                  LAYOUT_SECTIONS.PRIMARY_SIDEBAR,
-                  true,
-                )}
+          <Switch fallback={<CircularProgress />}>
+            <Match when={!isLoggedIn() && recordNextPathAndRedirect()}>
+              <Navigate href="/login" />
+            </Match>
+            <Match when={lifecycle.loadedOnce()}>
+              <Layout
+                disconnected={isDisconnected()}
+                style={{ "flex-grow": 1, "min-height": 0 }}
+                onDragOver={(e) => {
+                  if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+                }}
+                onDrop={(e) => e.preventDefault()}
               >
-                {props.children}
-              </Content>
-            </Layout>
-          </Match>
-        </Switch>
+                <Sidebar
+                  menuGenerator={(target) => ({
+                    contextMenu: () => {
+                      return (
+                        <>
+                          {target instanceof Server ? (
+                            <ServerContextMenu server={target} />
+                          ) : (
+                            <ChannelContextMenu channel={target} />
+                          )}
+                        </>
+                      );
+                    },
+                  })}
+                />
+                <Content
+                  sidebar={state.layout.getSectionState(
+                    LAYOUT_SECTIONS.PRIMARY_SIDEBAR,
+                    true,
+                  )}
+                >
+                  {props.children}
+                </Content>
+              </Layout>
+            </Match>
+          </Switch>
 
-        <NotificationsWorker />
-        <MobileMembersOverlay />
-        <MobileMessagesOverlay />
-      </div>
-    </MessageCache>
+          <NotificationsWorker />
+          <MobileMembersOverlay />
+          <MobileMessagesOverlay />
+        </div>
+      </MessageCache>
     </MobileNavProvider>
   );
 };
