@@ -67,9 +67,13 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
 
     const special = props.embed.specialContent;
     if (special?.type === "YouTube") {
-      return client().proxyFile(
-        `https://img.youtube.com/vi/${special.id}/sddefault.jpg`,
-      );
+      const direct = `https://img.youtube.com/vi/${special.id}/sddefault.jpg`;
+      const proxied = client().proxyFile(direct);
+
+      // proxyFile hands the address back unchanged when january is off. Showing
+      // that would make the member's own browser contact YouTube just to draw
+      // the card, before any click: no picture is better than that.
+      return proxied && proxied !== direct ? proxied : undefined;
     }
 
     return undefined;
@@ -157,12 +161,18 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
   /**
    * The address the player loads from. YouTube is told to start playing: the
    * member has just clicked the picture, so making them press play a second
-   * time inside the player is only friction. (Measured 2026-09-26: with this
-   * and `allow="autoplay"` on the frame, one click starts the video.)
+   * time inside the player is only friction. (Measured 2026-09-26 in Chromium:
+   * with this and `allow="autoplay"` on the frame, one click starts the video.
+   * Only YouTube; the other providers keep their own defaults, so for them the
+   * click loads the player and its own play button still has to be pressed.)
    */
   const playerURL = () => {
     const url = props.embed.embedURL;
-    return url && provider() === "YouTube" ? `${url}&autoplay=1` : url;
+    if (!url || provider() !== "YouTube") return url;
+
+    const player = new URL(url);
+    player.searchParams.set("autoplay", "1");
+    return player.toString();
   };
 
   // No player URL (a GIF, or a type we do not embed) means no frame at all. A
@@ -184,7 +194,10 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
               <Caption>
                 <Trans>Play from {provider()}</Trans>
                 <Sub>
-                  <Trans>Nothing is sent to {provider()} until you click</Trans>
+                  <Trans>
+                    Nothing from your device is sent to {provider()} until you
+                    click
+                  </Trans>
                 </Sub>
               </Caption>
             </Blocked>
@@ -210,9 +223,9 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
             // DOM, storage or cookies. That only holds while `src` is always a
             // provider URL, which the `when` on the outer Show guarantees.
             sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
-            // Lets the player start on the click that mounted it (see
-            // playerURL). Grants autoplay only; no data leaves through it.
-            allow="autoplay"
+            // Lets YouTube start on the click that mounted it (see playerURL).
+            // Grants autoplay only; no data leaves through it.
+            allow={provider() === "YouTube" ? "autoplay" : undefined}
             src={playerURL()}
           />
         </Show>
