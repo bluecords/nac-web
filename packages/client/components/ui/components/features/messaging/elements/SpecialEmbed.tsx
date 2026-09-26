@@ -9,25 +9,6 @@ import { useModals } from "@revolt/modal";
 import { SizedContent } from "@revolt/ui/components/utils";
 
 /**
- * The providers this gate covers: the ones that load a real third-party
- * player in an iframe.
- *
- * Listed explicitly rather than gating everything that is not "None",
- * because TextEmbed routes GIF special content through here too - and a GIF
- * is served as an image through our own january proxy, leaks nothing, and
- * would have rendered an absurd "Play from GIF" card. Anything not named here
- * keeps the previous behaviour untouched.
- */
-const GATED_PROVIDERS = new Set([
-  "YouTube",
-  "Twitch",
-  "Lightspeed",
-  "Spotify",
-  "Soundcloud",
-  "Bandcamp",
-]);
-
-/**
  * Third-party media embed, blocked until the member says otherwise.
  *
  * WHAT THIS USED TO DO. It rendered `<iframe src={embed.embedURL}>` with no
@@ -96,8 +77,11 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
   function getSize() {
     const special = props.embed.specialContent!;
 
-    let width = 0,
-      height = 0;
+    // 16:9 unless a provider says otherwise. This used to start at 0 x 0, which
+    // is invisible: fine for a type nobody renders, but a player that has no
+    // case below (Streamable was one) then gets a blocked card you cannot see.
+    let width = 1280,
+      height = 720;
     switch (special.type) {
       case "YouTube": {
         width = props.embed.video?.width ?? 1280;
@@ -137,73 +121,83 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
   /**
    * May this player load right now?
    *
+   * DENY BY DEFAULT: every embed that has a player URL is gated, not just the
+   * providers someone remembered to list. A hand-kept list was the bug - it
+   * left Streamable off, so a Streamable link loaded its player (and told
+   * streamable.com the member's IP) the moment it scrolled into view, with no
+   * choice at all (found by review, 2026-09-26). Special content with no player
+   * URL, such as a GIF, never reaches an iframe: it renders nothing here.
+   *
    * `playing` covers the session-only case: if there is no policy published,
    * the choice cannot be recorded, and refusing to play something the member
    * just explicitly asked for would be punishing them for a bookkeeping limit
    * they cannot see. The reverse - loading without being asked - is the thing
    * that must never happen, and does not.
    */
-  const allowed = () =>
-    !GATED_PROVIDERS.has(provider()) ||
-    playing() ||
-    embedConsentGranted(provider());
+  const allowed = () => playing() || embedConsentGranted(provider());
 
+  // No player URL (a GIF, or a type we do not embed) means no frame at all. A
+  // frame with no src is about:blank and inherits THIS page's origin, which is
+  // exactly what the sandbox below must never be given.
   return (
-    <SizedContent width={getSize()?.width} height={getSize()?.height}>
-      <Show
-        when={allowed()}
-        fallback={
-          <Blocked
-            type="button"
-            onClick={() =>
-              openModal({
-                type: "embed_consent",
-                provider: provider(),
-                url: props.embed.originalUrl ?? props.embed.url ?? "",
-                onPlay: () => setPlaying(true),
-              })
-            }
-          >
-            <Show when={thumbnailURL()}>
-              {/* Already proxied through january, so showing it sends nothing
-                  to the provider. This is why a preview card can be offered at
-                  all rather than a blank grey box. */}
-              <Thumb src={thumbnailURL()!} alt="" />
-            </Show>
-            <Caption>
-              <Trans>Play from {provider()}</Trans>
-              <Sub>
-                <Trans>
-                  Blocked until you agree — loading it contacts {provider()}
-                </Trans>
-              </Sub>
-            </Caption>
-          </Blocked>
-        }
-      >
-        <iframe
-          loading="lazy"
-          scrolling="no"
-          allowfullscreen
-          allowtransparency
-          frameborder={0}
-          // The referrer is left at the browser default: the ORIGIN only, never
-          // a path, so the provider is told the member is on NAC. YouTube's
-          // player refuses to run without one - measured 2026-09-26, with
-          // `no-referrer` it shows "Error 153, video player configuration
-          // error". The consent modal says this in plain words.
-          referrerpolicy="strict-origin-when-cross-origin"
-          // allow-same-origin is required: without it the frame gets an opaque
-          // origin and the players fail - YouTube renders a black box, and
-          // SoundCloud and Twitch render blank (measured 2026-09-26). It does
-          // NOT give the frame access to this page: the provider's origin is
-          // not ours, so it stays cross-origin and cannot reach our DOM,
-          // storage or cookies.
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
-          src={props.embed.embedURL}
-        />
-      </Show>
-    </SizedContent>
+    <Show when={props.embed.embedURL}>
+      <SizedContent width={getSize()?.width} height={getSize()?.height}>
+        <Show
+          when={allowed()}
+          fallback={
+            <Blocked
+              type="button"
+              onClick={() =>
+                openModal({
+                  type: "embed_consent",
+                  provider: provider(),
+                  url: props.embed.originalUrl ?? props.embed.url ?? "",
+                  onPlay: () => setPlaying(true),
+                })
+              }
+            >
+              <Show when={thumbnailURL()}>
+                {/* Already proxied through january, so showing it sends nothing
+                    to the provider. This is why a preview card can be offered at
+                    all rather than a blank grey box. */}
+                <Thumb src={thumbnailURL()!} alt="" />
+              </Show>
+              <Caption>
+                <Trans>Play from {provider()}</Trans>
+                <Sub>
+                  <Trans>
+                    Blocked until you agree — loading it contacts {provider()}
+                  </Trans>
+                </Sub>
+              </Caption>
+            </Blocked>
+          }
+        >
+          <iframe
+            loading="lazy"
+            scrolling="no"
+            allowfullscreen
+            allowtransparency
+            frameborder={0}
+            // The referrer is left at the browser default: the ORIGIN only,
+            // never a path, so the provider is told the member is on NAC.
+            // YouTube's player refuses to run without one - measured
+            // 2026-09-26, with `no-referrer` it shows "Error 153, video player
+            // configuration error". The consent modal says this in plain words.
+            referrerpolicy="strict-origin-when-cross-origin"
+            // allow-same-origin is required: without it the frame gets an
+            // opaque origin and the players fail - YouTube renders a black box,
+            // and SoundCloud and Twitch render blank (measured 2026-09-26). It
+            // does NOT give the frame access to this page: the provider's
+            // origin is not ours, so it stays cross-origin and cannot reach our
+            // DOM, storage or cookies. That only holds while `src` is always a
+            // provider URL, which the `when` on the outer Show guarantees.
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+            src={props.embed.embedURL}
+          />
+        </Show>
+      </SizedContent>
+    </Show>
   );
 }
 

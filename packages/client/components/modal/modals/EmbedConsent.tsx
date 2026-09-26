@@ -94,7 +94,10 @@ export function EmbedConsentModal(
           checked={remember()}
           onChange={() => setRemember((v) => !v)}
         >
-          <Trans>Remember this for {props.provider}</Trans>
+          <Trans>
+            Remember this for {props.provider}: load its players without asking
+            from now on
+          </Trans>
         </Checkbox>
 
         <Text class="label">

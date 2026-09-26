@@ -45,6 +45,7 @@ const PROVIDERS = [
   "Soundcloud",
   "Bandcamp",
   "Lightspeed",
+  "Streamable",
 ] as const;
 
 export function PrivacySettings() {
@@ -127,13 +128,18 @@ export function PrivacySettings() {
               description={
                 embedConsentGranted(provider) ? (
                   <Trans>
-                    Plays here without asking. {provider} receives your IP
-                    address, your browser details and any cookies you already
-                    have with them when you play something, and is told you
-                    are playing it from NAC.
+                    Loads without asking whenever a post has one. {provider}{" "}
+                    then receives your IP address, your browser details and any
+                    cookies you already have with them, and is told you are on
+                    NAC.
                   </Trans>
                 ) : (
-                  <Trans>Blocked until you agree, each time you play.</Trans>
+                  <Trans>
+                    Blocked until you agree. If you allow it, {provider}{" "}
+                    receives your IP address, your browser details and any
+                    cookies you already have with them whenever a post has one,
+                    and is told you are on NAC.
+                  </Trans>
                 )
               }
             >
