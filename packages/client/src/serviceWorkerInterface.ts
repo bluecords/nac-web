@@ -5,12 +5,28 @@ import { registerSW } from "virtual:pwa-register";
 const [pendingUpdate, setPendingUpdate] = createSignal<() => void>();
 const [updateReady, setUpdateReady] = createSignal(false);
 
+// Guards every location.reload() below against firing more than once per
+// page instance. Nothing here previously stopped that: Interface.tsx's
+// auto-apply effect re-runs whenever its OTHER dependencies change (e.g.
+// state.draft.hasAnyUnsent() flipping) while updateReady() is already true,
+// and location.reload() does not tear the page down instantly - there is a
+// real window where a second call (from a re-run effect, or the banner's
+// button racing the auto-apply) can still execute. This is the standard
+// fix for exactly that class of PWA reload storm: reload() has to be called
+// at most once, ever, per page instance.
+let hasReloaded = false;
+function reloadOnce(): void {
+  if (hasReloaded) return;
+  hasReloaded = true;
+  location.reload();
+}
+
 // Declared BEFORE the PROD block below, which assigns it during module
 // evaluation. A `const` further down would be in its temporal dead zone at
 // that point and throw on load - in the service worker wiring, which is about
 // the worst place to put a startup crash.
 const [updateApply, setUpdateApply] = createSignal<() => void>(
-  () => () => location.reload(),
+  () => reloadOnce,
 );
 
 export { pendingUpdate, updateApply, updateReady };
@@ -31,7 +47,7 @@ window.fetch = async (...args) => {
     // UPDATER and calls it immediately, so `setPendingUpdate(() => reload())`
     // reloaded on the spot and stored undefined - the banner this comment
     // describes could never appear. To store a function you must return it.
-    setPendingUpdate(() => () => location.reload());
+    setPendingUpdate(() => reloadOnce);
   }
 
   return response;
@@ -99,6 +115,6 @@ if (import.meta.env.PROD) {
   // first is harmless when the worker has already taken over.
   setUpdateApply(() => () => {
     void updateSW(true);
-    location.reload();
+    reloadOnce();
   });
 }

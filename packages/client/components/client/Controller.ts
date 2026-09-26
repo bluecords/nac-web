@@ -68,6 +68,45 @@ export type Transition =
         | TransitionType.Logout;
     };
 
+/**
+ * A connection that keeps dying moments after it reaches Ready needs to be
+ * slowed down by RATE, not by #connectionFailures - that counter resets to 0
+ * on every State.Connected (below), so a socket stuck reconnect-then-die-
+ * immediately looks like a brand new, first-ever failure each time and keeps
+ * qualifying for the fast end of the exponential curve. Confirmed live
+ * 2026-09-25, measured directly against prod's nginx and events logs: a
+ * member's phone did ~15 full connect+hydrate+disconnect rounds in under 20
+ * seconds this way. What actually re-triggers that many rounds this fast is
+ * NOT confirmed - this is a defence-in-depth floor on the observed pattern,
+ * not a fix for one identified root cause.
+ *
+ * Module-level, not an instance field on Lifecycle: a fresh Lifecycle is
+ * constructed on every ClientContext remount (see destroy()'s comment
+ * below), which would otherwise reset this exactly like #connectionFailures
+ * already does on every State.Connected - defeating the one failure mode
+ * this exists to survive. Reset explicitly in State.Dispose (logout) so a
+ * new account signing in on the same tab doesn't inherit the previous
+ * account's disconnect history.
+ */
+const RAPID_DISCONNECT_WINDOW_MS = 10_000;
+const RAPID_DISCONNECT_THRESHOLD = 4;
+const RAPID_DISCONNECT_RETRY_FLOOR_SECONDS = 8;
+let recentDisconnects: number[] = [];
+
+/**
+ * Separate cooldown for forceRetryNow (below), deliberately NOT gated on
+ * recentDisconnects/RAPID_DISCONNECT_THRESHOLD above. forceRetryNow exists
+ * so a phone that just came back online gets ONE immediate retry (added for
+ * the "mobile circle of death" bug - see its own comment) - that has to keep
+ * working even seconds after a burst of disconnects, or this fix reintroduces
+ * the bug it was built to fix for exactly the users flaky connections hit
+ * hardest. What actually needs throttling is the online/visibilitychange
+ * SIGNAL firing repeatedly (a phone hunting between towers can fire several
+ * in a few seconds), not the recovery attempt itself.
+ */
+const FORCED_RETRY_COOLDOWN_MS = 5_000;
+let lastForcedRetryAt = 0;
+
 type PolicyAttentionRequired = [
   ProtocolV1["types"]["policyChange"][],
   () => Promise<void>,
@@ -137,6 +176,17 @@ class Lifecycle {
     // ticking.
     const forceRetryNow = () => {
       if (this.#retryTimeout && this.state() === State.Disconnected) {
+        // See FORCED_RETRY_COOLDOWN_MS above for why this is a separate,
+        // shorter cooldown rather than recentDisconnects/RAPID_DISCONNECT_
+        // THRESHOLD: a flapping online/visibilitychange signal (weak mobile
+        // signal hunting between towers, a laptop waking and sleeping) used
+        // to zero the wait back out to near-instant on every single toggle -
+        // but the FIRST such signal must still fire immediately, even right
+        // after a burst of disconnects.
+        const now = Date.now();
+        if (now - lastForcedRetryAt < FORCED_RETRY_COOLDOWN_MS) return;
+        lastForcedRetryAt = now;
+
         clearTimeout(this.#retryTimeout);
         this.#retryTimeout = undefined;
         this.transition({ type: TransitionType.Retry });
@@ -283,13 +333,21 @@ class Lifecycle {
         break;
       case State.Dispose:
         this.dispose();
+        // A new account logging into the same tab starts with a clean
+        // disconnect history - see recentDisconnects' own comment above.
+        recentDisconnects = [];
         this.transition({
           type: TransitionType.Ready,
         });
         this.#setLoadedOnce(false);
         break;
-      case State.Disconnected:
+      case State.Disconnected: {
         this.#connectionFailures++;
+
+        const now = Date.now();
+        recentDisconnects = [...recentDisconnects, now].filter(
+          (t) => now - t < RAPID_DISCONNECT_WINDOW_MS,
+        );
 
         if (!navigator.onLine) {
           this.transition({
@@ -300,9 +358,19 @@ class Lifecycle {
           // (common on flaky mobile connections) made the wait balloon past
           // a minute — feeling permanently stuck rather than reconnecting.
           const MAX_RETRY_SECONDS = 30;
+          // Floored independently of the exponential curve above - see
+          // RAPID_DISCONNECT_WINDOW_MS for why #connectionFailures can't
+          // catch this on its own.
+          const minRetrySeconds =
+            recentDisconnects.length >= RAPID_DISCONNECT_THRESHOLD
+              ? RAPID_DISCONNECT_RETRY_FLOOR_SECONDS
+              : 0;
           const retryIn = Math.min(
-            (Math.pow(2, this.#connectionFailures) - 1) *
-              (0.8 + Math.random() * 0.4),
+            Math.max(
+              (Math.pow(2, this.#connectionFailures) - 1) *
+                (0.8 + Math.random() * 0.4),
+              minRetrySeconds,
+            ),
             MAX_RETRY_SECONDS,
           );
 
@@ -320,6 +388,7 @@ class Lifecycle {
           }, retryIn * 1e3) as never;
         }
         break;
+      }
     }
   }
 
