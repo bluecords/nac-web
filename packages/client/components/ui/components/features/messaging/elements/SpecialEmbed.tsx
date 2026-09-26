@@ -43,8 +43,18 @@ const GATED_PROVIDERS = new Set([
  * with no member action at all.
  *
  * Now: preview card by default (ZERO egress - the thumbnail already comes
- * through our own january proxy), a modal naming the provider on click, and a
- * hardened iframe only after the member agrees.
+ * through our own january proxy), a modal naming the provider on click, and the
+ * player only after the member chooses to play it here (or opens it in their
+ * own browser instead).
+ *
+ * THE REQUIREMENT IS THE GATE. Nothing may reach the provider before that
+ * choice. What the provider learns AFTER it is stated in the consent modal, and
+ * it deliberately includes that the member is on NAC: the owner does not mind a
+ * provider seeing that NAC connected to it (2026-09-26); what mattered was not
+ * exposing the member before they chose. The player used to be locked down
+ * further after the choice (no referrer, and a sandbox that cut cookies). That
+ * BROKE the players - measured 2026-09-26: YouTube rendered a black box and
+ * SoundCloud and Twitch rendered blank - so it was relaxed. See the iframe.
  */
 export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
   const { openModal } = useModals();
@@ -177,19 +187,19 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
           allowfullscreen
           allowtransparency
           frameborder={0}
-          // Do not tell the provider which page this was played from. The
-          // referer is the field that tied a member to this community by name.
-          referrerpolicy="no-referrer"
-          // No allow-same-origin, so the frame gets an opaque origin and the
-          // provider's third-party cookies do not reach it - a signed-in
-          // account stays unlinked from playback here.
-          //
-          // KNOWN TRADE, stated rather than hidden: this breaks some players.
-          // YouTube generally survives it; Spotify and Twitch may not. If one
-          // does not work, the honest fix is "Open in your own browser" in the
-          // consent modal - which is more private anyway - NOT quietly adding
-          // allow-same-origin back and re-enabling the tracking.
-          sandbox="allow-scripts allow-presentation allow-popups allow-popups-to-escape-sandbox"
+          // The referrer is left at the browser default: the ORIGIN only, never
+          // a path, so the provider is told the member is on NAC. YouTube's
+          // player refuses to run without one - measured 2026-09-26, with
+          // `no-referrer` it shows "Error 153, video player configuration
+          // error". The consent modal says this in plain words.
+          referrerpolicy="strict-origin-when-cross-origin"
+          // allow-same-origin is required: without it the frame gets an opaque
+          // origin and the players fail - YouTube renders a black box, and
+          // SoundCloud and Twitch render blank (measured 2026-09-26). It does
+          // NOT give the frame access to this page: the provider's origin is
+          // not ours, so it stays cross-origin and cannot reach our DOM,
+          // storage or cookies.
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
           src={props.embed.embedURL}
         />
       </Show>

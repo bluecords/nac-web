@@ -15,11 +15,17 @@ import { Modals } from "../types";
  * make the consent meaningless - "we may share data with partners" is exactly
  * the sentence this gate exists to not be.
  *
- * The IP line is not a disclaimer, it is the honest limit. Everything else can
- * be masked; the address cannot, short of proxying the video through our own
- * box, which is not viable for YouTube on bandwidth or terms and would make NAC
- * the requester instead. Saying so is better than implying a protection that
- * does not exist.
+ * The IP line is not a disclaimer, it is the honest limit: the address cannot
+ * be masked, short of proxying the video through our own box, which is not
+ * viable for YouTube on bandwidth or terms and would make NAC the requester
+ * instead. Saying so is better than implying a protection that does not exist.
+ *
+ * The same goes for the rest of the list. The player is NOT locked down after
+ * the member agrees (it used to be, and the players did not work - see
+ * SpecialEmbed), so the wording says what the provider really receives:
+ * including that the member is on NAC, and that cookies they already have with
+ * the provider work as usual. The private route stays offered: opening the link
+ * yourself sends nothing from here and is not tied to this community.
  */
 export function EmbedConsentModal(
   props: DialogProps & Modals & { type: "embed_consent" },
@@ -67,10 +73,11 @@ export function EmbedConsentModal(
           </Text>
           <Text class="body">
             <Trans>
-              Your IP address, your browser and language, and which item you
-              played. We block the rest: they are not told which community you
-              came from, and their cookies are blocked, so a {props.provider}
-              account you are signed in to is not connected to you being here.
+              Your IP address, your browser and language, which item you
+              played, and that you played it from NAC. Cookies you already
+              have with {props.provider} work as usual, so if you are signed in
+              to a {props.provider} account, they may be able to connect it to
+              you watching this.
             </Trans>
           </Text>
         </Column>
@@ -78,8 +85,8 @@ export function EmbedConsentModal(
         <Text class="body">
           <Trans>
             Your IP address cannot be hidden — the player has to be fetched from
-            somewhere. If you would rather they saw nothing at all from this
-            page, use "Open in your own browser" instead.
+            somewhere. If you would rather they were not told you came from
+            NAC, use "Open in your own browser" instead.
           </Trans>
         </Text>
 

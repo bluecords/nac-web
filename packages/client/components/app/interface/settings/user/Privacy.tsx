@@ -128,7 +128,9 @@ export function PrivacySettings() {
                 embedConsentGranted(provider) ? (
                   <Trans>
                     Plays here without asking. {provider} receives your IP
-                    address when you play something.
+                    address, your browser details and any cookies you already
+                    have with them when you play something, and is told you
+                    are playing it from NAC.
                   </Trans>
                 ) : (
                   <Trans>Blocked until you agree, each time you play.</Trans>

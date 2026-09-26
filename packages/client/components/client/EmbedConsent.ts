@@ -35,9 +35,23 @@ import type { Client } from "stoat.js";
  * association with this community entirely.
  */
 
-/** Ack keys are per provider: embed_provider_youtube, _spotify, and so on. */
+/**
+ * Ack keys are per provider: embed_provider_youtube_v2, _spotify_v2, and so on.
+ *
+ * `_v2` IS A RE-CONSENT, ON PURPOSE (2026-09-26). Agreement recorded under the
+ * first key was given against wording that said a player would not be told which
+ * community you came from and that its cookies were blocked. That stopped being
+ * true when the player was relaxed so it would actually work (the locked-down
+ * one showed a black box for YouTube and blank for SoundCloud and Twitch).
+ * Agreement to one thing is not agreement to a different thing, so the old rows
+ * are simply no longer looked up: they stay in the audit trail untouched, and a
+ * member is asked once more, under wording that is true.
+ *
+ * refreshEmbedConsent still reads every `embed_provider_` key, old and new; only
+ * the key that is LOOKED UP changed.
+ */
 export function embedAckKey(provider: string): string {
-  return `embed_provider_${provider.toLowerCase()}`;
+  return `embed_provider_${provider.toLowerCase()}_v2`;
 }
 
 type Granted = Record<string, boolean>;
