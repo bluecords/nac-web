@@ -60,6 +60,31 @@ export { SoundContext, SoundController, useSound } from "./Sounds";
 const clientContext = createContext(null! as ClientController);
 
 /**
+ * Guards the media/embed consent refresh below - same reasoning and same
+ * fix shape as SyncWorker.tsx's lastInitialSyncAt: module-level so it
+ * survives this effect's containing scope being re-instantiated, and a rate
+ * floor rather than a one-shot since a genuine reconnect minutes later
+ * should still refresh (consent can change on another device).
+ */
+let lastConsentRefreshAt = 0;
+const MIN_CONSENT_REFRESH_INTERVAL_MS = 5_000;
+
+/**
+ * Guards the changelog check below. Same reasoning as lastInitialSyncAt in
+ * SyncWorker.tsx: module-level so it survives this component being
+ * re-instantiated. Was a `let` local to ClientContext, which reset to false
+ * every time this component was re-instantiated - the exact trap this
+ * comment is warning about.
+ *
+ * Reset on logout (below), same as lastConsentRefreshAt, so a different
+ * account in the same tab still gets its own check. Also reset if
+ * fetchLatestChangelog() itself fails - this flips to true before the fetch
+ * resolves, so a single transient network error must not disable the check
+ * for the rest of the tab's life.
+ */
+let fetchedChangelogOnce = false;
+
+/**
  * Mount the modal controller
  */
 export function ClientContext(props: { state: State; children: JSXElement }) {
@@ -69,28 +94,39 @@ export function ClientContext(props: { state: State; children: JSXElement }) {
   const controller = new ClientController(props.state);
   onCleanup(() => controller.dispose());
 
-  let fetchedChangelog = false;
   createEffect(
     on(
       () => controller.isLoggedIn(),
       (loggedIn) => {
-        if (!loggedIn || fetchedChangelog) return;
-        fetchedChangelog = true;
+        if (!loggedIn) {
+          fetchedChangelogOnce = false;
+          return;
+        }
 
-        fetchLatestChangelog().then((changelog) => {
-          if (!changelog) return;
-          if (props.state["release-notes"].lastSeenId === changelog.id) return;
+        if (fetchedChangelogOnce) return;
+        fetchedChangelogOnce = true;
 
-          props.state["release-notes"].markSeen(
-            changelog.id,
-            changelog.published_at,
-          );
+        fetchLatestChangelog()
+          .then((changelog) => {
+            if (!changelog) return;
+            if (props.state["release-notes"].lastSeenId === changelog.id) {
+              return;
+            }
 
-          openModal({
-            type: "changelog",
-            changelog,
+            props.state["release-notes"].markSeen(
+              changelog.id,
+              changelog.published_at,
+            );
+
+            openModal({
+              type: "changelog",
+              changelog,
+            });
+          })
+          .catch((err) => {
+            console.error("Failed to fetch latest changelog:", err);
+            fetchedChangelogOnce = false;
           });
-        });
       },
     ),
   );
@@ -114,11 +150,18 @@ export function ClientContext(props: { state: State; children: JSXElement }) {
         const client = controller.getCurrentClient();
 
         if (loggedIn && configured && client) {
-          refreshMediaConsent(client);
-          refreshEmbedConsent(client);
+          const now = Date.now();
+          if (now - lastConsentRefreshAt >= MIN_CONSENT_REFRESH_INTERVAL_MS) {
+            lastConsentRefreshAt = now;
+            refreshMediaConsent(client);
+            refreshEmbedConsent(client);
+          }
         } else if (!loggedIn) {
           resetMediaConsent();
           resetEmbedConsent();
+          // A different account logging into the same tab still needs its
+          // own consent fetched - see lastConsentRefreshAt's comment above.
+          lastConsentRefreshAt = 0;
         }
       },
     ),
