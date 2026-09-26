@@ -85,7 +85,11 @@ export function SponsorNacModal(
 
       if (!response.ok) throw new Error(`Checkout failed (${response.status})`);
 
-      const data: { checkout_url: string } = await response.json();
+      const data: { checkout_url?: string; error?: string } =
+        await response.json();
+      if (!data.checkout_url)
+        throw new Error(data.error ?? "Checkout failed: no checkout URL returned");
+
       window.open(data.checkout_url, "_blank");
       props.onClose();
     } catch (error) {
@@ -107,7 +111,13 @@ export function SponsorNacModal(
       if (!response.ok)
         throw new Error(`Manage subscription failed (${response.status})`);
 
-      const data: { portal_url: string } = await response.json();
+      const data: { portal_url?: string; error?: string } =
+        await response.json();
+      if (!data.portal_url)
+        throw new Error(
+          data.error ?? "Manage subscription failed: no portal URL returned",
+        );
+
       window.open(data.portal_url, "_blank");
       props.onClose();
     } catch (error) {
