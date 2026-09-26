@@ -52,6 +52,7 @@ export function SponsorNacModal(
 
   const [tier, setTier] = createSignal<Tier>("2_99");
   const [isSubmitting, setSubmitting] = createSignal(false);
+  const [noSubscription, setNoSubscription] = createSignal(false);
 
   const group = createFormGroup({
     amount: createFormControl("50", { required: false }),
@@ -85,7 +86,11 @@ export function SponsorNacModal(
 
       if (!response.ok) throw new Error(`Checkout failed (${response.status})`);
 
-      const data: { checkout_url: string } = await response.json();
+      const data: { checkout_url?: string; error?: string } =
+        await response.json();
+      if (!data.checkout_url)
+        throw new Error(data.error ?? "Checkout failed: no checkout URL returned");
+
       window.open(data.checkout_url, "_blank");
       props.onClose();
     } catch (error) {
@@ -107,7 +112,19 @@ export function SponsorNacModal(
       if (!response.ok)
         throw new Error(`Manage subscription failed (${response.status})`);
 
-      const data: { portal_url: string } = await response.json();
+      const data: { portal_url?: string; error?: string } =
+        await response.json();
+      if (!data.portal_url) {
+        // A well-formed "can't manage" response (never subscribed, or only
+        // ever a one-time gift) - not an error, just nothing to manage.
+        // Fall through to the tier picker instead of a dead-end toast.
+        // Logged (not shown) so a future change to this webhook that routes
+        // a real failure down the same path leaves a trace.
+        console.error("sponsor-manage: no portal_url,", data.error);
+        setNoSubscription(true);
+        return;
+      }
+
       window.open(data.portal_url, "_blank");
       props.onClose();
     } catch (error) {
@@ -119,7 +136,7 @@ export function SponsorNacModal(
 
   return (
     <Show
-      when={!isAlreadySponsor()}
+      when={!isAlreadySponsor() || noSubscription()}
       fallback={
         <Dialog
           show={props.show}
@@ -164,6 +181,15 @@ export function SponsorNacModal(
         isDisabled={isSubmitting()}
       >
         <Column gap="md">
+          <Show when={noSubscription()}>
+            <Text class="label">
+              <Trans>
+                You don't have an active subscription to manage - pick a plan
+                below.
+              </Trans>
+            </Text>
+          </Show>
+
           <For each={TIERS}>
             {(option) => (
               <TierCard
