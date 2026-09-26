@@ -37,6 +37,11 @@ import { CategoryButton, Column, Text } from "@revolt/ui";
  * member can see the full set they might be asked about - including the ones
  * they have never allowed. A list that only showed past grants would answer
  * "what did I agree to" but not "what could this ask me for".
+ *
+ * KEEP THIS IN STEP WITH `embedURL` in stoat.js. Every provider it can build a
+ * player URL for is gated (SpecialEmbed denies by default) and can be asked
+ * about, so it needs a row here: without one, a remembered "yes" could never be
+ * turned off. Streamable was missing from here until 2026-09-26.
  */
 const PROVIDERS = [
   "YouTube",
@@ -128,17 +133,19 @@ export function PrivacySettings() {
               description={
                 embedConsentGranted(provider) ? (
                   <Trans>
-                    Loads without asking whenever a post has one. {provider}{" "}
-                    then receives your IP address, your browser details and any
+                    Loads without asking: every player from {provider} that
+                    appears on your screen, played or not. {provider} then
+                    receives your IP address, your browser details and any
                     cookies you already have with them, and is told you are on
                     NAC.
                   </Trans>
                 ) : (
                   <Trans>
-                    Blocked until you agree. If you allow it, {provider}{" "}
-                    receives your IP address, your browser details and any
-                    cookies you already have with them whenever a post has one,
-                    and is told you are on NAC.
+                    Blocked until you agree. If you allow it, every
+                    player from {provider} that appears on your screen loads,
+                    played or not, and {provider} receives your IP address,
+                    your browser details and any cookies you already have with
+                    them, and is told you are on NAC.
                   </Trans>
                 )
               }

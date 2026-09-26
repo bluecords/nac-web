@@ -140,10 +140,16 @@ export async function grantEmbedConsent(
 ): Promise<boolean> {
   const key = embedAckKey(provider);
 
-  // Unblock immediately either way; this is a direct response to a click.
-  setGranted((prev) => ({ ...prev, [key]: true }));
-
+  // Not remembered: allow ONLY the embed the member clicked. SpecialEmbed's own
+  // `playing` signal unblocks that one (the modal calls onPlay right after
+  // this). Flipping the provider-wide flag here used to make EVERY other post
+  // from this provider load as well, with no further choice, the moment someone
+  // played a single video with "Remember" unticked (found by review,
+  // 2026-09-26).
   if (!remember) return false;
+
+  // Unblock immediately; this is a direct response to a click.
+  setGranted((prev) => ({ ...prev, [key]: true }));
 
   try {
     await client.recordConsentForCurrentPolicy([
