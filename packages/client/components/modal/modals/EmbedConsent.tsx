@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { Show, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
@@ -26,6 +26,15 @@ import { Modals } from "../types";
  * including that the member is on NAC, and that cookies they already have with
  * the provider work as usual. The private route stays offered: opening the link
  * yourself sends nothing from here and is not tied to this community.
+ *
+ * WHAT THE PROVIDERS' OWN RULES ALLOW (researched 2026-09-26). YouTube's
+ * developer policies require an embedded player to identify the embedding site
+ * (the Referer), forbid hiding the source of use behind nested frames, and name
+ * a consent flow with a link to Google's Privacy Policy as acceptable. So the
+ * honest design is this one: nothing is contacted until the member chooses, and
+ * after that the provider is told who is asking. Hiding NAC from an embedded
+ * YouTube player is not something we are allowed to do; "Open in your own
+ * browser" (a plain link, noreferrer) is the route that does not tell them.
  */
 export function EmbedConsentModal(
   props: DialogProps & Modals & { type: "embed_consent" },
@@ -80,6 +89,22 @@ export function EmbedConsentModal(
               you watching this.
             </Trans>
           </Text>
+
+          <Show when={props.provider === "YouTube"}>
+            {/* YouTube's developer guide names "a user consent flow with a link
+                to Google's Privacy Policy" as acceptable for privacy-sensitive
+                sites. noreferrer: this click should not tell Google where the
+                member came from either. */}
+            <a
+              href="https://policies.google.com/privacy"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              <Text class="label">
+                <Trans>Read Google's privacy policy</Trans>
+              </Text>
+            </a>
+          </Show>
         </Column>
 
         <Text class="body">
