@@ -4,7 +4,7 @@ import { Trans } from "@lingui-solid/solid/macro";
 import type { WebsiteEmbed } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { embedConsentGranted } from "@revolt/client";
+import { embedConsentGranted, useClient } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { SizedContent } from "@revolt/ui/components/utils";
 
@@ -48,9 +48,37 @@ const GATED_PROVIDERS = new Set([
  */
 export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
   const { openModal } = useModals();
+  const client = useClient();
   const [playing, setPlaying] = createSignal(false);
 
   const provider = () => props.embed.specialContent!.type;
+
+  /**
+   * Preview thumbnail for the blocked card.
+   *
+   * YouTube blocks datacentre IPs from fetching the watch page itself, so
+   * january never gets an og:image for these and `embed.image` is always
+   * empty in production - not a per-video glitch, every YouTube embed we
+   * have ever stored has the same gap. Fall back to YouTube's own static
+   * thumbnail CDN, keyed off the video id we already have - the same id
+   * `embedURL` already uses to build the real player src - and route it
+   * through january like any other preview image, so this still sends
+   * nothing to YouTube until the member agrees to play it.
+   */
+  const thumbnailURL = () => {
+    if (props.embed.image?.proxiedURL) {
+      return props.embed.image.proxiedURL;
+    }
+
+    const special = props.embed.specialContent;
+    if (special?.type === "YouTube") {
+      return client().proxyFile(
+        `https://img.youtube.com/vi/${special.id}/sddefault.jpg`,
+      );
+    }
+
+    return undefined;
+  };
 
   /**
    * Determine the media size
@@ -126,11 +154,11 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
               })
             }
           >
-            <Show when={props.embed.image?.proxiedURL}>
+            <Show when={thumbnailURL()}>
               {/* Already proxied through january, so showing it sends nothing
                   to the provider. This is why a preview card can be offered at
                   all rather than a blank grey box. */}
-              <Thumb src={props.embed.image!.proxiedURL} alt="" />
+              <Thumb src={thumbnailURL()!} alt="" />
             </Show>
             <Caption>
               <Trans>Play from {provider()}</Trans>
