@@ -95,8 +95,8 @@ export function EmbedConsentModal(
           onChange={() => setRemember((v) => !v)}
         >
           <Trans>
-            Remember this for {props.provider}: load its players without asking
-            from now on
+            Remember this for {props.provider}: play as soon as I click its
+            picture, without asking again
           </Trans>
         </Checkbox>
 

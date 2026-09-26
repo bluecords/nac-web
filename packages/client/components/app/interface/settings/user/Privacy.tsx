@@ -133,19 +133,19 @@ export function PrivacySettings() {
               description={
                 embedConsentGranted(provider) ? (
                   <Trans>
-                    Loads without asking: every player from {provider} that
-                    appears on your screen, played or not. {provider} then
-                    receives your IP address, your browser details and any
-                    cookies you already have with them, and is told you are on
-                    NAC.
+                    Plays when you click its picture, without asking
+                    first. Nothing is sent to {provider} until you do.
+                    Then {provider} receives your IP address, your
+                    browser details and any cookies you already have
+                    with them, and is told you are on NAC.
                   </Trans>
                 ) : (
                   <Trans>
-                    Blocked until you agree. If you allow it, every
-                    player from {provider} that appears on your screen loads,
-                    played or not, and {provider} receives your IP address,
-                    your browser details and any cookies you already have with
-                    them, and is told you are on NAC.
+                    Asks first, each time you click one of its pictures.
+                    If you allow it, a click plays it straight away,
+                    and {provider} then receives your IP address, your
+                    browser details and any cookies you already have
+                    with them, and is told you are on NAC.
                   </Trans>
                 )
               }

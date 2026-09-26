@@ -60,11 +60,14 @@ const [granted, setGranted] = createSignal<Granted>({});
 const [loaded, setLoaded] = createSignal(false);
 
 /**
- * Whether this provider may be loaded without asking.
+ * Has the member said "do not ask me again" for this provider?
  *
- * Unknown counts as NOT granted, and that default is the whole feature: the
- * cost of guessing wrong in the other direction is the leak itself, which has
- * already happened by the time the answer arrives.
+ * That decides only whether a click on a picture plays straight away or first
+ * shows the pop-up. NOTHING loads without a click either way (SpecialEmbed).
+ *
+ * Unknown counts as NOT granted, and that default is the whole feature: it
+ * means the pop-up is shown, so a member is never treated as having agreed to
+ * something they were not asked.
  */
 export function embedConsentGranted(provider: string): boolean {
   return granted()[embedAckKey(provider)] === true;
@@ -148,7 +151,8 @@ export async function grantEmbedConsent(
   // 2026-09-26).
   if (!remember) return false;
 
-  // Unblock immediately; this is a direct response to a click.
+  // Take effect immediately, for every picture from this provider: the next
+  // click on one plays straight away instead of asking.
   setGranted((prev) => ({ ...prev, [key]: true }));
 
   try {
