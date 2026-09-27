@@ -69,9 +69,16 @@ async function isChannelFocused(channelId: string): Promise<boolean> {
 
   return windows.some((client) => {
     if (!client.focused) return false;
-    const segments = new URL(client.url).pathname.split("/");
-    const i = segments.indexOf("channel");
-    return i !== -1 && segments[i + 1] === channelId;
+    try {
+      const segments = new URL(client.url).pathname.split("/");
+      const i = segments.indexOf("channel");
+      return i !== -1 && segments[i + 1] === channelId;
+    } catch {
+      // An unparsable client URL isn't this channel - it must not abort the
+      // whole check, or one odd client (e.g. an about:blank window in the
+      // list) would silently drop a real notification for everyone.
+      return false;
+    }
   });
 }
 
@@ -116,7 +123,6 @@ self.addEventListener("push", (event) => {
         icon: notification.icon,
         body: notification.body,
         data: notification.url,
-        tag: notification.tag,
       });
     })(),
   );
