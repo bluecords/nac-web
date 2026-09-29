@@ -115,8 +115,15 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
-      if (notification.tag && (await isChannelFocused(notification.tag))) {
-        return;
+      if (notification.tag) {
+        // If the focus check itself fails (e.g. matchAll rejects), fail open
+        // and show the notification - a duplicate is recoverable, a real
+        // notification silently dropped is not.
+        try {
+          if (await isChannelFocused(notification.tag)) return;
+        } catch {
+          // fall through to showNotification
+        }
       }
 
       await self.registration.showNotification(notification.title || "NAC", {
