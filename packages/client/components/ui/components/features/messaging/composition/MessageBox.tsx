@@ -135,6 +135,19 @@ const Parent = styled("div", {
     margin: "0 0 var(--gap-md) 0",
     maxHeight: "var(--layout-height-message-box)",
   },
+  variants: {
+    // The composer normally grows to fill available space so a long typed
+    // message has room (invisible in practice - it's a click-anywhere text
+    // input). The "no permission" notice is a single static line, not
+    // something to grow: unconditional flexGrow left it stretched to fill
+    // that same reserved space, squeezing the actual channel content above
+    // it down to a couple of visible lines on mobile.
+    blocked: {
+      true: {
+        flexGrow: 0,
+      },
+    },
+  },
 });
 
 /**
@@ -234,7 +247,7 @@ export function MessageBox(props: Props) {
   );
 
   return (
-    <Parent>
+    <Parent blocked={!props.sendingAllowed}>
       <Base hasActionsAppend={props.hasActionsAppend}>
         <Switch fallback={props.actionsStart}>
           <Match when={!props.sendingAllowed}>
