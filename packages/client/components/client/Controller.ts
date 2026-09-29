@@ -107,6 +107,29 @@ let recentDisconnects: number[] = [];
 const FORCED_RETRY_COOLDOWN_MS = 5_000;
 let lastForcedRetryAt = 0;
 
+/**
+ * Cap on forceRetryNow itself, on top of its own per-call cooldown above.
+ *
+ * The per-call cooldown throttles the RATE of forced retries, but a signal
+ * firing repeatedly in a tight burst (measured live 2026-09-29: a rapid
+ * reconnect storm, hundreds of requests in minutes) still gets a fresh
+ * immediate retry every single time - which defeats RAPID_DISCONNECT_RETRY_
+ * FLOOR_SECONDS above just as completely as if that floor didn't exist,
+ * since forceRetryNow zeroes out whatever wait was already ticking.
+ *
+ * This is a sliding window, not a hard rate limit: firing spaced further
+ * apart than WINDOW_MS/CAP (e.g. once every 10-15s) never fills the window
+ * and is never blocked. That's accepted for now - it catches the fast-burst
+ * pattern actually measured, not every conceivable flapping rate. The design
+ * intent above (first recovery after a burst must still be instant) only
+ * needs a SMALL number of overrides, not an unlimited one - so once this
+ * many have fired in the window, stop overriding and let the existing
+ * exponential/floored timer run its course instead.
+ */
+const FORCED_RETRY_WINDOW_MS = 30_000;
+const FORCED_RETRY_WINDOW_CAP = 3;
+let recentForcedRetries: number[] = [];
+
 type PolicyAttentionRequired = [
   ProtocolV1["types"]["policyChange"][],
   () => Promise<void>,
@@ -185,6 +208,16 @@ class Lifecycle {
         // after a burst of disconnects.
         const now = Date.now();
         if (now - lastForcedRetryAt < FORCED_RETRY_COOLDOWN_MS) return;
+
+        // See FORCED_RETRY_WINDOW_MS/CAP above: a handful of overrides in a
+        // short window is the intended fast-recovery case, but a signal that
+        // keeps firing needs to stop overriding the slow-down timer instead
+        // of defeating it indefinitely.
+        recentForcedRetries = [...recentForcedRetries, now].filter(
+          (t) => now - t < FORCED_RETRY_WINDOW_MS,
+        );
+        if (recentForcedRetries.length > FORCED_RETRY_WINDOW_CAP) return;
+
         lastForcedRetryAt = now;
 
         clearTimeout(this.#retryTimeout);
@@ -336,6 +369,7 @@ class Lifecycle {
         // A new account logging into the same tab starts with a clean
         // disconnect history - see recentDisconnects' own comment above.
         recentDisconnects = [];
+        recentForcedRetries = [];
         this.transition({
           type: TransitionType.Ready,
         });
