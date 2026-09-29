@@ -48,6 +48,38 @@ interface StoatPushNotification {
   icon?: string;
   channel?: ChannelPartial;
   url?: string;
+  /** Channel ID this notification is for; sent by the server as `tag`. */
+  tag?: string;
+}
+
+/**
+ * Is a focused window already showing this channel?
+ *
+ * pushd skips sessions it sees as currently connected (message.rs), but that
+ * check can lag a live tab during a reconnect blip - the connection/push
+ * area's most common failure shape. This asks the browser directly instead
+ * of trusting the server's view of "connected", so a member already reading
+ * the channel never gets an OS notification duplicating what's on screen.
+ */
+async function isChannelFocused(channelId: string): Promise<boolean> {
+  const windows = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+
+  return windows.some((client) => {
+    if (!client.focused) return false;
+    try {
+      const segments = new URL(client.url).pathname.split("/");
+      const i = segments.indexOf("channel");
+      return i !== -1 && segments[i + 1] === channelId;
+    } catch {
+      // An unparsable client URL isn't this channel - it must not abort the
+      // whole check, or one odd client (e.g. an about:blank window in the
+      // list) would silently drop a real notification for everyone.
+      return false;
+    }
+  });
 }
 
 self.addEventListener("message", (event) => {
@@ -82,11 +114,24 @@ self.addEventListener("push", (event) => {
   notification.url ||= self.registration.scope;
 
   event.waitUntil(
-    self.registration.showNotification(notification.title || "NAC", {
-      icon: notification.icon,
-      body: notification.body,
-      data: notification.url,
-    }),
+    (async () => {
+      if (notification.tag) {
+        // If the focus check itself fails (e.g. matchAll rejects), fail open
+        // and show the notification - a duplicate is recoverable, a real
+        // notification silently dropped is not.
+        try {
+          if (await isChannelFocused(notification.tag)) return;
+        } catch {
+          // fall through to showNotification
+        }
+      }
+
+      await self.registration.showNotification(notification.title || "NAC", {
+        icon: notification.icon,
+        body: notification.body,
+        data: notification.url,
+      });
+    })(),
   );
 });
 
