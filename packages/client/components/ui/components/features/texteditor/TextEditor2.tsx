@@ -1,6 +1,6 @@
 import { Accessor, createEffect, on, onMount } from "solid-js";
 
-import { defaultKeymap, history } from "@codemirror/commands";
+import { defaultKeymap, history, insertNewline } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
@@ -105,6 +105,28 @@ export function TextEditor2(props: Props) {
   ]);
 
   /**
+   * Handle 'Shift-Enter' (insert a line break without sending).
+   *
+   * Without this, Shift-Enter falls through to defaultKeymap's
+   * insertNewlineAndIndent, which copies/continues the previous line's
+   * leading whitespace via the markdown language's indent service (its own
+   * "continue blockquotes and lists that were active on the old line"
+   * behaviour). Reported live in this session: a member manually indenting
+   * paragraphs with leading spaces had each new line's auto-continued indent
+   * stack on top of the spaces they typed themselves, drifting further right
+   * every line - and if that ever reached 4 spaces, the paragraph silently
+   * became a Markdown indented code block on send. A chat composer isn't a
+   * code editor; Shift-Enter should just start a plain new line, matching
+   * every other chat app.
+   */
+  const shiftEnterKeymap = keymap.of([
+    {
+      key: "Shift-Enter",
+      run: insertNewline,
+    },
+  ]);
+
+  /**
    * Handle 'ArrowUp' key presses
    */
   const arrowUpKeymap = keymap.of([
@@ -135,6 +157,7 @@ export function TextEditor2(props: Props) {
 
         /* Mount keymaps */
         enterKeymap,
+        shiftEnterKeymap,
         arrowUpKeymap,
         keymap.of(defaultKeymap as never), // required for atomic ranges to work: https://github.com/codemirror/dev/issues/923
 
