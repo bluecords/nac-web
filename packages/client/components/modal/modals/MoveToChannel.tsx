@@ -47,13 +47,27 @@ export function MoveToChannelModal(
     setLoading(true);
     try {
       // The server moves the whole post (a forum post takes its replies) and
-      // keeps its author, reactions and attachments. The route is not in
-      // stoat-api's typed map yet, same as the forum solution routes, hence
-      // the `as never` casts.
-      await client().api.post(
-        `/channels/${props.message.channelId}/messages/${props.message.id}/move` as never,
-        { channel: targetChannelId } as never,
+      // keeps its author, reactions and attachments.
+      //
+      // Sent with fetch rather than client().api.post(): stoat-api only builds
+      // a request body for routes in its typed route map and sends `{}` for
+      // anything else, so the server refused this with a 422. Same base URL
+      // and auth headers as every other call; the error is thrown as raw
+      // response text, exactly as stoat-api does, so showError handles it the
+      // same way.
+      const api = client().api;
+      const res = await fetch(
+        `${api.config.baseURL}/channels/${props.message.channelId}/messages/${props.message.id}/move`,
+        {
+          method: "POST",
+          headers: {
+            ...api.config.headers,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ channel: targetChannelId }),
+        },
       );
+      if (!res.ok) throw await res.text();
 
       props.onClose();
     } catch (e) {
