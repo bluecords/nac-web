@@ -2,8 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 
-import { CONFIGURATION } from "@revolt/common";
-import { useState } from "@revolt/state";
+import { useClient } from "@revolt/client";
 import { Dialog, DialogProps } from "@revolt/ui";
 
 import { useModals } from "..";
@@ -12,7 +11,7 @@ import { Modals } from "../types";
 export function MoveToChannelModal(
   props: DialogProps & Modals & { type: "move_message" },
 ) {
-  const state = useState();
+  const client = useClient();
   const { showError } = useModals();
   const [query, setQuery] = createSignal("");
   const [loading, setLoading] = createSignal(false);
@@ -20,15 +19,22 @@ export function MoveToChannelModal(
 
   const server = () => props.message.server;
 
+  /**
+   * Only text and forum channels can receive a moved post, and the server
+   * requires Manage Messages in the target as well as the source.
+   */
+  const canMoveTo = (ch: { type: string; havePermission: (p: "ManageMessages") => boolean }) =>
+    (ch.type === "TextChannel" || ch.type === "ForumChannel") &&
+    ch.havePermission("ManageMessages");
+
   const filteredCategories = () => {
     const q = query().toLowerCase().trim();
     const cats = server()?.orderedChannels ?? [];
-    if (!q) return cats;
     return cats
       .map((cat) => ({
         ...cat,
-        channels: cat.channels.filter((ch) =>
-          ch.name?.toLowerCase().includes(q),
+        channels: cat.channels.filter(
+          (ch) => canMoveTo(ch) && (!q || ch.name?.toLowerCase().includes(q)),
         ),
       }))
       .filter((cat) => cat.channels.length > 0);
@@ -38,32 +44,16 @@ export function MoveToChannelModal(
     const targetChannelId = selectedId();
     if (!targetChannelId) return;
 
-    const token = state.auth.getSession()?.token;
-    if (!token) return;
-
     setLoading(true);
     try {
-      const res = await fetch(
-        `${CONFIGURATION.BOT_API_URL}/api/move-message`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-session-token": token,
-          },
-          body: JSON.stringify({
-            messageId: props.message.id,
-            sourceChannelId: props.message.channelId,
-            targetChannelId,
-          }),
-        },
+      // The server moves the whole post (a forum post takes its replies) and
+      // keeps its author, reactions and attachments. The route is not in
+      // stoat-api's typed map yet, same as the forum solution routes, hence
+      // the `as never` casts.
+      await client().api.post(
+        `/channels/${props.message.channelId}/messages/${props.message.id}/move` as never,
+        { channel: targetChannelId } as never,
       );
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        showError(data.error ?? "Failed to move message");
-        return;
-      }
 
       props.onClose();
     } catch (e) {
