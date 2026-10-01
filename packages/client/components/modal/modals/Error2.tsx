@@ -11,6 +11,8 @@ import { Modals } from "../types";
 const Error = styled("div", {
   base: {
     whiteSpace: "pre-wrap",
+    // Long unbroken tokens (API paths, JSON with no spaces) otherwise run past the dialog edge.
+    overflowWrap: "anywhere",
   },
 });
 
