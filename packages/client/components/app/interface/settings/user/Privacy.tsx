@@ -37,6 +37,11 @@ import { CategoryButton, Column, Text } from "@revolt/ui";
  * member can see the full set they might be asked about - including the ones
  * they have never allowed. A list that only showed past grants would answer
  * "what did I agree to" but not "what could this ask me for".
+ *
+ * KEEP THIS IN STEP WITH `embedURL` in stoat.js. Every provider it can build a
+ * player URL for is gated (SpecialEmbed denies by default) and can be asked
+ * about, so it needs a row here: without one, a remembered "yes" could never be
+ * turned off. Streamable was missing from here until 2026-09-26.
  */
 const PROVIDERS = [
   "YouTube",
@@ -45,6 +50,7 @@ const PROVIDERS = [
   "Soundcloud",
   "Bandcamp",
   "Lightspeed",
+  "Streamable",
 ] as const;
 
 export function PrivacySettings() {
@@ -127,11 +133,21 @@ export function PrivacySettings() {
               description={
                 embedConsentGranted(provider) ? (
                   <Trans>
-                    Plays here without asking. {provider} receives your IP
-                    address when you play something.
+                    Loads its player when you click its picture,
+                    without asking first. Nothing from your device
+                    goes to {provider} until you do.
+                    Then {provider} receives your IP address, your
+                    browser details and any cookies you already have
+                    with them, and is told you are on NAC.
                   </Trans>
                 ) : (
-                  <Trans>Blocked until you agree, each time you play.</Trans>
+                  <Trans>
+                    Asks first, each time you click one of its pictures.
+                    If you allow it, a click loads its player straight
+                    away, and {provider} then receives your IP address,
+                    your browser details and any cookies you already
+                    have with them, and is told you are on NAC.
+                  </Trans>
                 )
               }
             >

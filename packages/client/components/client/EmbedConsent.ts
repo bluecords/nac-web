@@ -35,9 +35,23 @@ import type { Client } from "stoat.js";
  * association with this community entirely.
  */
 
-/** Ack keys are per provider: embed_provider_youtube, _spotify, and so on. */
+/**
+ * Ack keys are per provider: embed_provider_youtube_v2, _spotify_v2, and so on.
+ *
+ * `_v2` IS A RE-CONSENT, ON PURPOSE (2026-09-26). Agreement recorded under the
+ * first key was given against wording that said a player would not be told which
+ * community you came from and that its cookies were blocked. That stopped being
+ * true when the player was relaxed so it would actually work (the locked-down
+ * one showed a black box for YouTube and blank for SoundCloud and Twitch).
+ * Agreement to one thing is not agreement to a different thing, so the old rows
+ * are simply no longer looked up: they stay in the audit trail untouched, and a
+ * member is asked once more, under wording that is true.
+ *
+ * refreshEmbedConsent still reads every `embed_provider_` key, old and new; only
+ * the key that is LOOKED UP changed.
+ */
 export function embedAckKey(provider: string): string {
-  return `embed_provider_${provider.toLowerCase()}`;
+  return `embed_provider_${provider.toLowerCase()}_v2`;
 }
 
 type Granted = Record<string, boolean>;
@@ -46,11 +60,14 @@ const [granted, setGranted] = createSignal<Granted>({});
 const [loaded, setLoaded] = createSignal(false);
 
 /**
- * Whether this provider may be loaded without asking.
+ * Has the member said "do not ask me again" for this provider?
  *
- * Unknown counts as NOT granted, and that default is the whole feature: the
- * cost of guessing wrong in the other direction is the leak itself, which has
- * already happened by the time the answer arrives.
+ * That decides only whether a click on a picture plays straight away or first
+ * shows the pop-up. NOTHING loads without a click either way (SpecialEmbed).
+ *
+ * Unknown counts as NOT granted, and that default is the whole feature: it
+ * means the pop-up is shown, so a member is never treated as having agreed to
+ * something they were not asked.
  */
 export function embedConsentGranted(provider: string): boolean {
   return granted()[embedAckKey(provider)] === true;
@@ -126,10 +143,17 @@ export async function grantEmbedConsent(
 ): Promise<boolean> {
   const key = embedAckKey(provider);
 
-  // Unblock immediately either way; this is a direct response to a click.
-  setGranted((prev) => ({ ...prev, [key]: true }));
-
+  // Not remembered: allow ONLY the embed the member clicked. SpecialEmbed's own
+  // `playing` signal unblocks that one (the modal calls onPlay right after
+  // this). Flipping the provider-wide flag here used to make EVERY other post
+  // from this provider load as well, with no further choice, the moment someone
+  // played a single video with "Remember" unticked (found by review,
+  // 2026-09-26).
   if (!remember) return false;
+
+  // Take effect immediately, for every picture from this provider: the next
+  // click on one plays straight away instead of asking.
+  setGranted((prev) => ({ ...prev, [key]: true }));
 
   try {
     await client.recordConsentForCurrentPolicy([
