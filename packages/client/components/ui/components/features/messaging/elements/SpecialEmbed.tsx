@@ -165,12 +165,24 @@ export function SpecialEmbed(props: { embed: WebsiteEmbed }) {
    * with this and `allow="autoplay"` on the frame, one click starts the video.
    * Only YouTube; the other providers keep their own defaults, so for them the
    * click loads the player and its own play button still has to be pressed.)
+   *
+   * YouTube is also moved off `youtube-nocookie.com`, which is the address
+   * january hands us. That domain never receives the member's YouTube login,
+   * so YouTube sees an anonymous embed and answers "Sign in to confirm you're
+   * not a bot" for many videos - measured 2026-10-03 in a browser signed in to
+   * YouTube: the same video, same sandbox and referrer, played on
+   * `www.youtube.com/embed` and was bot-checked on `youtube-nocookie.com`.
+   * Cookies working as usual after the click is exactly what the consent
+   * modal tells the member.
    */
   const playerURL = () => {
     const url = props.embed.embedURL;
     if (!url || provider() !== "YouTube") return url;
 
     const player = new URL(url);
+    if (player.hostname === "www.youtube-nocookie.com") {
+      player.hostname = "www.youtube.com";
+    }
     player.searchParams.set("autoplay", "1");
     return player.toString();
   };
