@@ -19,7 +19,7 @@ import {
   useParams,
 } from "@solidjs/router";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
-import "material-symbols";
+import "./icons/material-symbols.css";
 import "mdui/mdui.css";
 import { PublicBot } from "stoat.js";
 

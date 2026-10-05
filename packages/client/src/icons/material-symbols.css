@@ -1,0 +1,45 @@
+/*
+ * The icon font, cut down to the icons this app actually uses.
+ *
+ * WHY. The full Material Symbols Outlined font is 3.75 MB. On a phone that
+ * takes long enough that, until it arrives, every icon is drawn as its own
+ * NAME in plain text ("grid_3x3", "manage_accounts", "forum") because icons are
+ * ligatures of letters. Members saw that on opening the app and it went away
+ * after a pull-to-refresh (2026-10-04/05, reported in the admin Discussion
+ * channel). This file is 65 KB, so there is no window for that to happen.
+ *
+ * WHAT IS IN IT. The 313 names in icon-names.txt, with weight pinned to 400 and
+ * grade to 0 (Symbol.tsx pins both); FILL and optical size stay variable.
+ *
+ * ADDING AN ICON. A new icon name that is not in icon-names.txt will show as
+ * plain text, exactly as above. Add the name to icon-names.txt and run
+ *   python packages/client/src/icons/subset-icons.py
+ * (needs `pip install fonttools brotli`), then commit the regenerated .woff2.
+ * Rounded and Sharp are not shipped: nothing uses them, and they were 5 MB and
+ * 3 MB of precache on every install.
+ */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url("./material-symbols-outlined.subset.woff2") format("woff2");
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga";
+}
