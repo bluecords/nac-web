@@ -15,18 +15,83 @@ const [updateReady, setUpdateReady] = createSignal(false);
 // fix for exactly that class of PWA reload storm: reload() has to be called
 // at most once, ever, per page instance.
 let hasReloaded = false;
-function reloadOnce(): void {
+
+// A second guard, because the one above cannot see across page loads. Each
+// reload creates a NEW page instance with `hasReloaded` false again, so if
+// whatever asks for the reload is true on every fresh load, the page reloads
+// forever. That is exactly what one member's phone did on 2026-09-24,
+// 2026-09-29 and 2026-10-05: ~345 full page loads in ~87 seconds, ~4 a
+// second, then it stopped by itself. The cause was never found by reading the
+// code, so this does not wait for it: reloads are counted in localStorage
+// (which survives a reload) and refused after MAX_RELOADS in RELOAD_WINDOW_MS.
+// Worst case is now three quick reloads, not hundreds.
+const RELOAD_LOG_KEY = "nac:reload-log";
+const MAX_RELOADS = 3;
+const RELOAD_WINDOW_MS = 60_000;
+
+function recentReloads(): number[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RELOAD_LOG_KEY) ?? "[]");
+    const now = Date.now();
+    return Array.isArray(raw)
+      ? raw.filter((t) => typeof t === "number" && now - t < RELOAD_WINDOW_MS)
+      : [];
+  } catch {
+    // Storage unavailable: treat as no history rather than blocking updates.
+    return [];
+  }
+}
+
+// Says WHY a reload happened, to our own server log and nowhere else. It is
+// a POST with the reason in the address; nginx writes the line, nothing
+// reads it, and it carries no member data. `grep nac-reload` on the web
+// access log is how the next occurrence is explained instead of guessed at.
+function reportReload(reason: string, blocked: boolean): void {
+  try {
+    navigator.sendBeacon(
+      `/__nac-reload?reason=${encodeURIComponent(reason)}&blocked=${blocked ? 1 : 0}`,
+    );
+  } catch {
+    // Diagnostics must never get in the way of an update.
+  }
+}
+
+function reloadBudgetLeft(): boolean {
+  return recentReloads().length < MAX_RELOADS;
+}
+
+function reloadOnce(reason: string): void {
   if (hasReloaded) return;
   hasReloaded = true;
+
+  const recent = recentReloads();
+  if (recent.length >= MAX_RELOADS) {
+    reportReload(reason, true);
+    console.warn(`Reload refused (${reason}): ${recent.length} in the last minute`);
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      RELOAD_LOG_KEY,
+      JSON.stringify([...recent, Date.now()]),
+    );
+  } catch {
+    // Without storage the cross-load guard cannot count; the page guard holds.
+  }
+  reportReload(reason, false);
   location.reload();
 }
+
+// Which signal last said "an update is ready", so the reload can name it.
+let updateReason = "unknown";
 
 // Declared BEFORE the PROD block below, which assigns it during module
 // evaluation. A `const` further down would be in its temporal dead zone at
 // that point and throw on load - in the service worker wiring, which is about
 // the worst place to put a startup crash.
 const [updateApply, setUpdateApply] = createSignal<() => void>(
-  () => reloadOnce,
+  () => reloadOnce("default"),
 );
 
 export { pendingUpdate, updateApply, updateReady };
@@ -47,7 +112,7 @@ window.fetch = async (...args) => {
     // UPDATER and calls it immediately, so `setPendingUpdate(() => reload())`
     // reloaded on the spot and stored undefined - the banner this comment
     // describes could never appear. To store a function you must return it.
-    setPendingUpdate(() => reloadOnce);
+    setPendingUpdate(() => () => reloadOnce("upgrade-required-426"));
   }
 
   return response;
@@ -58,6 +123,7 @@ if (import.meta.env.PROD) {
     // Kept for the "prompt" contract, though the worker skip-waits itself so
     // this is belt and braces rather than the mechanism.
     onNeedRefresh() {
+      updateReason = "need-refresh";
       setUpdateReady(true);
     },
     onOfflineReady() {
@@ -108,13 +174,22 @@ if (import.meta.env.PROD) {
   // typed-but-unsent, showing the banner in the meantime. Nothing is lost and
   // nothing is interrupted.
   navigator.serviceWorker?.addEventListener("controllerchange", () => {
+    updateReason = "controller-change";
     setUpdateReady(true);
   });
 
   // Expose the apply step for the banner's Refresh button. Calling updateSW
   // first is harmless when the worker has already taken over.
   setUpdateApply(() => () => {
+    // updateSW(true) arms the plugin's own reload, which this file's counter
+    // cannot see, so check the budget BEFORE arming it.
+    if (hasReloaded) return;
+    if (!reloadBudgetLeft()) {
+      reloadOnce(`update:${updateReason}`);
+      return;
+    }
+
     void updateSW(true);
-    reloadOnce();
+    reloadOnce(`update:${updateReason}`);
   });
 }
