@@ -19,7 +19,13 @@ import { getFavorites, useClient, useUser } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 import { useNavigate, useSmartParams } from "@revolt/routing";
 import { useState } from "@revolt/state";
-import { Avatar, Unreads, UserStatus } from "@revolt/ui";
+import {
+  Avatar,
+  Unreads,
+  UserStatus,
+  closeTopBackLayer,
+  useBackLayer,
+} from "@revolt/ui";
 
 import { ServerSidebar } from "../navigation/channels/ServerSidebar";
 import { useMobileNav } from "./MobileNavContext";
@@ -38,6 +44,12 @@ export function MobileNav(_props: {
     closeNav,
     openMembers,
     openMessages,
+    closeMembers,
+    closeMessages,
+    membersOpen,
+    messagesOpen,
+    searchOpen,
+    closeSearch,
     editMode,
     setEditMode,
     forumBackHandler,
@@ -101,8 +113,20 @@ export function MobileNav(_props: {
     ),
   );
 
+  // One rule for Back: close the topmost open layer. These register
+  // themselves on the shared stack (see backLayers.ts) so a layer cannot be
+  // added without Back knowing about it. The GIF/emoji picker registers itself.
+  useBackLayer(navOpen, closeNav);
+  useBackLayer(searchOpen, closeSearch);
+  useBackLayer(membersOpen, closeMembers);
+  useBackLayer(messagesOpen, closeMessages);
+
   const onPopState = () => {
     if (!isMobile()) return;
+
+    // Anything on the shared layer stack (drawer, search, overlays, pickers)
+    // is closed first; it is always the topmost thing on screen.
+    if (closeTopBackLayer()) return;
 
     // Topmost layer first: a modal covers everything else, so close it
     // before considering what's underneath.
