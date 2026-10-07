@@ -11,6 +11,7 @@ const vis = (t) => c.eval(`(()=>{const T=${JSON.stringify(t)};for(const e of doc
 const ph = (re) => c.eval(`[...document.querySelectorAll('input,textarea')].some(e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0&&${re}.test(e.placeholder||'')&&b.bottom>0&&b.top<innerHeight})`);
 const LAYERS = {
   // (search is a full-screen takeover with no "outside", tested separately)
+  search: { open: [366, 32], detect: () => ph("/search/i"), outside: null },
   drawer: { open: [28, 28],  detect: () => vis("Naked as Created"), outside: [370, 400] },
   gif:    { open: [268, 765], detect: () => vis("Trending GIFs"),   outside: [200, 150] },
   emoji:  { open: [310, 765], detect: () => vis("Default"), outside: [200, 150] },
@@ -23,7 +24,7 @@ async function reset() {
 }
 const results = [];
 for (const [name, L] of Object.entries(LAYERS)) {
-  for (const dismiss of ["outside-tap", "back-button"]) {
+  for (const dismiss of (L.outside ? ["outside-tap", "back-button"] : ["back-button"])) {
     await reset();
     const pre = await L.detect();
     await c.tap(...L.open); await c.sleep(900);
