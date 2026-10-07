@@ -23,7 +23,7 @@ import MdClose from "@material-symbols/svg-400/outlined/close.svg?component-soli
 
 import { Button } from "@revolt/ui/components/design";
 import { Row } from "@revolt/ui/components/layout";
-import { symbolSize } from "@revolt/ui/components/utils";
+import { symbolSize, useBackLayer } from "@revolt/ui/components/utils";
 
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
@@ -68,6 +68,12 @@ export const CompositionMediaPickerContext = createContext(
 export function CompositionMediaPicker(props: Props) {
   const [anchor, setAnchor] = createSignal<HTMLElement>();
   const [show, setShow] = createSignal<"gif" | "emoji">();
+
+  // Phone Back button closes the picker (shared layer stack, see backLayers.ts).
+  useBackLayer(
+    () => !!show(),
+    () => setShow(undefined),
+  );
 
   return (
     <CompositionMediaPickerContext.Provider
