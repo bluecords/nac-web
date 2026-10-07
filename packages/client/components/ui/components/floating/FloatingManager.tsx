@@ -23,6 +23,8 @@ import {
   isDocumentClickSuppressed,
 } from "../../directives";
 
+import { useBackLayer } from "../utils/backLayers";
+
 import { dismissFloatingElements } from ".";
 import { AutoComplete } from "./AutoComplete";
 import { TooltipBase } from "./Tooltip";
@@ -80,6 +82,14 @@ export function FloatingManager() {
  */
 function Floating(props: FloatingElement & { mouseX: number; mouseY: number }) {
   const [floating, setFloating] = createSignal<HTMLDivElement>();
+
+  // Phone Back button closes an open context menu or profile card (shared layer
+  // stack, see utils/backLayers.ts). Tooltips and autocomplete are not layers:
+  // they follow the pointer or the text box and must not catch Back.
+  useBackLayer(
+    () => !!(props.show()?.contextMenu || props.show()?.userCard),
+    props.hide,
+  );
 
   /**
    * Figure out placement of the floating element
