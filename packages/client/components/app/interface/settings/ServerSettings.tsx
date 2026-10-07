@@ -21,6 +21,7 @@ import { ChannelPermissionsEditor } from "./channel/permissions/ChannelPermissio
 import Overview from "./server/Overview";
 import { ListServerBans } from "./server/bans/ListBans";
 import { EmojiList } from "./server/emojis/EmojiList";
+import { Feeds } from "./server/feeds/Feeds";
 import { ListServerInvites } from "./server/invites/ListServerInvites";
 import { DiscordClaims } from "./server/members/DiscordClaims";
 import { MemberList } from "./server/members/MemberList";
@@ -87,6 +88,8 @@ const Config: SettingsConfiguration<Server> = {
         return <ListServerInvites server={server} />;
       case "bans":
         return <ListServerBans server={server} />;
+      case "feeds":
+        return <Feeds server={server} />;
 
       default:
         return null;
@@ -179,6 +182,14 @@ const Config: SettingsConfiguration<Server> = {
               id: "invites",
               icon: <BiSolidEnvelope size={20} />,
               title: <Trans>Invites</Trans>,
+            },
+            {
+              // The feeds API (an n8n workflow) verifies the caller is a
+              // privileged account itself; this only hides the entry.
+              hidden: !user()?.privileged,
+              id: "feeds",
+              icon: <BiSolidFlagAlt size={20} />,
+              title: <Trans>News feeds</Trans>,
             },
             {
               hidden: !server.havePermission("BanMembers"),
