@@ -184,6 +184,18 @@ const Config: SettingsConfiguration<Server> = {
               title: <Trans>Invites</Trans>,
             },
             {
+              hidden: !server.havePermission("BanMembers"),
+              id: "bans",
+              icon: <BiSolidUserX size={20} />,
+              title: <Trans>Bans</Trans>,
+            },
+          ],
+        },
+        {
+          hidden: !server.havePermission("ManageServer"),
+          title: <Trans>Content</Trans>,
+          entries: [
+            {
               // The feeds API (an n8n workflow) checks the caller itself
               // against an admin allow-list; this only hides the entry. Not
               // gated on `privileged`: the daily-driver admin account is not.
@@ -191,12 +203,6 @@ const Config: SettingsConfiguration<Server> = {
               id: "feeds",
               icon: <BiSolidFlagAlt size={20} />,
               title: <Trans>News feeds</Trans>,
-            },
-            {
-              hidden: !server.havePermission("BanMembers"),
-              id: "bans",
-              icon: <BiSolidUserX size={20} />,
-              title: <Trans>Bans</Trans>,
             },
           ],
         },
