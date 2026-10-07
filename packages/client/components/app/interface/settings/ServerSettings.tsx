@@ -184,9 +184,10 @@ const Config: SettingsConfiguration<Server> = {
               title: <Trans>Invites</Trans>,
             },
             {
-              // The feeds API (an n8n workflow) verifies the caller is a
-              // privileged account itself; this only hides the entry.
-              hidden: !user()?.privileged,
+              // The feeds API (an n8n workflow) checks the caller itself
+              // against an admin allow-list; this only hides the entry. Not
+              // gated on `privileged`: the daily-driver admin account is not.
+              hidden: !server.havePermission("ManageServer"),
               id: "feeds",
               icon: <BiSolidFlagAlt size={20} />,
               title: <Trans>News feeds</Trans>,
