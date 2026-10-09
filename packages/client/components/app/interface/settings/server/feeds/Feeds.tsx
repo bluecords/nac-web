@@ -49,6 +49,14 @@ type Activity = {
   reason: string;
 };
 
+type QueueItem = {
+  id: string;
+  source: string;
+  title: string;
+  link: string;
+  at: string | null;
+};
+
 type ApiState = {
   feeds: {
     id: string;
@@ -63,6 +71,7 @@ type ApiState = {
   stats: Record<string, Stat>;
   activity: Activity[];
   pending: number;
+  queue: QueueItem[];
 };
 
 const toText = (list: string[]) => list.join("\n");
@@ -96,7 +105,10 @@ export function Feeds(props: { server: Server }) {
   const state = useState();
   const { showError } = useModals();
 
-  const [tab, setTab] = createSignal<"sources" | "activity">("sources");
+  const [tab, setTab] = createSignal<"sources" | "review" | "activity">(
+    "sources",
+  );
+  const [busyItem, setBusyItem] = createSignal<string>();
   const [feeds, setFeeds] = createSignal<Feed[]>([]);
   const [globalBlockText, setGlobalBlockText] = createSignal("");
   const [dirty, setDirty] = createSignal(false);
@@ -174,6 +186,20 @@ export function Feeds(props: { server: Server }) {
     }
   }
 
+  /** Approve posts the item to News & Politics as the bot; reject drops it. */
+  async function decide(id: string, action: "approve" | "reject") {
+    setBusyItem(id);
+    try {
+      await call({ action, id });
+      await data.refetch();
+    } catch (error) {
+      showError(error);
+      await data.refetch();
+    } finally {
+      setBusyItem(undefined);
+    }
+  }
+
   const activity = createMemo(() =>
     (data.data?.activity ?? []).filter(
       (a) =>
@@ -227,6 +253,13 @@ export function Feeds(props: { server: Server }) {
             isDisabled={tab() === "sources"}
           >
             <Trans>Sources</Trans>
+          </Button>
+          <Button
+            group="standard"
+            onPress={() => setTab("review")}
+            isDisabled={tab() === "review"}
+          >
+            <Trans>Review</Trans> ({data.data!.queue?.length ?? 0})
           </Button>
           <Button
             group="standard"
@@ -388,6 +421,64 @@ export function Feeds(props: { server: Server }) {
                 <Text class="label"><Trans>Unsaved changes</Trans></Text>
               </Show>
             </Row>
+          </Column>
+        </Show>
+
+        <Show when={tab() === "review"}>
+          <Column gap="md">
+            <Text class="body">
+              <Trans>
+                Approve posts the headline and link to News &amp; Politics.
+                Reject removes it. Reacting with a check mark in the queue
+                channel still works too.
+              </Trans>
+            </Text>
+            <Show
+              when={(data.data!.queue ?? []).length}
+              fallback={
+                <Text class="body">
+                  <Trans>Nothing is waiting for review.</Trans>
+                </Text>
+              }
+            >
+              <For each={data.data!.queue}>
+                {(item) => (
+                  <Column
+                    gap="sm"
+                    style={{
+                      padding: "12px",
+                      "border-radius": "10px",
+                      border: "1px solid var(--md-sys-color-outline-variant)",
+                    }}
+                  >
+                    <Text class="body">{item.title}</Text>
+                    <Text class="label">
+                      {item.source}
+                      {item.at ? ` - ${ago(item.at)}` : ""} -{" "}
+                      <a href={item.link} target="_blank" rel="noopener noreferrer">
+                        {item.link}
+                      </a>
+                    </Text>
+                    <Row gap="md">
+                      <Button
+                        group="standard"
+                        isDisabled={busyItem() === item.id}
+                        onPress={() => decide(item.id, "approve")}
+                      >
+                        <Trans>Approve</Trans>
+                      </Button>
+                      <Button
+                        group="standard"
+                        isDisabled={busyItem() === item.id}
+                        onPress={() => decide(item.id, "reject")}
+                      >
+                        <Trans>Reject</Trans>
+                      </Button>
+                    </Row>
+                  </Column>
+                )}
+              </For>
+            </Show>
           </Column>
         </Show>
 
