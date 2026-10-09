@@ -230,8 +230,8 @@ export function Feeds(props: { server: Server }) {
           <Trans>
             Sources are checked hourly. An item must pass the filters below to
             reach the review queue; the cap keeps only the newest items per
-            run. Nothing here posts publicly - approval is still a reaction in
-            the queue channel.
+            run. Use the Review tab to approve (posts to News &amp; Politics) or
+            reject what is waiting.
           </Trans>
         </Text>
       </Column>
