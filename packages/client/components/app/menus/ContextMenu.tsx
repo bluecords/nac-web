@@ -10,7 +10,7 @@ import {
 import { Portal } from "solid-js/web";
 import { Motion, Presence } from "solid-motionone";
 
-import { autoUpdate, offset, shift } from "@floating-ui/dom";
+import { autoUpdate, flip, offset, shift } from "@floating-ui/dom";
 import { styled } from "styled-system/jsx";
 
 import { Text, iconSize, symbolSize } from "@revolt/ui";
@@ -175,7 +175,19 @@ export function ContextMenuSubMenu(
   const position = useFloating(anchor, ref, {
     placement: "right-start",
     whileElementsMounted: autoUpdate,
-    middleware: [offset(5), shift()],
+    // "right-start" with only shift() has no answer when the menu sits near the
+    // right edge (any phone: the drawer fills most of the screen), so the
+    // submenu ran off-screen and its items could not be tapped. flip() moves it
+    // to the left, then below/above if neither side fits; shift() then clamps
+    // whatever is left inside the viewport.
+    middleware: [
+      offset(5),
+      flip({
+        padding: 8,
+        fallbackPlacements: ["left-start", "bottom-start", "top-start"],
+      }),
+      shift({ padding: 8 }),
+    ],
   });
 
   return (
