@@ -174,6 +174,18 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
     }
 
     if (target === "contextMenu" && config.contextMenu) {
+      // One menu at a time. A touch long-press never produces the tap that
+      // FloatingManager uses to dismiss an open menu, so long-pressing a second
+      // channel left the first menu up and they piled on top of each other
+      // (screenshot from Bunjie, 2026-10-10, three channel menus stacked).
+      // Opening a menu closes every other floating element first. The open-only
+      // case (desiredState === true) is the same menu being re-asked for, so it
+      // must not close itself.
+      if (!current?.contextMenu) {
+        for (const other of floatingElements()) {
+          if (other.element !== element) other.hide();
+        }
+      }
       if (current?.contextMenu) {
         // desiredState === true means "make sure it is open", never "toggle".
         if (desiredState !== true) setShow(undefined);
