@@ -266,6 +266,27 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
   }
 
   /**
+   * Work that a reload would LOSE even though text drafts are saved: attached
+   * files only ever live in memory (they are not persisted), and a message that
+   * is still being sent has not been acknowledged yet. Used to decide whether a
+   * HIDDEN page may be reloaded for an update; typed text is not counted here
+   * because it is persisted (after a short delay, see Interface.tsx).
+   */
+  hasInFlightWork(): boolean {
+    const state = this.get();
+
+    for (const draft of Object.values(state.drafts ?? {})) {
+      if ((draft?.files?.length ?? 0) > 0) return true;
+    }
+
+    for (const queue of Object.values(state.outbox ?? {})) {
+      if (queue?.some((entry) => entry.status === "sending")) return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Check whether a channel has a draft.
    * @param channelId Channel ID
    */

@@ -115,14 +115,21 @@ const Interface = (props: { children: JSX.Element }) => {
   // A message still in the outbox counts as unsent. Reloading then is exactly
   // the case his instruction was about - let the post complete first.
   //
-  // WHEN THE PAGE IS HIDDEN, apply it regardless of drafts. Reported
+  // WHEN THE PAGE IS HIDDEN, apply it even over a stale draft. Reported
   // 2026-10-10 with a screenshot (Ryan Ash): the banner "Finish what you're
   // typing" stayed up for days over an EMPTY composer, because the check below
   // looks at every channel and an old draft or stuck message somewhere else
   // kept it true forever, so the phone never left its old build (icons drawn
-  // as words, the old font file 404ing). Nobody is typing into a hidden page,
-  // and drafts and the outbox are persisted to IndexedDB, so a reload loses
-  // nothing. The consent-gate check still applies: that state is NOT saved.
+  // as words, the old font file 404ing). Nobody is typing into a hidden page.
+  //
+  // This is NOT "drafts are all persisted, so reload freely" - an independent
+  // review proved that false. Typed text is saved to IndexedDB only after
+  // DISK_WRITE_WAIT_MS (1200 ms), attached files are never saved, and a message
+  // still "sending" is unacknowledged. So a hidden page waits HIDDEN_APPLY_MS
+  // (long enough for the debounced save to land), then re-checks that it is
+  // still hidden and that no file or in-flight message is at stake.
+  // The consent-gate check still applies: that state is NOT saved either.
+  const HIDDEN_APPLY_MS = 3000;
   const [pageHidden, setPageHidden] = createSignal(
     document.visibilityState === "hidden",
   );
@@ -135,7 +142,19 @@ const Interface = (props: { children: JSX.Element }) => {
 
   createEffect(() => {
     if (!updateReady()) return;
-    if (!pageHidden() && state.draft.hasAnyUnsent()) return;
+
+    if (pageHidden()) {
+      const timer = setTimeout(() => {
+        if (document.visibilityState !== "hidden") return;
+        if (state.draft.hasInFlightWork()) return;
+        if (isOpen("policy_change")) return;
+        updateApply()();
+      }, HIDDEN_APPLY_MS);
+      onCleanup(() => clearTimeout(timer));
+      return;
+    }
+
+    if (state.draft.hasAnyUnsent()) return;
 
     // The consent gate counts as "mid-sentence" too, and the draft check cannot
     // see it. It holds four tick-boxes and a Discord name the member searched
