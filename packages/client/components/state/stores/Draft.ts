@@ -249,12 +249,38 @@ export class Draft extends AbstractStore<"draft", TypeDraft> {
     const state = this.get();
 
     for (const draft of Object.values(state.drafts ?? {})) {
-      if ((draft?.content?.length ?? 0) > 0) return true;
+      // Whitespace is not a message: a stray space left in a composer must not
+      // hold an update back forever.
+      if ((draft?.content?.trim().length ?? 0) > 0) return true;
       if ((draft?.files?.length ?? 0) > 0) return true;
     }
 
     for (const queue of Object.values(state.outbox ?? {})) {
-      if ((queue?.length ?? 0) > 0) return true;
+      // A "failed" message is not on its way out - it is parked until the
+      // member retries, and it is persisted, so a reload keeps it. Counting it
+      // meant one failed send blocked every update for good.
+      if (queue?.some((entry) => entry.status !== "failed")) return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Work that a reload would LOSE even though text drafts are saved: attached
+   * files only ever live in memory (they are not persisted), and a message that
+   * is still being sent has not been acknowledged yet. Used to decide whether a
+   * HIDDEN page may be reloaded for an update; typed text is not counted here
+   * because it is persisted (after a short delay, see Interface.tsx).
+   */
+  hasInFlightWork(): boolean {
+    const state = this.get();
+
+    for (const draft of Object.values(state.drafts ?? {})) {
+      if ((draft?.files?.length ?? 0) > 0) return true;
+    }
+
+    for (const queue of Object.values(state.outbox ?? {})) {
+      if (queue?.some((entry) => entry.status === "sending")) return true;
     }
 
     return false;

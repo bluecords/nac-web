@@ -178,6 +178,55 @@ if (import.meta.env.PROD) {
     setUpdateReady(true);
   });
 
+  // SELF-HEAL FOR A DEAD ICON FONT. Icons are ligatures of letters, so when the
+  // font file cannot be fetched every icon is drawn as its own name ("menu",
+  // "grid_3x3", "send"). Measured 2026-10-10: three phones asked for the OLD
+  // font file (deleted on purpose, nac-web#236) from a stale page and got 404.
+  // A new worker activating drops the old precache while an old page is still
+  // open, and the reload that should follow did not fire for at least one
+  // member (Ryan Ash, with screenshots). The page cannot be left like that, so
+  // when the font fails it goes down the SAME path as an update: it says "an
+  // update is ready", which Interface.tsx applies only once nothing is
+  // typed-but-unsent and the consent gate is closed, through reloadOnce and
+  // its per-minute budget.
+  //
+  // One attempt per ten minutes per tab session, so a phone with no signal at
+  // all cannot reload-loop: the font fails the same way after the reload and
+  // the second failure is ignored.
+  const ICON_FONT_RETRY_MS = 10 * 60_000;
+  const ICON_FONT_KEY = "nac:icon-font-heal";
+  function iconFontFailed(faces: Iterable<FontFace>): boolean {
+    for (const face of faces) {
+      if (face.family.replace(/["']/g, "").startsWith("Material Symbols")) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function healIconFont(): void {
+    if (!navigator.onLine) return;
+    try {
+      const last = Number(sessionStorage.getItem(ICON_FONT_KEY) ?? 0);
+      if (Date.now() - last < ICON_FONT_RETRY_MS) return;
+      sessionStorage.setItem(ICON_FONT_KEY, String(Date.now()));
+    } catch {
+      // No sessionStorage: the per-minute reload budget is the only brake.
+    }
+    updateReason = "icon-font-failed";
+    setUpdateReady(true);
+  }
+  document.fonts?.addEventListener("loadingerror", (e) => {
+    if (iconFontFailed((e as FontFaceSetLoadEvent).fontfaces)) healIconFont();
+  });
+  // A failure that happened before the listener above existed.
+  void document.fonts?.ready.then(() => {
+    const failed: FontFace[] = [];
+    document.fonts.forEach((face) => {
+      if (face.status === "error") failed.push(face);
+    });
+    if (iconFontFailed(failed)) healIconFont();
+  });
+
   // Expose the apply step for the banner's Refresh button. Calling updateSW
   // first is harmless when the worker has already taken over.
   setUpdateApply(() => () => {
