@@ -178,12 +178,18 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
       // FloatingManager uses to dismiss an open menu, so long-pressing a second
       // channel left the first menu up and they piled on top of each other
       // (screenshot from Bunjie, 2026-10-10, three channel menus stacked).
-      // Opening a menu closes every other floating element first. The open-only
-      // case (desiredState === true) is the same menu being re-asked for, so it
-      // must not close itself.
+      // Opening a menu closes every OTHER OPEN MENU first - and only menus.
+      // The first version closed every floating element, which included the
+      // profile card: its own "..." button is a menu, so opening it closed the
+      // card it lives in and the admin menu vanished with it ("the card just
+      // closes", reported 2026-10-10). User cards and tooltips are not menus.
+      // The open-only case (desiredState === true) is the same menu being
+      // re-asked for, so it must not close itself.
       if (!current?.contextMenu) {
         for (const other of floatingElements()) {
-          if (other.element !== element) other.hide();
+          if (other.element !== element && other.show()?.contextMenu) {
+            other.hide();
+          }
         }
       }
       if (current?.contextMenu) {
