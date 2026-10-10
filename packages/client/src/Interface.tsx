@@ -1,4 +1,12 @@
-import { JSX, Match, Show, Switch, createEffect } from "solid-js";
+import {
+  JSX,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createSignal,
+  onCleanup,
+} from "solid-js";
 
 import { Server } from "stoat.js";
 import { styled } from "styled-system/jsx";
@@ -106,9 +114,28 @@ const Interface = (props: { children: JSX.Element }) => {
   //
   // A message still in the outbox counts as unsent. Reloading then is exactly
   // the case his instruction was about - let the post complete first.
+  //
+  // WHEN THE PAGE IS HIDDEN, apply it regardless of drafts. Reported
+  // 2026-10-10 with a screenshot (Ryan Ash): the banner "Finish what you're
+  // typing" stayed up for days over an EMPTY composer, because the check below
+  // looks at every channel and an old draft or stuck message somewhere else
+  // kept it true forever, so the phone never left its old build (icons drawn
+  // as words, the old font file 404ing). Nobody is typing into a hidden page,
+  // and drafts and the outbox are persisted to IndexedDB, so a reload loses
+  // nothing. The consent-gate check still applies: that state is NOT saved.
+  const [pageHidden, setPageHidden] = createSignal(
+    document.visibilityState === "hidden",
+  );
+  const onVisibility = () =>
+    setPageHidden(document.visibilityState === "hidden");
+  document.addEventListener("visibilitychange", onVisibility);
+  onCleanup(() =>
+    document.removeEventListener("visibilitychange", onVisibility),
+  );
+
   createEffect(() => {
     if (!updateReady()) return;
-    if (state.draft.hasAnyUnsent()) return;
+    if (!pageHidden() && state.draft.hasAnyUnsent()) return;
 
     // The consent gate counts as "mid-sentence" too, and the draft check cannot
     // see it. It holds four tick-boxes and a Discord name the member searched
