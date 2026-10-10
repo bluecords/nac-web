@@ -117,6 +117,18 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
   // scopes below.
   let suppressNextClick = false;
 
+  // When the last TOUCH began on this element. A touch long-press is reported
+  // twice: by our own 500 ms timer below AND by the browser's native
+  // `contextmenu` event, which Android Chrome fires at about the same moment.
+  // Both used to TOGGLE the menu, so whichever came second closed what the
+  // first had just opened - the menu appeared and vanished. Which one arrives
+  // first differs by phone and Chrome build, which is why it worked on some
+  // handsets and not others (reported 2026-10-10 by Ryan Ash: long-press on a
+  // channel name, menu flashes and disappears). Both paths now only ever OPEN
+  // during a touch gesture; the second one is a no-op.
+  let lastTouchDownAt = 0;
+  const TOUCH_GESTURE_MS = 1500;
+
   /**
    * Trigger a floating element
    */
@@ -149,7 +161,8 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
 
     if (target === "contextMenu" && config.contextMenu) {
       if (current?.contextMenu) {
-        setShow(undefined);
+        // desiredState === true means "make sure it is open", never "toggle".
+        if (desiredState !== true) setShow(undefined);
       } else if (!current) {
         setShow({ contextMenu: config.contextMenu });
       } else {
@@ -189,7 +202,13 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
       return;
     }
 
-    trigger("contextMenu");
+    // Only the native `contextmenu` event can duplicate the long-press timer;
+    // a "click"-handled button keeps its normal toggle.
+    trigger(
+      "contextMenu",
+      event.type === "contextmenu" &&
+        Date.now() - lastTouchDownAt < TOUCH_GESTURE_MS,
+    );
   }
 
   /**
@@ -333,11 +352,29 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
           let startY = 0;
           let longPressFired = false;
 
+          // The click the browser delivers when the finger lifts after a
+          // long-press. Without this it lands on the element underneath, so a
+          // long-press on a channel name opened the menu and then, on lift,
+          // OPENED THE CHANNEL and closed the menu (seen frame by frame in a
+          // screen recording from Ryan Ash's Pixel, 2026-10-10: menu up for
+          // about a second, then the channel opens as the finger leaves). The
+          // tooltip long-press above already swallows its trailing click the
+          // same way. Capture phase, so the element's own handlers never see it.
+          function swallowTrailingClick(e: MouseEvent) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            element.removeEventListener("click", swallowTrailingClick, true);
+          }
+
           function onPointerDown(e: PointerEvent) {
             if (e.pointerType !== "touch") return;
+            // A new touch means any click we were waiting to swallow never came.
+            element.removeEventListener("click", swallowTrailingClick, true);
             startX = e.clientX;
             startY = e.clientY;
             longPressFired = false;
+            lastTouchDownAt = Date.now();
             // Every fresh touch starts clean. Without this, a long-press whose
             // click never arrives (finger dragged off, browser synthesised
             // nothing) would leave the flag set and swallow the NEXT genuine
@@ -352,7 +389,8 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
               // ...nor reach FloatingManager's "always dismiss on click"
               // document listener, which would close the menu we are opening.
               suppressedDocumentClick = true;
-              trigger("contextMenu");
+              trigger("contextMenu", true);
+              element.addEventListener("click", swallowTrailingClick, true);
               // Vibrate briefly if supported (haptic feedback)
               if (navigator.vibrate) navigator.vibrate(30);
             }, 500);
@@ -429,6 +467,7 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
             element.removeEventListener("pointerup", onPointerUp);
             element.removeEventListener("pointercancel", onPointerUp);
             element.removeEventListener("contextmenu", onTouchContextMenu);
+            element.removeEventListener("click", swallowTrailingClick, true);
             if (longPressTimer) clearTimeout(longPressTimer);
           });
         }
