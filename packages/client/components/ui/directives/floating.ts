@@ -38,6 +38,20 @@ export { floatingElements };
  */
 let suppressedDocumentClick = false;
 
+/**
+ * Touches already claimed by a menu. The mobile channel list nests FOUR menu
+ * directives inside each other (the channel row, its category, the list, the
+ * whole sidebar), and a touch bubbles through all of them, so each started its
+ * own 500 ms long-press and each opened its own menu. A desktop right-click
+ * never had this because onContextMenu stops propagation, so only the
+ * innermost menu opened. On a phone the OUTERMOST one could win: Ryan Ash
+ * long-pressed a channel name and got the sidebar's "Create Channel / Create
+ * Category" menu instead of the channel's own (2026-10-10). Bubbling runs
+ * innermost first, so whoever sees a touch first claims it and the ancestors
+ * skip it - the same "nearest menu wins" rule as desktop.
+ */
+const claimedTouches = new WeakSet<Event>();
+
 // The suppression covers ONE trailing click from the opening gesture. Android
 // often never delivers that click after a long-press, so the flag used to
 // linger and swallow the member's NEXT real tap - tapping "Create Invite" in
@@ -160,6 +174,18 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
     }
 
     if (target === "contextMenu" && config.contextMenu) {
+      // One menu at a time. A touch long-press never produces the tap that
+      // FloatingManager uses to dismiss an open menu, so long-pressing a second
+      // channel left the first menu up and they piled on top of each other
+      // (screenshot from Bunjie, 2026-10-10, three channel menus stacked).
+      // Opening a menu closes every other floating element first. The open-only
+      // case (desiredState === true) is the same menu being re-asked for, so it
+      // must not close itself.
+      if (!current?.contextMenu) {
+        for (const other of floatingElements()) {
+          if (other.element !== element) other.hide();
+        }
+      }
       if (current?.contextMenu) {
         // desiredState === true means "make sure it is open", never "toggle".
         if (desiredState !== true) setShow(undefined);
@@ -369,6 +395,8 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
 
           function onPointerDown(e: PointerEvent) {
             if (e.pointerType !== "touch") return;
+            if (claimedTouches.has(e)) return;
+            claimedTouches.add(e);
             // A new touch means any click we were waiting to swallow never came.
             element.removeEventListener("click", swallowTrailingClick, true);
             startX = e.clientX;
