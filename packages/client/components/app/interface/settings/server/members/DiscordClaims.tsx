@@ -30,11 +30,22 @@ import {
  * counts only when it carries both `confirmed_by` and `confirmed_at`, and it
  * says out loud how many it ignored.
  */
+/**
+ * What NAC did for a member when their claim was confirmed. The server writes
+ * `summary` as a finished sentence, so this screen shows it as is.
+ */
+type ClaimResult = {
+  status: "done" | "waiting" | "needs_attention";
+  summary: string;
+};
+
 export function DiscordClaims(props: { server: Server }) {
   const client = useClient();
   const { showError } = useModals();
 
   const [busy, setBusy] = createSignal<string | undefined>();
+  // What the busy row is doing: handing over roles and posts, or undoing.
+  const [busyGiving, setBusyGiving] = createSignal(false);
 
   const claims = useQuery(() => ({
     queryKey: ["discord-claims", props.server.id],
@@ -51,6 +62,7 @@ export function DiscordClaims(props: { server: Server }) {
 
   async function act(discordId: string, confirm: boolean) {
     setBusy(discordId);
+    setBusyGiving(confirm);
     try {
       if (confirm) {
         await client().confirmDiscordClaim(props.server.id, discordId);
@@ -72,6 +84,32 @@ export function DiscordClaims(props: { server: Server }) {
    * account this client has not loaded is still a real claim, and a row that
    * silently disappears is worse than an ugly one.
    */
+  function resultOf(claim: object): ClaimResult | undefined {
+    return (claim as { fulfilment?: ClaimResult }).fulfilment;
+  }
+
+  /**
+   * Run everything that follows a confirmation again for one member. Safe to
+   * repeat: it only ever adds.
+   */
+  async function finishClaim(discordId: string) {
+    setBusy(discordId);
+    setBusyGiving(true);
+    try {
+      const { baseURL, headers } = client().api.config;
+      const response = await fetch(
+        `${baseURL}/servers/${props.server.id}/discord-claims/${discordId}/fulfil`,
+        { method: "POST", headers },
+      );
+      if (!response.ok) throw new Error(`finishClaim: ${response.status}`);
+      await claims.refetch();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
   function nacUser(userId: string) {
     return client().users.get(userId);
   }
@@ -108,7 +146,38 @@ export function DiscordClaims(props: { server: Server }) {
               <Trans>Confirmed</Trans>
             </Show>
           </Text>
+          <Show when={busyGiving() && busy() === claim.discord_id}>
+            <Text class="label">
+              <Trans>Giving them their roles and posts…</Trans>
+            </Text>
+          </Show>
+          <Show when={decided && resultOf(claim)}>
+            <Text class="label">
+              <span
+                style={{
+                  color:
+                    resultOf(claim)!.status === "done"
+                      ? undefined
+                      : "var(--md-sys-color-error)",
+                }}
+              >
+                {resultOf(claim)!.summary}
+              </span>
+            </Text>
+          </Show>
         </Column>
+
+        <Show when={decided && (!resultOf(claim) || resultOf(claim)!.status !== "done")}>
+          <Button
+            group="standard"
+            isDisabled={busy() === claim.discord_id}
+            onPress={() => finishClaim(claim.discord_id)}
+          >
+            <Show when={resultOf(claim)} fallback={<Trans>Give roles and posts</Trans>}>
+              <Trans>Try again</Trans>
+            </Show>
+          </Button>
+        </Show>
 
         <Show when={!decided}>
           <Button
@@ -140,9 +209,10 @@ export function DiscordClaims(props: { server: Server }) {
         </Text>
         <Text class="label">
           <Trans>
-            Members tell us which Discord account was theirs. Confirming one
-            hands that member their old posts and reactions, and the role they
-            had on Discord — so confirm only what you actually recognise.
+            Members tell us which Discord account was theirs. When you confirm
+            one, NAC immediately gives that member their old posts and
+            reactions and the roles they had on Discord, then tells you what it
+            did — so confirm only what you actually recognise.
           </Trans>
         </Text>
       </Column>
