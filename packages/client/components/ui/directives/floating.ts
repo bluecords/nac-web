@@ -352,8 +352,25 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
           let startY = 0;
           let longPressFired = false;
 
+          // The click the browser delivers when the finger lifts after a
+          // long-press. Without this it lands on the element underneath, so a
+          // long-press on a channel name opened the menu and then, on lift,
+          // OPENED THE CHANNEL and closed the menu (seen frame by frame in a
+          // screen recording from Ryan Ash's Pixel, 2026-10-10: menu up for
+          // about a second, then the channel opens as the finger leaves). The
+          // tooltip long-press above already swallows its trailing click the
+          // same way. Capture phase, so the element's own handlers never see it.
+          function swallowTrailingClick(e: MouseEvent) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            element.removeEventListener("click", swallowTrailingClick, true);
+          }
+
           function onPointerDown(e: PointerEvent) {
             if (e.pointerType !== "touch") return;
+            // A new touch means any click we were waiting to swallow never came.
+            element.removeEventListener("click", swallowTrailingClick, true);
             startX = e.clientX;
             startY = e.clientY;
             longPressFired = false;
@@ -373,6 +390,7 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
               // document listener, which would close the menu we are opening.
               suppressedDocumentClick = true;
               trigger("contextMenu", true);
+              element.addEventListener("click", swallowTrailingClick, true);
               // Vibrate briefly if supported (haptic feedback)
               if (navigator.vibrate) navigator.vibrate(30);
             }, 500);
@@ -449,6 +467,7 @@ export function floating(element: HTMLElement, accessor: Accessor<Props>) {
             element.removeEventListener("pointerup", onPointerUp);
             element.removeEventListener("pointercancel", onPointerUp);
             element.removeEventListener("contextmenu", onTouchContextMenu);
+            element.removeEventListener("click", swallowTrailingClick, true);
             if (longPressTimer) clearTimeout(longPressTimer);
           });
         }
