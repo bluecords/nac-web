@@ -547,11 +547,44 @@ export function Messages(props: Props) {
      * Scroll to the nearest message (to the id) in history
      */
     const scrollToNearestMessage = () => {
-      const index = messagesWithTail().findIndex(
-        (entry) => entry.t === 0 && entry.message.id === messageId,
-      ); // use localeCompare
+      const entries = messagesWithTail();
 
-      listRef!.children[index + (atStart() ? 1 : 0)].scrollIntoView({
+      let index = entries.findIndex(
+        (entry) => entry.t === 0 && entry.message.id === messageId,
+      );
+
+      // The message may no longer exist (deleted, or moved to another
+      // channel) - a link to it still arrives here. findIndex then says -1,
+      // children[-1] is undefined, and the .scrollIntoView below THREW from
+      // inside a setTimeout, so setFetching() never ran and the channel sat on
+      // grey placeholder bars forever ("Viewing older messages"). Reported
+      // 2026-10-10 with a screenshot; reproduced on a handset with the link to
+      // a deleted post. Land on the closest message instead: the newest one at
+      // or before the missing id (ids sort by time), else the oldest one.
+      if (index === -1) {
+        const idAt = (i: number) => {
+          const entry = entries[i];
+          return entry.t === 0 ? entry.message.id : "";
+        };
+        let nearestBefore = -1;
+        let oldest = -1;
+        entries.forEach((entry, i) => {
+          if (entry.t !== 0) return;
+          const id = entry.message.id;
+          if (
+            id <= messageId &&
+            (nearestBefore === -1 || id > idAt(nearestBefore))
+          ) {
+            nearestBefore = i;
+          }
+          if (oldest === -1 || id < idAt(oldest)) {
+            oldest = i;
+          }
+        });
+        index = nearestBefore !== -1 ? nearestBefore : oldest;
+      }
+
+      listRef?.children[index + (atStart() ? 1 : 0)]?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
@@ -588,8 +621,13 @@ export function Messages(props: Props) {
       setMessagesSafely(messages);
 
       setTimeout(() => {
-        // Scroll to the message
-        scrollToNearestMessage();
+        // Scroll to the message. Whatever happens here, the loading state MUST
+        // end below, or the channel stays on placeholder bars indefinitely.
+        try {
+          scrollToNearestMessage();
+        } catch (error) {
+          console.warn("Could not scroll to the linked message", error);
+        }
 
         // Mark as fetching has ended
         setTimeout(() => {
