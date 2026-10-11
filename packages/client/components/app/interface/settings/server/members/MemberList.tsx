@@ -64,7 +64,17 @@ export function MemberList(props: { server: Server }) {
 
   const [search, setSearch] = createSignal("");
   const [roleFilter, setRoleFilter] = createSignal<string>("");
-  const [sort, setSort] = createSignal<"newest" | "oldest" | "name">("newest");
+  const [sort, setSort] = createSignal<
+    "newest" | "oldest" | "name" | "seen_oldest" | "seen_newest"
+  >("newest");
+  // "" = everyone; "30"/"60"/"90" = only members whose last visit is KNOWN and at
+  // least that many days ago; "none" = members with no login session on record.
+  // The two are kept apart on purpose: logging out deletes the session record,
+  // so "no session" does not mean inactive, and must never be swept into a
+  // list an admin might kick from.
+  const [inactiveDays, setInactiveDays] = createSignal<
+    "" | "30" | "60" | "90" | "none"
+  >("");
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [nickname, setNickname] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -170,6 +180,25 @@ export function MemberList(props: { server: Server }) {
     retry: false,
   }));
 
+  /**
+   * When each member last connected, in ms since the epoch.
+   *
+   * It comes from the same admin-only response as the inviter (`last_seen` is
+   * the newest login session for that member) and moves when the app connects or
+   * reconnects, not on every action: a tab left open for weeks without
+   * reconnecting can look staler than the member is. A member with no session
+   * is absent from the map: that means logged out, never signed in, or a bot, and
+   * NOT that they are inactive (logging out deletes the session record).
+   */
+  const lastSeenByUser = createMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of attribution.data ?? []) {
+      const at = Date.parse((row as { last_seen?: string }).last_seen ?? "");
+      if (Number.isFinite(at)) map.set(row.user, at);
+    }
+    return map;
+  });
+
   const attributionByUser = createMemo(() => {
     const map = new Map<
       string,
@@ -207,10 +236,32 @@ export function MemberList(props: { server: Server }) {
       return true;
     });
 
+    // Only applied once the last-seen data has loaded; without it every member
+    // would look "never signed in" and the filter would just show everyone.
+    if (attribution.data && inactiveDays() === "none") {
+      list = list.filter(
+        (member) =>
+          !member.user?.bot && lastSeenByUser().get(member.id.user) === undefined,
+      );
+    } else if (attribution.data && inactiveDays()) {
+      const cutoff = Date.now() - Number(inactiveDays()) * 86_400_000;
+      // Only members whose last visit is known: no session is not "inactive".
+      list = list.filter((member) => {
+        const seen = lastSeenByUser().get(member.id.user);
+        return seen !== undefined && seen <= cutoff;
+      });
+    }
+
     const mode = sort();
     list = [...list].sort((a, b) => {
       if (mode === "name") {
         return (a.displayName ?? "").localeCompare(b.displayName ?? "");
+      }
+      if (mode === "seen_oldest" || mode === "seen_newest") {
+        // Never signed in sorts as the oldest of all.
+        const as = lastSeenByUser().get(a.id.user) ?? 0;
+        const bs = lastSeenByUser().get(b.id.user) ?? 0;
+        return mode === "seen_oldest" ? as - bs : bs - as;
       }
       const at = a.joinedAt?.getTime() ?? 0;
       const bt = b.joinedAt?.getTime() ?? 0;
@@ -223,6 +274,36 @@ export function MemberList(props: { server: Server }) {
   const noRoleCount = createMemo(
     () => (members.data ?? []).filter((m) => m.roles.length === 0).length,
   );
+
+  /** What the Last seen cell says for one member, and whether it is a long time. */
+  function lastSeenLabel(
+    userId: string,
+    isBot: boolean,
+  ): {
+    text: string;
+    title?: string;
+    stale: boolean;
+  } {
+    if (!attribution.data) return { text: "—", stale: false };
+    if (isBot) return { text: t`Bot`, stale: false };
+    const seen = lastSeenByUser().get(userId);
+    if (seen === undefined) {
+      return {
+        text: t`No active session`,
+        title: t`Logged out, or never signed in. Their last visit is not recorded.`,
+        stale: false,
+      };
+    }
+    const days = Math.floor((Date.now() - seen) / 86_400_000);
+    const title = new Date(seen).toLocaleString();
+    if (days <= 0) return { text: t`Today`, title, stale: false };
+    if (days === 1) return { text: t`Yesterday`, title, stale: false };
+    if (days < 365) {
+      const count = String(days);
+      return { text: t`${count} days ago`, title, stale: days >= 60 };
+    }
+    return { text: new Date(seen).toLocaleDateString(), title, stale: true };
+  }
 
   function toggle(userId: string) {
     setSelected((prev) => {
@@ -436,13 +517,43 @@ export function MemberList(props: { server: Server }) {
         <Select
           value={sort()}
           onChange={(e) =>
-            setSort(e.currentTarget.value as "newest" | "oldest" | "name")
+            setSort(
+              e.currentTarget.value as
+                | "newest"
+                | "oldest"
+                | "name"
+                | "seen_oldest"
+                | "seen_newest",
+            )
           }
           aria-label={t`Sort members`}
         >
           <option value="newest">{t`Newest first`}</option>
           <option value="oldest">{t`Oldest first`}</option>
           <option value="name">{t`Name A-Z`}</option>
+          <option value="seen_oldest" disabled={!attribution.data}>
+            {t`Least recently seen first`}
+          </option>
+          <option value="seen_newest" disabled={!attribution.data}>
+            {t`Most recently seen first`}
+          </option>
+        </Select>
+        <Select
+          value={inactiveDays()}
+          onChange={(e) =>
+            setInactiveDays(
+              e.currentTarget.value as "" | "30" | "60" | "90" | "none",
+            )
+          }
+          disabled={!attribution.data}
+          aria-label={t`Filter by last seen`}
+          title={t`Based on when each member's app last connected to NAC. An app left open for a long time without reconnecting can look older than it is.`}
+        >
+          <option value="">{t`Seen any time`}</option>
+          <option value="30">{t`Not seen in 30+ days`}</option>
+          <option value="60">{t`Not seen in 60+ days`}</option>
+          <option value="90">{t`Not seen in 90+ days`}</option>
+          <option value="none">{t`No active session`}</option>
         </Select>
       </Row>
 
@@ -538,6 +649,9 @@ export function MemberList(props: { server: Server }) {
                     <Trans>Joined NAC</Trans>
                   </Th>
                   <Th>
+                    <Trans>Last seen</Trans>
+                  </Th>
+                  <Th>
                     <Trans>Invited by</Trans>
                   </Th>
                   <Th>
@@ -575,6 +689,27 @@ export function MemberList(props: { server: Server }) {
                             ? member.joinedAt.toLocaleDateString()
                             : "—"}
                         </Muted>
+                      </Td>
+                      <Td>
+                        <Show
+                          when={lastSeenLabel(
+                            member.id.user,
+                            !!member.user?.bot,
+                          )}
+                        >
+                          {(seen) => (
+                            <Muted
+                              title={seen().title}
+                              style={
+                                seen().stale
+                                  ? { color: "var(--md-sys-color-error)" }
+                                  : undefined
+                              }
+                            >
+                              {seen().text}
+                            </Muted>
+                          )}
+                        </Show>
                       </Td>
                       <Td>
                         <Show
