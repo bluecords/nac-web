@@ -16,6 +16,7 @@ import MdAccountCircle from "@material-design-icons/svg/outlined/account_circle.
 import MdCampaign from "@material-design-icons/svg/outlined/campaign.svg?component-solid";
 import MdLanguage from "@material-design-icons/svg/outlined/language.svg?component-solid";
 import MdLogout from "@material-design-icons/svg/outlined/logout.svg?component-solid";
+import MdLink from "@material-design-icons/svg/outlined/link.svg?component-solid";
 import MdMemory from "@material-design-icons/svg/outlined/memory.svg?component-solid";
 import MdMic from "@material-design-icons/svg/outlined/mic.svg?component-solid";
 import MdNotifications from "@material-design-icons/svg/outlined/notifications.svg?component-solid";
@@ -36,6 +37,7 @@ import AdvancedSettings from "./user/Advanced";
 import { AppearanceMenu } from "./user/appearance";
 import { MyBots, ViewBot } from "./user/bots";
 import { Feedback } from "./user/Feedback";
+import { DiscordAccount } from "./user/DiscordAccount";
 import { PrivacySettings } from "./user/Privacy";
 import { LanguageSettings } from "./user/Language";
 import Native from "./user/Native";
@@ -100,6 +102,8 @@ const Config: SettingsConfiguration<{ server: Server }> = {
         return <Notifications isDesktop={!!window.native} />;
       case "privacy":
         return <PrivacySettings />;
+      case "discord":
+        return <DiscordAccount />;
       default:
         return null;
     }
@@ -240,6 +244,13 @@ const Config: SettingsConfiguration<{ server: Server }> = {
               id: "privacy",
               icon: <MdShield {...iconSize(20)} />,
               title: <Trans>Privacy</Trans>,
+            },
+            {
+              // Link the Discord account you used before NAC. The picker used to
+              // live only in the consent gate, which a member sees once.
+              id: "discord",
+              icon: <MdLink {...iconSize(20)} />,
+              title: <Trans>Discord account</Trans>,
             },
             {
               id: "notifications",
