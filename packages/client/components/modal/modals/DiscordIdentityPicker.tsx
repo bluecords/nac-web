@@ -29,6 +29,8 @@ interface Props {
   onSkip: (skipped: boolean) => void;
   /** A claim they made previously, which they cannot change here */
   confirmedName?: string;
+  /** Hide the "never on Discord" escape hatch (Settings has no gate to escape) */
+  hideSkip?: boolean;
 }
 
 /**
@@ -266,24 +268,26 @@ export function DiscordIdentityPicker(props: Props) {
             Discord, and a member who cannot find their name must not be
             trapped on a screen that blocks the whole app. An admin can link
             them later - nothing is lost, it just is not automatic. */}
-        <Row gap="md">
-          <div style={{ "align-self": "flex-start" }}>
-            <Checkbox
-              checked={props.skipped}
-              onChange={() => props.onSkip(!props.skipped)}
-            />
-          </div>
-          <div
-            style={{ cursor: "pointer" }}
-            onClick={() => props.onSkip(!props.skipped)}
-          >
-            <Text class="body">
-              <Trans>
-                I was never in the NAC Discord, or I cannot find my name.
-              </Trans>
-            </Text>
-          </div>
-        </Row>
+        <Show when={!props.hideSkip}>
+          <Row gap="md">
+            <div style={{ "align-self": "flex-start" }}>
+              <Checkbox
+                checked={props.skipped}
+                onChange={() => props.onSkip(!props.skipped)}
+              />
+            </div>
+            <div
+              style={{ cursor: "pointer" }}
+              onClick={() => props.onSkip(!props.skipped)}
+            >
+              <Text class="body">
+                <Trans>
+                  I was never in the NAC Discord, or I cannot find my name.
+                </Trans>
+              </Text>
+            </div>
+          </Row>
+        </Show>
       </Show>
     </Column>
   );
