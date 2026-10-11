@@ -117,8 +117,12 @@ export function useNotifications() {
       await setUpServiceWorkerSubscription(getClient());
     } catch (e) {
       console.error(e);
+      const reason =
+        (e as { name?: string } | null)?.name ?? (typeof e === "string" ? e : "");
       snackbar.show({
-        message: t`Failed to enable push notifications. Please try again later.`,
+        message:
+          t`Failed to enable push notifications. Please try again later.` +
+          (reason ? ` (${reason})` : ""),
       });
       settings.pushNotificationsState = "default";
     }
@@ -150,6 +154,30 @@ export function useNotifications() {
   };
 }
 
+/**
+ * Tell our own server WHY push registration failed or what it produced. Until now
+ * the only trace was a console line inside the member's own browser, so a device
+ * that quietly stopped registering (Ryan Ash's and Bunjie's, 2026-10-10/11: Edge
+ * on Android, registration deleted by pushd as "no longer valid" and never
+ * replaced) could not be diagnosed from the server. Same beacon the reload guard
+ * uses, so it lands in the web access log: `grep "reason=push-"`. No member data:
+ * a stage name, the error's name and a short message, or the push service's host.
+ */
+function reportPushProblem(stage: string, detail: unknown) {
+  try {
+    const e = detail as { name?: string; message?: string } | null | undefined;
+    const text =
+      typeof detail === "string"
+        ? detail
+        : `${e?.name ?? typeof detail}: ${String(e?.message ?? detail)}`;
+    navigator.sendBeacon(
+      `/__nac-reload?reason=${encodeURIComponent(`push-${stage}: ${text}`.slice(0, 160))}&blocked=0`,
+    );
+  } catch {
+    // Diagnostics must never get in the way of registering.
+  }
+}
+
 async function setUpServiceWorkerSubscription(
   client: Client,
   rotateIfStale = false,
@@ -167,10 +195,16 @@ async function setUpServiceWorkerSubscription(
     import.meta.env.BASE_URL ?? undefined,
   );
   if (!registration) {
+    reportPushProblem("registration", "no service worker registration");
     throw "Failed to get service worker";
   }
 
-  let subscription = await registration.pushManager.getSubscription();
+  let subscription = await registration.pushManager.getSubscription().catch(
+    (error) => {
+      reportPushProblem("get-subscription", error);
+      throw error;
+    },
+  );
   let rotated = false;
 
   // The browser can keep handing back an endpoint the push service has
@@ -183,17 +217,30 @@ async function setUpServiceWorkerSubscription(
     !subscription.endpoint.includes(".push.apple.com") &&
     subscriptionIsStale()
   ) {
-    await subscription.unsubscribe().catch(() => {});
+    await subscription.unsubscribe().catch((error) => {
+      reportPushProblem("unsubscribe", error);
+    });
     subscription = null;
     rotated = true;
   }
 
   if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: client.configuration!.vapid,
-    });
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: client.configuration!.vapid,
+      });
+    } catch (error) {
+      // After a rotation this leaves the device with NO registration at all.
+      reportPushProblem(rotated ? "subscribe-after-rotate" : "subscribe", error);
+      throw error;
+    }
     markSubscriptionFresh();
+    try {
+      reportPushProblem("registered", new URL(subscription.endpoint).host);
+    } catch {
+      reportPushProblem("registered", "unparsable endpoint");
+    }
   }
 
   const body = {
@@ -207,7 +254,10 @@ async function setUpServiceWorkerSubscription(
   };
 
   // Not fatal: every later start and foreground re-posts it.
-  client.api.post("/push/subscribe", body).catch(console.error);
+  client.api.post("/push/subscribe", body).catch((error) => {
+    console.error(error);
+    reportPushProblem("post", error);
+  });
 
   // pushd prunes by session, not endpoint: a late failure report for the
   // endpoint we just dropped would delete the new one. Post it again after.
