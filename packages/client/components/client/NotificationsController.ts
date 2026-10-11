@@ -6,6 +6,8 @@ import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
 import { useSnackbar } from "@revolt/ui";
 
+import { diag } from "../../src/diagnostics";
+
 import { IS_DEV, useClient } from ".";
 
 export function useNotifications() {
@@ -164,6 +166,7 @@ export function useNotifications() {
  * a stage name, the error's name and a short message, or the push service's host.
  */
 function reportPushProblem(stage: string, detail: unknown) {
+  diag(`push-${stage}`, detail);
   try {
     const e = detail as { name?: string; message?: string } | null | undefined;
     const text =

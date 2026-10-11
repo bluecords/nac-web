@@ -8,6 +8,8 @@ import { CONFIGURATION } from "@revolt/common";
 import { ModalControllerExtended } from "@revolt/modal";
 import type { State as ApplicationState } from "@revolt/state";
 import type { Session } from "@revolt/state/stores/Auth";
+import { diag } from "../../src/diagnostics";
+
 import { killServiceWorkerSubscription } from "./NotificationsController";
 
 export enum State {
@@ -596,7 +598,15 @@ class Lifecycle {
 
   private onState(state: ConnectionState) {
     switch (state) {
+      case ConnectionState.Connected:
+        diag("connected");
+        break;
       case ConnectionState.Disconnected:
+        // Only the error's kind, never its payload.
+        diag(
+          "connection-dropped",
+          this.client.events.lastError?.type ?? "no error recorded",
+        );
         if (this.client.events.lastError) {
           if (this.client.events.lastError.type === "revolt") {
             // if (this.client.events.lastError.data.type == 'InvalidSession') {

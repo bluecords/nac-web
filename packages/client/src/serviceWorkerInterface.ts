@@ -2,6 +2,8 @@ import { createSignal } from "solid-js";
 
 import { registerSW } from "virtual:pwa-register";
 
+import { diag } from "./diagnostics";
+
 const [pendingUpdate, setPendingUpdate] = createSignal<() => void>();
 const [updateReady, setUpdateReady] = createSignal(false);
 
@@ -47,6 +49,7 @@ function recentReloads(): number[] {
 // reads it, and it carries no member data. `grep nac-reload` on the web
 // access log is how the next occurrence is explained instead of guessed at.
 function reportReload(reason: string, blocked: boolean): void {
+  diag(blocked ? "reload-refused" : "reload", reason);
   try {
     navigator.sendBeacon(
       `/__nac-reload?reason=${encodeURIComponent(reason)}&blocked=${blocked ? 1 : 0}`,
