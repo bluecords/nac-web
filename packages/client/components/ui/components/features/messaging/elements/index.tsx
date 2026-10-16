@@ -4,6 +4,7 @@ export { MessageContainer } from "./Container";
 export { ConversationStart } from "./ConversationStart";
 export { Embed } from "./Embed";
 export { FileInfo } from "./FileInfo";
+export { LinkFallbackCard } from "./LinkFallbackCard";
 export { MessageDivider } from "./MessageDivider";
 export { MessageReply } from "./MessageReply";
 export { MessageToolbar } from "./MessageToolbar";
