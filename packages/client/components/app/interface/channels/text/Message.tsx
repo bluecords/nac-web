@@ -14,6 +14,7 @@ import {
   Attachment,
   Avatar,
   Embed,
+  LinkFallbackCard,
   MessageContainer,
   MessageReply,
   Reactions,
@@ -338,6 +339,16 @@ export function Message(props: Props) {
         <For each={props.message.embeds}>
           {(embed) => <Embed embed={embed} />}
         </For>
+      </Show>
+      <Show when={!props.editing && !props.message.embeds?.length}>
+        <LinkFallbackCard
+          content={props.message.content}
+          since={
+            props.message.editedAt
+              ? new Date(props.message.editedAt)
+              : props.message.createdAt
+          }
+        />
       </Show>
       <Reactions
         reactions={props.message.reactions as never as Map<string, Set<string>>}
