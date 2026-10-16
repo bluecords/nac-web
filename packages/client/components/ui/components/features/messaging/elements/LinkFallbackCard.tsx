@@ -118,7 +118,12 @@ export function LinkFallbackCard(props: {
                 it on {link.name.toLowerCase()}.com.
               </Text>
             </Content>
-            <MdOpenInNew height={18} width={18} aria-hidden="true" />
+            <MdOpenInNew
+              height={18}
+              width={18}
+              aria-hidden="true"
+              style={{ fill: "currentColor", "flex-shrink": 0 }}
+            />
           </Base>
         )}
       </For>
