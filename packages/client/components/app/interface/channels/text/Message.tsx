@@ -340,10 +340,14 @@ export function Message(props: Props) {
           {(embed) => <Embed embed={embed} />}
         </For>
       </Show>
-      <Show when={!props.message.embeds?.length}>
+      <Show when={!props.editing && !props.message.embeds?.length}>
         <LinkFallbackCard
           content={props.message.content}
-          createdAt={props.message.createdAt}
+          since={
+            props.message.editedAt
+              ? new Date(props.message.editedAt)
+              : props.message.createdAt
+          }
         />
       </Show>
       <Reactions

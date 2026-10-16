@@ -43,8 +43,15 @@ const IGNORED = /```[\s\S]+?```|`[\s\S]+?`|<http[^>]+>/g;
 export function fallbackLinks(content: string | null | undefined) {
   const found: { url: string; name: string; kind: string }[] = [];
 
-  for (const raw of content?.replace(IGNORED, "").match(URL_PATTERN) ?? []) {
-    const url = raw.replace(/[.,;:!?]+$/, "");
+  // Quoted lines (starting with ">") get no preview from the server either.
+  const text = (content ?? "")
+    .replace(IGNORED, "")
+    .split(/\r?\n/)
+    .filter((line) => !line.startsWith(">"))
+    .join(" ");
+
+  for (const raw of text.match(URL_PATTERN) ?? []) {
+    const url = raw.replace(/[.,;:!?*_~'"]+$/, "");
     const platform = PLATFORMS.find((p) => p.test.test(url));
 
     if (platform && !found.some((f) => f.url === url)) {
@@ -85,10 +92,12 @@ const Content = styled(Column, {
  */
 export function LinkFallbackCard(props: {
   content: string | null | undefined;
-  createdAt: Date;
+  /** When the previews were last asked for: the edit time if it was edited,
+   * since an edit clears them and the server builds them again. */
+  since: Date;
 }) {
   const remaining = () =>
-    Math.max(0, GRACE_MS - (Date.now() - props.createdAt.getTime()));
+    Math.max(0, GRACE_MS - (Date.now() - props.since.getTime()));
 
   const [ready, setReady] = createSignal(remaining() === 0);
 
