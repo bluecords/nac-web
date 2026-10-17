@@ -1,6 +1,5 @@
 import { For, Show, createSignal, onCleanup } from "solid-js";
 
-import MdOpenInNew from "@material-design-icons/svg/outlined/open_in_new.svg?component-solid";
 import { styled } from "styled-system/jsx";
 
 import { Text } from "@revolt/ui/components/design";
@@ -114,16 +113,14 @@ export function LinkFallbackCard(props: {
             <Content gap="sm" grow>
               <Text class="label">{link.name} {link.kind}</Text>
               <Text size="small">
-                {link.name} doesn't share a preview of this {link.kind}. Open
-                it on {link.name.toLowerCase()}.com.
+                {link.name} doesn't share a preview of this {link.kind}.
+              </Text>
+              <Text class="label" size="small">
+                <span style={{ "text-decoration": "underline" }}>
+                  Open on {link.name}
+                </span>
               </Text>
             </Content>
-            <MdOpenInNew
-              height={18}
-              width={18}
-              aria-hidden="true"
-              style={{ fill: "currentColor", "flex-shrink": 0 }}
-            />
           </Base>
         )}
       </For>
