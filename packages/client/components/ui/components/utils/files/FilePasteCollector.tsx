@@ -17,6 +17,15 @@ export function FilePasteCollector(props: Props) {
    * @param event Event
    */
   function onPaste(event: ClipboardEvent) {
+    // a text field that deals with its own paste (e.g. the status box) must
+    // not have an image on the clipboard turned into an attachment
+    const origin = event.composedPath()[0];
+    if (
+      origin instanceof HTMLInputElement ||
+      origin instanceof HTMLTextAreaElement
+    )
+      return;
+
     const items = event.clipboardData?.items;
     if (typeof items === "undefined") return;
 
