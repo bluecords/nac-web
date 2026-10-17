@@ -23,6 +23,7 @@ import {
   ContextMenuItem,
 } from "@revolt/app/menus/ContextMenu";
 import { useClient, useUser } from "@revolt/client";
+import { TextWithEmoji } from "@revolt/markdown";
 import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
 import { Avatar, Column, Row, Text, UserStatus, iconSize } from "@revolt/ui";
@@ -240,7 +241,9 @@ export function UserMenu(props: Props) {
                   _titleCase={false}
                 >
                   <TruncatedStatusText>
-                    {user()!.status!.text}
+                    <TextWithEmoji
+                      content={user()!.status!.text ?? undefined}
+                    />
                   </TruncatedStatusText>
                 </ContextMenuButton>
                 <ContextMenuButton
