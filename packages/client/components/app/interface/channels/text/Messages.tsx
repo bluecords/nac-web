@@ -19,7 +19,12 @@ import isEqual from "lodash.isequal";
 import { Channel, Message as MessageInterface } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { isIgnored, useClient, useClientLifecycle } from "@revolt/client";
+import {
+  isIgnored,
+  removeIgnored,
+  useClient,
+  useClientLifecycle,
+} from "@revolt/client";
 import { State } from "@revolt/client/Controller";
 import { useTime } from "@revolt/i18n";
 import { useState } from "@revolt/state";
@@ -767,6 +772,7 @@ export function Messages(props: Props) {
 
     let blockedMessages = 0;
     let ignoredMessages = 0;
+    let ignoredAuthors = new Map<string, string>();
     let insertedUnreadDivider = false;
 
     /**
@@ -791,9 +797,11 @@ export function Messages(props: Props) {
         messagesWithTail.push({
           t: 3,
           count: ignoredMessages,
+          authors: [...ignoredAuthors].map(([id, name]) => ({ id, name })),
         });
 
         ignoredMessages = 0;
+        ignoredAuthors = new Map();
       }
     };
 
@@ -861,6 +869,10 @@ export function Messages(props: Props) {
         blockedMessages++;
       } else if (message.authorId && isIgnored(message.authorId)) {
         ignoredMessages++;
+        ignoredAuthors.set(
+          message.authorId,
+          message.author?.displayName ?? message.author?.username ?? "?",
+        );
       } else {
         // Push any blocked/ignored messages if they haven't been yet
         createBlockedMessageCount();
@@ -1064,6 +1076,7 @@ type ListEntry =
       // Ignored messages
       t: 3;
       count: number;
+      authors: { id: string; name: string }[];
     };
 
 /**
@@ -1104,6 +1117,8 @@ function Entry(
         <BlockedMessage
           kind="ignored"
           count={(other as ListEntry & { t: 3 }).count}
+          authors={(other as ListEntry & { t: 3 }).authors}
+          onUnignore={removeIgnored}
         />
       </Match>
     </Switch>
