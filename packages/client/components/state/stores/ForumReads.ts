@@ -38,6 +38,60 @@ export type TypeForumReads = {
 };
 
 /**
+ * Combine this device's read state with another device's.
+ *
+ * Reading only ever moves forward, so every field merges towards "more read":
+ * the higher floor wins, each post keeps the newest activity seen on either
+ * device, and entries the merged floor now covers are dropped (the same prune
+ * `markChannelRead` does). A mention stays unread only if neither device has
+ * opened that post since - one device having a `seen` entry for a post it no
+ * longer lists as mentioned means that device cleared it.
+ *
+ * Pure so both directions of a sync and the tests run the same function.
+ */
+export function mergeForumReads(
+  local: TypeForumReads,
+  remote: TypeForumReads,
+): TypeForumReads {
+  const channels: Record<string, ForumReadRecord> = {};
+
+  for (const channelId of new Set([
+    ...Object.keys(local.channels),
+    ...Object.keys(remote.channels),
+  ])) {
+    const a = local.channels[channelId];
+    const b = remote.channels[channelId];
+    if (!a || !b) {
+      channels[channelId] = (a ?? b) as ForumReadRecord;
+      continue;
+    }
+
+    const floor = a.floor.localeCompare(b.floor) >= 0 ? a.floor : b.floor;
+
+    const seen: Record<string, string> = {};
+    for (const source of [a.seen, b.seen]) {
+      for (const [postId, activityId] of Object.entries(source)) {
+        if (activityId.localeCompare(floor) <= 0) continue;
+        const existing = seen[postId];
+        if (!existing || activityId.localeCompare(existing) > 0) {
+          seen[postId] = activityId;
+        }
+      }
+    }
+
+    const clearedBy = (record: ForumReadRecord, postId: string) =>
+      !record.mentioned.includes(postId) && !!record.seen[postId];
+    const mentioned = [...new Set([...a.mentioned, ...b.mentioned])].filter(
+      (postId) => !clearedBy(a, postId) && !clearedBy(b, postId),
+    );
+
+    channels[channelId] = { floor, seen, mentioned };
+  }
+
+  return { channels };
+}
+
+/**
  * Per-post read state for forum channels.
  *
  * WHY THIS EXISTS. Forum unread used to be read straight off the channel's
@@ -51,12 +105,13 @@ export type TypeForumReads = {
  *
  * So read state lives here instead, keyed by post.
  *
- * ⚠️ THIS IS PER DEVICE. It is deliberately NOT in `Sync`'s store list: reading
- * a post on a phone will not clear its marker on a desktop. That is a stated
- * limit, not an oversight - syncing it means a settings write per post opened,
- * and the write rate wants measuring against the ratelimiter before it goes
- * anywhere near `user_settings`. The failure mode meanwhile is a stale "New" on
- * a second device, which is the mild direction to be wrong in.
+ * SYNCED ACROSS DEVICES through `Sync` (key `forumReads`). A member's
+ * report - "I already read it and it still says unread" - came from a
+ * reinstall or a fresh login on the same phone, which starts with an empty
+ * local record. Two devices write independently, so `Sync` merges this store
+ * with `mergeForumReads` instead of letting the newer whole blob win, and its
+ * writes are debounced because the settings route shares the 20-per-10s
+ * `any` rate-limit bucket.
  */
 export class ForumReads extends AbstractStore<"forumReads", TypeForumReads> {
   constructor(state: State) {
