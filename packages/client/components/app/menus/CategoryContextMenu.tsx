@@ -11,6 +11,7 @@ import MdBadge from "@material-design-icons/svg/outlined/badge.svg?component-sol
 import MdDelete from "@material-design-icons/svg/outlined/delete.svg?component-solid";
 import MdLibraryAdd from "@material-design-icons/svg/outlined/library_add.svg?component-solid";
 import MdMarkChatRead from "@material-design-icons/svg/outlined/mark_chat_read.svg?component-solid";
+import MdSettings from "@material-design-icons/svg/outlined/settings.svg?component-solid";
 
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 import {
@@ -63,6 +64,17 @@ export function CategoryContextMenu(props: {
     });
   }
 
+  /**
+   * Open category settings (rename, permissions)
+   */
+  function openSettings() {
+    openModal({
+      type: "settings",
+      config: "category",
+      context: { server: props.server, categoryId: props.category.id },
+    });
+  }
+
   function editCategoryName() {
     openModal({
       type: "edit_category",
@@ -97,6 +109,16 @@ export function CategoryContextMenu(props: {
       <Show when={props.server.havePermission("ManageChannel")}>
         <ContextMenuButton icon={MdLibraryAdd} onClick={createCategory}>
           <Trans>Create category</Trans>
+        </ContextMenuButton>
+      </Show>
+      <Show
+        when={
+          props.server.havePermission("ManageChannel") ||
+          props.server.havePermission("ManagePermissions")
+        }
+      >
+        <ContextMenuButton icon={MdSettings} onClick={openSettings}>
+          <Trans>Category settings</Trans>
         </ContextMenuButton>
       </Show>
       <Show when={props.server.havePermission("ManageChannel")}>

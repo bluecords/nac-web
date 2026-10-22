@@ -204,8 +204,83 @@ export function ChannelPermissionsOverview(props: { context: Channel }) {
     });
   }
 
+  const category = () => props.context.category;
+
+  /**
+   * Synced = the channel sets nothing of its own, so it is exactly its
+   * category. Any own permission (default or role) means it has diverged.
+   */
+  const isSynced = () =>
+    !(
+      (props.context.defaultPermissions &&
+        (props.context.defaultPermissions.a !== 0n ||
+          props.context.defaultPermissions.d !== 0n)) ||
+      Object.values(props.context.rolePermissions ?? {}).some(
+        (value) => value.a !== 0n || value.d !== 0n,
+      )
+    );
+
+  const [confirmSync, setConfirmSync] = createSignal(false);
+
+  /**
+   * Clear everything this channel sets itself so it matches its category
+   */
+  function syncWithCategory() {
+    setConfirmSync(false);
+    void run(async () => {
+      const channel = await freshChannel();
+
+      await props.context.setPermissions(undefined, { allow: 0, deny: 0 });
+      await inSequence(channel.entries, (entry) =>
+        props.context.setPermissions(entry.id, { allow: 0, deny: 0 }),
+      );
+
+      return `Now matches the category.`;
+    });
+  }
+
   return (
     <Column gap="lg">
+      <Show when={category()}>
+        <Column gap="sm">
+          <Text class="label">
+            <Show
+              when={isSynced()}
+              fallback={
+                <Trans>
+                  Permissions not synced with category: {category()!.title}
+                </Trans>
+              }
+            >
+              <Trans>
+                Permissions synced with category: {category()!.title}
+              </Trans>
+            </Show>
+          </Text>
+          <Show when={!isSynced()}>
+            <Row>
+              <Show
+                when={confirmSync()}
+                fallback={
+                  <Button
+                    isDisabled={busy()}
+                    onPress={() => setConfirmSync(true)}
+                  >
+                    Sync now
+                  </Button>
+                }
+              >
+                <Button isDisabled={busy()} onPress={syncWithCategory}>
+                  Confirm: clear this channel's own settings
+                </Button>
+                <Button variant="text" onPress={() => setConfirmSync(false)}>
+                  Cancel
+                </Button>
+              </Show>
+            </Row>
+          </Show>
+        </Column>
+      </Show>
       <CategoryButton
         icon="blank"
         action="chevron"
