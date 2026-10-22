@@ -33,6 +33,10 @@ const Tap = styled("button", {
   base: {
     all: "unset",
     cursor: "pointer",
+    _focusVisible: {
+      outline: "2px solid var(--md-sys-color-primary)",
+      outlineOffset: "2px",
+    },
     display: "flex",
     alignItems: "center",
     gap: "var(--gap-s)",
@@ -58,6 +62,10 @@ const Choice = styled("button", {
   base: {
     all: "unset",
     cursor: "pointer",
+    _focusVisible: {
+      outline: "2px solid var(--md-sys-color-primary)",
+      outlineOffset: "2px",
+    },
     padding: "var(--gap-md) var(--gap-lg)",
     borderRadius: "var(--borderRadius-md)",
     border: "1px solid var(--md-sys-color-outline)",
@@ -140,7 +148,10 @@ export function BlockedMessage(props: Props) {
                     type="button"
                     onClick={() => props.onUnignore!(author.id)}
                   >
-                    <Trans>Stop ignoring {author.name}</Trans>
+                    {(() => {
+                      const name = author.name;
+                      return <Trans>Stop ignoring {name}</Trans>;
+                    })()}
                   </Choice>
                 )}
               </For>
