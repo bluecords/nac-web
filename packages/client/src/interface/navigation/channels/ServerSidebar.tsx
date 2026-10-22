@@ -37,6 +37,7 @@ import { createDragHandle } from "@revolt/ui/components/utils/Draggable";
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 
 import MdChevronRight from "@material-design-icons/svg/filled/chevron_right.svg?component-solid";
+import MdAdd from "@material-design-icons/svg/outlined/add.svg?component-solid";
 
 import MdNotificationSettings from "@material-symbols/svg-400/outlined/notification_settings.svg?component-solid";
 import MdSettings from "@material-symbols/svg-400/outlined/settings-fill.svg?component-solid";
@@ -352,6 +353,8 @@ function Category(
     },
 ) {
   const state = useState();
+  const { t } = useLingui();
+  const { openModal } = useModals();
   const isOpen = () => state.layout.getSectionState(props.category.id, true);
 
   const channels = createMemo(() =>
@@ -367,7 +370,10 @@ function Category(
   return (
     <CategorySection>
       <Show when={props.category.id !== "default"}>
-        <div use:floating={props.menuGenerator(props.category as never)}>
+        <div
+          use:floating={props.menuGenerator(props.category as never)}
+          style={{ position: "relative" }}
+        >
           <CategoryBase
             open={isOpen()}
             onClick={() => {
@@ -378,6 +384,26 @@ function Category(
             {props.category.title}
             <MdChevronRight {...iconSize(12)} />
           </CategoryBase>
+          <Show when={props.server.havePermission("ManageChannel")}>
+            <AddChannelButton>
+              <Tooltip content={t`Create Channel`} placement="top">
+                <IconButton
+                  size="xs"
+                  width="narrow"
+                  aria-label={t`Create Channel`}
+                  onPress={() =>
+                    openModal({
+                      type: "create_channel",
+                      server: props.server,
+                      category: props.category.id,
+                    })
+                  }
+                >
+                  <MdAdd {...symbolSize(20)} />
+                </IconButton>
+              </Tooltip>
+            </AddChannelButton>
+          </Show>
         </div>
       </Show>
       <Draggable
@@ -421,6 +447,20 @@ const CategorySection = styled("div", {
 /**
  * Category title styling
  */
+/**
+ * "+" on the right of a category header; sits over the header so a click on
+ * it never collapses the category
+ */
+const AddChannelButton = styled("div", {
+  base: {
+    position: "absolute",
+    right: "var(--gap-sm)",
+    bottom: 0,
+    display: "flex",
+    alignItems: "center",
+  },
+});
+
 const CategoryBase = styled("div", {
   base: {
     display: "flex",

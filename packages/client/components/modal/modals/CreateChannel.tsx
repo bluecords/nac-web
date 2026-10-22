@@ -30,6 +30,19 @@ export function CreateChannelModal(
         name: group.controls.name.value,
       });
 
+      // a new channel starts outside every category; file it where it was made
+      if (props.category) {
+        await props.server.edit({
+          categories: (props.server.categories ?? []).map((category) => ({
+            ...category,
+            channels:
+              category.id === props.category
+                ? [...category.channels, channel.id]
+                : category.channels,
+          })),
+        });
+      }
+
       if (props.cb) {
         props.cb(channel);
       } else {
