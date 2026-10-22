@@ -129,25 +129,27 @@ export function ServerNotificationsModal(
 
         <Section>
           <Trans>For every channel in this server</Trans>
-          <Radio2
-            value={state.notifications.computeForServer(props.server)}
-            onChange={(event) =>
-              state.notifications.setServer(
-                props.server,
-                event.currentTarget.value as NotificationState,
-              )
-            }
-          >
-            <Radio2.Option value="all">
-              <Trans>All messages</Trans>
-            </Radio2.Option>
-            <Radio2.Option value="mention">
-              <Trans>Only @mentions</Trans>
-            </Radio2.Option>
-            <Radio2.Option value="none">
-              <Trans>Nothing</Trans>
-            </Radio2.Option>
-          </Radio2>
+          <Choices>
+            <Radio2
+              value={state.notifications.computeForServer(props.server)}
+              onChange={(event) =>
+                state.notifications.setServer(
+                  props.server,
+                  event.currentTarget.value as NotificationState,
+                )
+              }
+            >
+              <Radio2.Option value="all">
+                <Trans>All messages</Trans>
+              </Radio2.Option>
+              <Radio2.Option value="mention">
+                <Trans>Only @mentions</Trans>
+              </Radio2.Option>
+              <Radio2.Option value="none">
+                <Trans>Nothing</Trans>
+              </Radio2.Option>
+            </Radio2>
+          </Choices>
           <Text class="label" size="small">
             <Trans>
               Applies to alerts in NAC and to push on your phone. Channels you
@@ -249,10 +251,17 @@ const Row = styled("div", {
   },
 });
 
+const Choices = styled("div", {
+  base: {
+    "& mdui-radio-group": { display: "flex", flexDirection: "column" },
+    "& mdui-radio": { display: "flex" },
+  },
+});
+
 const Table = styled("div", {
   base: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) repeat(4, 4.25rem)",
+    gridTemplateColumns: "minmax(0, 1fr) repeat(4, 3.1rem)",
     alignItems: "center",
   },
 });
@@ -266,7 +275,7 @@ const Cell = styled("div", {
   },
   variants: {
     label: {
-      true: { fontSize: "0.75rem", color: "var(--md-sys-color-outline)" },
+      true: { fontSize: "0.7rem", color: "var(--md-sys-color-outline)" },
     },
     centered: {
       true: { justifyContent: "center" },
