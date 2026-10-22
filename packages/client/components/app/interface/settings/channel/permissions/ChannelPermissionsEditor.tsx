@@ -28,6 +28,13 @@ type Props =
   | { type: "server_role"; context: Server; roleId: string }
   | { type: "channel_default"; context: Channel }
   | { type: "channel_role"; context: Channel; roleId: string }
+  | { type: "category_default"; context: Server; categoryId: string }
+  | {
+      type: "category_role";
+      context: Server;
+      roleId: string;
+      categoryId: string;
+    }
   | { type: "group"; context: Channel }
   | {
       type: "class_default";
@@ -49,7 +56,12 @@ export function ChannelPermissionsEditor(props: Props) {
 
   const context: Context =
     // eslint-disable-next-line solid/reactivity
-    props.context instanceof Server ? "Server" : props.context.type;
+    props.type === "category_default" || props.type === "category_role"
+      ? "TextChannel"
+      : // eslint-disable-next-line solid/reactivity
+        props.context instanceof Server
+        ? "Server"
+        : props.context.type;
 
   /**
    * The channel-permission editors (channel_default / channel_role / group)
@@ -96,6 +108,20 @@ export function ChannelPermissionsEditor(props: Props) {
         const perms =
           fresh?.role_permissions?.[props.roleId] ??
           props.context.rolePermissions?.[props.roleId];
+
+        return [BigInt(perms?.a || 0), BigInt(perms?.d || 0)];
+      }
+      case "category_default": {
+        const perms = props.context.categories?.find(
+          (category) => category.id === props.categoryId,
+        )?.default_permissions;
+
+        return [BigInt(perms?.a || 0), BigInt(perms?.d || 0)];
+      }
+      case "category_role": {
+        const perms = props.context.categories?.find(
+          (category) => category.id === props.categoryId,
+        )?.role_permissions?.[props.roleId];
 
         return [BigInt(perms?.a || 0), BigInt(perms?.d || 0)];
       }
@@ -255,6 +281,18 @@ export function ChannelPermissionsEditor(props: Props) {
         break;
       case "channel_role":
         props.context.setPermissions(props.roleId, {
+          allow: Number(value()[0]),
+          deny: Number(value()[1]),
+        });
+        break;
+      case "category_default":
+        props.context.setCategoryPermissions(props.categoryId, "default", {
+          allow: Number(value()[0]),
+          deny: Number(value()[1]),
+        });
+        break;
+      case "category_role":
+        props.context.setCategoryPermissions(props.categoryId, props.roleId, {
           allow: Number(value()[0]),
           deny: Number(value()[1]),
         });
@@ -656,7 +694,12 @@ export function ChannelPermissionsEditor(props: Props) {
                   />
                 }
               >
-                <Match when={props.type.startsWith("channel_")}>
+                <Match
+                  when={
+                    props.type.startsWith("channel_") ||
+                    props.type.startsWith("category_")
+                  }
+                >
                   <ChannelPermissionOverride
                     key={entry.key}
                     title={entry.title}

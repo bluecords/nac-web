@@ -367,69 +367,78 @@ function Category(
     ),
   );
 
+  // a category nobody can see into disappears for members, like a channel does;
+  // managers keep seeing empty ones so they can fill or remove them
+  const visible = () =>
+    props.category.id === "default" ||
+    props.category.channels.length > 0 ||
+    props.server.havePermission("ManageChannel");
+
   return (
-    <CategorySection>
-      <Show when={props.category.id !== "default"}>
-        <div
-          use:floating={props.menuGenerator(props.category as never)}
-          style={{ position: "relative" }}
-        >
-          <CategoryBase
-            open={isOpen()}
-            onClick={() => {
-              state.layout.toggleSectionState(props.category.id, true);
-            }}
-            {...createDragHandle(props.dragDisabled, props.setDragDisabled)}
+    <Show when={visible()}>
+      <CategorySection>
+        <Show when={props.category.id !== "default"}>
+          <div
+            use:floating={props.menuGenerator(props.category as never)}
+            style={{ position: "relative" }}
           >
-            {props.category.title}
-            <MdChevronRight {...iconSize(12)} />
-          </CategoryBase>
-          <Show when={props.server.havePermission("ManageChannel")}>
-            <AddChannelButton>
-              <Tooltip content={t`Create Channel`} placement="top">
-                <IconButton
-                  size="xs"
-                  width="narrow"
-                  aria-label={t`Create Channel`}
-                  onPress={() =>
-                    openModal({
-                      type: "create_channel",
-                      server: props.server,
-                      category: props.category.id,
-                    })
-                  }
-                >
-                  <MdAdd {...symbolSize(20)} />
-                </IconButton>
-              </Tooltip>
-            </AddChannelButton>
-          </Show>
-        </div>
-      </Show>
-      <Draggable
-        type="channels"
-        items={channels()}
-        onChange={(channelIds) => {
-          const current = channels();
-          props.handleOrdering({
-            type: "category",
-            id: props.category.id,
-            channelIds,
-            moved: channelIds.length !== current.length,
-          });
-        }}
-        disabled={props.noOrdering() || !isOpen()}
-        minimumDropAreaHeight="32px"
-      >
-        {(entry) => (
-          <Entry
-            channel={entry.item}
-            active={entry.item.id === props.channelId}
-            menuGenerator={props.menuGenerator}
-          />
-        )}
-      </Draggable>
-    </CategorySection>
+            <CategoryBase
+              open={isOpen()}
+              onClick={() => {
+                state.layout.toggleSectionState(props.category.id, true);
+              }}
+              {...createDragHandle(props.dragDisabled, props.setDragDisabled)}
+            >
+              {props.category.title}
+              <MdChevronRight {...iconSize(12)} />
+            </CategoryBase>
+            <Show when={props.server.havePermission("ManageChannel")}>
+              <AddChannelButton>
+                <Tooltip content={t`Create Channel`} placement="top">
+                  <IconButton
+                    size="xs"
+                    width="narrow"
+                    aria-label={t`Create Channel`}
+                    onPress={() =>
+                      openModal({
+                        type: "create_channel",
+                        server: props.server,
+                        category: props.category.id,
+                      })
+                    }
+                  >
+                    <MdAdd {...symbolSize(20)} />
+                  </IconButton>
+                </Tooltip>
+              </AddChannelButton>
+            </Show>
+          </div>
+        </Show>
+        <Draggable
+          type="channels"
+          items={channels()}
+          onChange={(channelIds) => {
+            const current = channels();
+            props.handleOrdering({
+              type: "category",
+              id: props.category.id,
+              channelIds,
+              moved: channelIds.length !== current.length,
+            });
+          }}
+          disabled={props.noOrdering() || !isOpen()}
+          minimumDropAreaHeight="32px"
+        >
+          {(entry) => (
+            <Entry
+              channel={entry.item}
+              active={entry.item.id === props.channelId}
+              menuGenerator={props.menuGenerator}
+            />
+          )}
+        </Draggable>
+      </CategorySection>
+    </Show>
   );
 }
 
