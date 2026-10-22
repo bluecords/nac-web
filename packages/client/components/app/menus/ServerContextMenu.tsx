@@ -9,13 +9,10 @@ import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
 import { Column, Text, Time } from "@revolt/ui";
 
-import MdAlternateEmail from "@material-design-icons/svg/outlined/alternate_email.svg?component-solid";
 import MdBadge from "@material-design-icons/svg/outlined/badge.svg?component-solid";
 import MdFace from "@material-design-icons/svg/outlined/face.svg?component-solid";
 import MdLogout from "@material-design-icons/svg/outlined/logout.svg?component-solid";
 import MdMarkChatRead from "@material-design-icons/svg/outlined/mark_chat_read.svg?component-solid";
-import MdNotificationsActive from "@material-design-icons/svg/outlined/notifications_active.svg?component-solid";
-import MdNotificationsOff from "@material-design-icons/svg/outlined/notifications_off.svg?component-solid";
 import MdPersonAdd from "@material-design-icons/svg/outlined/person_add.svg?component-solid";
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
 import MdSettings from "@material-design-icons/svg/outlined/settings.svg?component-solid";
@@ -23,8 +20,6 @@ import MdSettings from "@material-design-icons/svg/outlined/settings.svg?compone
 import MdDoNotDisturbOff from "@material-symbols/svg-400/outlined/do_not_disturb_off.svg?component-solid";
 import MdDoNotDisturbOn from "@material-symbols/svg-400/outlined/do_not_disturb_on.svg?component-solid";
 import MdNotificationSettings from "@material-symbols/svg-400/outlined/notification_settings.svg?component-solid";
-import MdRadioButtonChecked from "@material-symbols/svg-400/outlined/radio_button_checked-fill.svg?component-solid";
-import MdRadioButtonUnchecked from "@material-symbols/svg-400/outlined/radio_button_unchecked.svg?component-solid";
 
 import {
   ContextMenu,
@@ -222,44 +217,14 @@ export function ServerContextMenu(props: { server: Server }) {
         </ContextMenuSubMenu>
       </Show>
 
-      <ContextMenuSubMenu
+      <ContextMenuButton
         symbol={MdNotificationSettings}
-        buttonContent={<Trans>Notifications</Trans>}
+        onClick={() =>
+          openModal({ type: "server_notifications", server: props.server })
+        }
       >
-        <ContextMenuButton
-          icon={MdNotificationsActive}
-          onClick={() => state.notifications.setServer(props.server, "all")}
-          actionSymbol={
-            state.notifications.computeForServer(props.server) === "all"
-              ? MdRadioButtonChecked
-              : MdRadioButtonUnchecked
-          }
-        >
-          <Trans>All Messages</Trans>
-        </ContextMenuButton>
-        <ContextMenuButton
-          icon={MdAlternateEmail}
-          onClick={() => state.notifications.setServer(props.server, "mention")}
-          actionSymbol={
-            state.notifications.computeForServer(props.server) === "mention"
-              ? MdRadioButtonChecked
-              : MdRadioButtonUnchecked
-          }
-        >
-          <Trans>Mentions Only</Trans>
-        </ContextMenuButton>
-        <ContextMenuButton
-          icon={MdNotificationsOff}
-          onClick={() => state.notifications.setServer(props.server, "none")}
-          actionSymbol={
-            state.notifications.computeForServer(props.server) === "none"
-              ? MdRadioButtonChecked
-              : MdRadioButtonUnchecked
-          }
-        >
-          <Trans>None</Trans>
-        </ContextMenuButton>
-      </ContextMenuSubMenu>
+        <Trans>Notification settings</Trans>
+      </ContextMenuButton>
       <ContextMenuDivider />
 
       <Show when={permissionInviteOthers()}>

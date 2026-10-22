@@ -59,6 +59,7 @@ import { ScreenSharePickerModal } from "./modals/ScreenSharePicker";
 import { ScreenShareSettingsModal } from "./modals/ScreenShareSettings";
 import { ServerIdentityModal } from "./modals/ServerIdentity";
 import { ServerInfoModal } from "./modals/ServerInfo";
+import { ServerNotificationsModal } from "./modals/ServerNotifications";
 import { SettingsModal } from "./modals/Settings";
 import { SignOutSessionsModal } from "./modals/SignOutSessions";
 import { SignedOutModal } from "./modals/SignedOut";
@@ -191,6 +192,8 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <ServerIdentityModal {...modalProps} />;
     case "server_info":
       return <ServerInfoModal {...modalProps} />;
+    case "server_notifications":
+      return <ServerNotificationsModal {...modalProps} />;
     case "settings":
       return <SettingsModal {...modalProps} />;
     case "sponsor_nac":

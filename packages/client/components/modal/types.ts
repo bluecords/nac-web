@@ -262,6 +262,10 @@ export type Modals =
       server: Server;
     }
   | {
+      type: "server_notifications";
+      server: Server;
+    }
+  | {
       type: "invite";
       invite: PublicChannelInvite;
     }
