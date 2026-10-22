@@ -208,32 +208,55 @@ export function ChannelPermissionsOverview(props: { context: Channel }) {
 
   /**
    * Synced = the channel sets nothing of its own, so it is exactly its
-   * category. Any own permission (default or role) means it has diverged.
+   * category. Any own permission (default or role), or a class that follows
+   * this channel's template, means it has diverged.
    */
-  const isSynced = () =>
-    !(
+  const isSynced = () => {
+    const s = server();
+
+    return !(
       (props.context.defaultPermissions &&
         (props.context.defaultPermissions.a !== 0n ||
           props.context.defaultPermissions.d !== 0n)) ||
       Object.values(props.context.rolePermissions ?? {}).some(
         (value) => value.a !== 0n || value.d !== 0n,
-      )
+      ) ||
+      (!!s &&
+        ROLE_CLASSES.some((roleClass) =>
+          classFollowsChannel(s, roleClass, props.context.id),
+        ))
     );
+  };
 
   const [confirmSync, setConfirmSync] = createSignal(false);
 
   /**
-   * Clear everything this channel sets itself so it matches its category
+   * Clear everything this channel sets itself so it matches its category.
+   * Roles and class templates go first and the channel's own default last, so
+   * a refusal part way (a role above ours) never leaves the channel more open
+   * than it was.
    */
   function syncWithCategory() {
+    const s = server();
+    if (!s) return;
+
     setConfirmSync(false);
     void run(async () => {
       const channel = await freshChannel();
 
-      await props.context.setPermissions(undefined, { allow: 0, deny: 0 });
       await inSequence(channel.entries, (entry) =>
         props.context.setPermissions(entry.id, { allow: 0, deny: 0 }),
       );
+
+      const changes: Partial<Record<RoleClass, null>> = {};
+      for (const roleClass of ROLE_CLASSES) {
+        if (following(roleClass)) changes[roleClass] = null;
+      }
+      if (Object.keys(changes).length) {
+        await setClassChannelTemplates(client(), s, props.context.id, changes);
+      }
+
+      await props.context.setPermissions(undefined, { allow: 0, deny: 0 });
 
       return `Now matches the category.`;
     });
@@ -266,15 +289,18 @@ export function ChannelPermissionsOverview(props: { context: Channel }) {
                     isDisabled={busy()}
                     onPress={() => setConfirmSync(true)}
                   >
-                    Sync now
+                    <Trans>Sync now</Trans>
                   </Button>
                 }
               >
                 <Button isDisabled={busy()} onPress={syncWithCategory}>
-                  Confirm: clear this channel's own settings
+                  <Trans>
+                    Confirm: clear this channel's own settings, including any
+                    that hide it
+                  </Trans>
                 </Button>
                 <Button variant="text" onPress={() => setConfirmSync(false)}>
-                  Cancel
+                  <Trans>Cancel</Trans>
                 </Button>
               </Show>
             </Row>

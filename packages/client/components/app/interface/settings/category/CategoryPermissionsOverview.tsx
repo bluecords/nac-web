@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 
 import { Trans } from "@lingui-solid/solid/macro";
 import { Permission, Server } from "stoat.js";
@@ -44,9 +44,14 @@ export function CategoryPermissionsOverview(props: {
   const isPrivate = () =>
     (bits(category()?.default_permissions).d & Permission.ViewChannel) !== 0n;
 
+  const [busy, setBusy] = createSignal(false);
+
   async function setPrivate(on: boolean) {
+    if (busy()) return;
+
     const { a, d } = bits(category()?.default_permissions);
 
+    setBusy(true);
     try {
       await props.context.server.setCategoryPermissions(
         props.context.categoryId,
@@ -60,6 +65,8 @@ export function CategoryPermissionsOverview(props: {
       );
     } catch (error) {
       showError(error);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -83,12 +90,14 @@ export function CategoryPermissionsOverview(props: {
           <Text class="body">
             <Trans>
               Hides this category from everyone except the roles you give "View
-              Channel" below. Channels in it follow, unless a channel sets its
-              own.
+              Channel" below, even people who could see it through the server's
+              own permissions. Channels in it follow, unless a channel sets its
+              own (use "Sync now" on a channel to clear those).
             </Trans>
           </Text>
         </Column>
         <Checkbox
+          disabled={busy()}
           checked={isPrivate()}
           onChange={(event) => setPrivate(event.currentTarget.checked)}
         />

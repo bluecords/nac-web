@@ -78,6 +78,7 @@ const Config: SettingsConfiguration<CategoryContext> = {
             </Text>
             <Text>{categoryOf(context)?.title}</Text>
             <Button
+              isDisabled={!context.server.havePermission("ManageChannel")}
               onPress={() =>
                 openModal({
                   type: "edit_category",
