@@ -74,6 +74,8 @@ export type Modals =
   | {
       type: "create_channel";
       server: Server;
+      /** put the new channel in this category (its id) */
+      category?: string;
       cb?: (channel: Channel) => void;
     }
   | {
