@@ -19,7 +19,12 @@ import isEqual from "lodash.isequal";
 import { Channel, Message as MessageInterface } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
-import { isIgnored, useClient, useClientLifecycle } from "@revolt/client";
+import {
+  isIgnored,
+  removeIgnored,
+  useClient,
+  useClientLifecycle,
+} from "@revolt/client";
 import { State } from "@revolt/client/Controller";
 import { useTime } from "@revolt/i18n";
 import { useState } from "@revolt/state";
@@ -767,6 +772,8 @@ export function Messages(props: Props) {
 
     let blockedMessages = 0;
     let ignoredMessages = 0;
+    let ignoredAuthors = new Map<string, string>();
+    let ignoredFirstId = "";
     let insertedUnreadDivider = false;
 
     /**
@@ -788,12 +795,23 @@ export function Messages(props: Props) {
      */
     const createIgnoredMessageCount = () => {
       if (ignoredMessages) {
-        messagesWithTail.push({
-          t: 3,
-          count: ignoredMessages,
-        });
+        const authors = [...ignoredAuthors].map(([id, name]) => ({ id, name }));
+        // Reuse the previous object when nothing about the run changed, so
+        // the list keeps the same entry (and its open panel) across rebuilds.
+        const key = `ignored:${ignoredFirstId}:${ignoredMessages}:${authors
+          .map((a) => `${a.id}=${a.name}`)
+          .join(",")}`;
+        messagesWithTail.push(
+          objectCache.get(key) ?? {
+            t: 3,
+            count: ignoredMessages,
+            authors,
+            key,
+          },
+        );
 
         ignoredMessages = 0;
+        ignoredAuthors = new Map();
       }
     };
 
@@ -860,7 +878,14 @@ export function Messages(props: Props) {
       if (message.author?.relationship === "Blocked") {
         blockedMessages++;
       } else if (message.authorId && isIgnored(message.authorId)) {
+        if (!ignoredMessages) ignoredFirstId = message.id;
         ignoredMessages++;
+        ignoredAuthors.set(
+          message.authorId,
+          message.author?.displayName ??
+            message.author?.username ??
+            "Unknown user",
+        );
       } else {
         // Push any blocked/ignored messages if they haven't been yet
         createBlockedMessageCount();
@@ -906,6 +931,8 @@ export function Messages(props: Props) {
         objectCache.set(`${object.message.id}:${object.tail}`, object);
       } else if (object.t === 1) {
         objectCache.set(object.unread ?? object.date, object);
+      } else if (object.t === 3) {
+        objectCache.set(object.key, object);
       }
     }
 
@@ -1064,6 +1091,8 @@ type ListEntry =
       // Ignored messages
       t: 3;
       count: number;
+      authors: { id: string; name: string }[];
+      key: string;
     };
 
 /**
@@ -1104,6 +1133,8 @@ function Entry(
         <BlockedMessage
           kind="ignored"
           count={(other as ListEntry & { t: 3 }).count}
+          authors={(other as ListEntry & { t: 3 }).authors}
+          onUnignore={removeIgnored}
         />
       </Match>
     </Switch>
