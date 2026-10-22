@@ -306,8 +306,11 @@ const ServerName = styled("a", {
     minWidth: 0,
 
     overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
+    // wrap to two lines rather than cut the name short: the notification
+    // bell shares this row
+    lineClamp: 2,
+    lineHeight: 1.15,
+    overflowWrap: "anywhere",
   },
 });
 
