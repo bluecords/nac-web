@@ -7,17 +7,30 @@ import { Client } from "stoat.js";
 import { State } from "..";
 
 import { AbstractStore } from ".";
+import { TypeForumReads, mergeForumReads } from "./ForumReads";
 import { TypeNotificationOptions } from "./NotificationOptions";
 import { TypeOrdering } from "./Ordering";
 import { TypeReleaseNotes } from "./ReleaseNotes";
 
-type SynchronisedStores = "ordering" | "notifications" | "release-notes";
+type SynchronisedStores =
+  | "ordering"
+  | "notifications"
+  | "release-notes"
+  | "forumReads";
 
 const STORE_KEYS: SynchronisedStores[] = [
   "ordering",
   "notifications",
   "release-notes",
+  "forumReads",
 ];
+
+/**
+ * Opening posts is bursty and the settings route shares the 20-per-10s `any`
+ * rate-limit bucket (a 429 would drop the write, since the queue is cleared
+ * before sending), so the forum read state is queued once things go quiet.
+ */
+const FORUM_READS_DEBOUNCE_MS = 3000;
 
 export interface TypeSynchronisation {
   revision: Record<SynchronisedStores, number>;
@@ -36,6 +49,11 @@ export class Sync extends AbstractStore<"sync", TypeSynchronisation> {
    * Keys that need to be synced out
    */
   #syncQueue: ReactiveSet<SynchronisedStores>;
+
+  /**
+   * Pending debounced queue-add for the forum read state
+   */
+  #forumReadsTimer: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * Construct store
@@ -61,6 +79,7 @@ export class Sync extends AbstractStore<"sync", TypeSynchronisation> {
         ordering: 0,
         notifications: 0,
         "release-notes": 0,
+        forumReads: 0,
       },
     };
   }
@@ -149,6 +168,16 @@ export class Sync extends AbstractStore<"sync", TypeSynchronisation> {
     }
 
     this.set("revision", key, +new Date());
+
+    if (key === "forumReads") {
+      clearTimeout(this.#forumReadsTimer);
+      this.#forumReadsTimer = setTimeout(
+        () => this.#syncQueue.add(key),
+        FORUM_READS_DEBOUNCE_MS,
+      );
+      return;
+    }
+
     this.#syncQueue.add(key);
   }
 
@@ -173,6 +202,24 @@ export class Sync extends AbstractStore<"sync", TypeSynchronisation> {
       console.info(`[sync] merge ${key} at ${ts} with`, data);
 
     const parsed = this.state[key].clean(JSON.parse(data));
+
+    // Read state from two devices is combined, not replaced: the newer blob
+    // would otherwise erase what the other device had read.
+    if (key === "forumReads") {
+      const local = this.state.forumReads.get();
+      const remote = parsed as TypeForumReads;
+      const merged = mergeForumReads(local, remote);
+
+      if (!isEqual(merged, local)) {
+        this.#blockSync.add(key);
+        this.state.set(key, merged);
+      }
+      if (ts > this.ts(key)) this.set("revision", key, ts);
+      // the other device is missing something this one has read
+      if (!isEqual(merged, remote)) this.touch(key);
+      return;
+    }
+
     if (ts > this.ts(key)) {
       // if ts is newer, hydrate the store with it
       this.set("revision", key, ts);
@@ -183,7 +230,10 @@ export class Sync extends AbstractStore<"sync", TypeSynchronisation> {
       if (
         !isEqual(
           this.state[key].get(),
-          parsed as TypeOrdering & TypeNotificationOptions & TypeReleaseNotes,
+          parsed as TypeOrdering &
+            TypeNotificationOptions &
+            TypeReleaseNotes &
+            TypeForumReads,
         )
       ) {
         this.touch(key);
