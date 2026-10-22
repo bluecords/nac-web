@@ -38,6 +38,7 @@ import { Symbol } from "@revolt/ui/components/utils/Symbol";
 
 import MdChevronRight from "@material-design-icons/svg/filled/chevron_right.svg?component-solid";
 
+import MdNotificationSettings from "@material-symbols/svg-400/outlined/notification_settings.svg?component-solid";
 import MdSettings from "@material-symbols/svg-400/outlined/settings-fill.svg?component-solid";
 
 import { SidebarBase } from "./common";
@@ -262,12 +263,26 @@ function ServerInfo(
     canManageServer: boolean;
   },
 ) {
+  const { t } = useLingui();
+  const { openModal } = useModals();
+
   return (
     <Row align grow minWidth={0}>
       <ServerBadge flags={props.server.flags} />
       <ServerName onClick={props.openServerInfo}>
         <TextWithEmoji content={props.server.name} />
       </ServerName>
+      <IconButton
+        size="xs"
+        width="narrow"
+        variant={props.server.banner ? "_header" : "standard"}
+        aria-label={t`Notification settings`}
+        onPress={() =>
+          openModal({ type: "server_notifications", server: props.server })
+        }
+      >
+        <MdNotificationSettings {...symbolSize(24)} />
+      </IconButton>
       <Show when={props.canManageServer}>
         <IconButton
           size="xs"
