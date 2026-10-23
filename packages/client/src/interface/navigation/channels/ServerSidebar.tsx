@@ -544,7 +544,7 @@ function Entry(
       ? "selected"
       : inCall()
         ? "active"
-        : state.notifications.isChannelMuted(props.channel)
+        : state.notifications.isChannelOrCategoryMuted(props.channel)
           ? "muted"
           : props.channel.unread
             ? "active"
