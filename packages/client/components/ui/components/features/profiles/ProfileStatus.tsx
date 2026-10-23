@@ -4,6 +4,8 @@ import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { User } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
+import { TextWithEmoji } from "@revolt/markdown";
+
 import { Text, typography } from "../../design";
 
 import { ProfileCard } from "./ProfileCard";
@@ -18,17 +20,19 @@ export function ProfileStatus(props: { user: User }) {
           <Trans>Status</Trans>
         </Text>
         <Status>
-          {props.user.statusMessage((s) =>
-            s === "Online"
-              ? t`Online`
-              : s === "Busy"
-                ? t`Busy`
-                : s === "Focus"
-                  ? t`Focus`
-                  : s === "Idle"
-                    ? t`Idle`
-                    : t`Offline`,
-          )}
+          <TextWithEmoji
+            content={props.user.statusMessage((s) =>
+              s === "Online"
+                ? t`Online`
+                : s === "Busy"
+                  ? t`Busy`
+                  : s === "Focus"
+                    ? t`Focus`
+                    : s === "Idle"
+                      ? t`Idle`
+                      : t`Offline`,
+            )}
+          />
         </Status>
       </ProfileCard>
     </Show>
