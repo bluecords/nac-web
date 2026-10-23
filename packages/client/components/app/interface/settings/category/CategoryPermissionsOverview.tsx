@@ -46,8 +46,11 @@ export function CategoryPermissionsOverview(props: {
 
   const [busy, setBusy] = createSignal(false);
 
-  async function setPrivate(on: boolean) {
-    if (busy()) return;
+  async function setPrivate(on: boolean, box: { checked: boolean }) {
+    if (busy()) {
+      box.checked = isPrivate();
+      return;
+    }
 
     const { a, d } = bits(category()?.default_permissions);
 
@@ -64,6 +67,8 @@ export function CategoryPermissionsOverview(props: {
         },
       );
     } catch (error) {
+      // the box already flipped on screen; show what is actually saved
+      box.checked = isPrivate();
       showError(error);
     } finally {
       setBusy(false);
@@ -99,7 +104,9 @@ export function CategoryPermissionsOverview(props: {
         <Checkbox
           disabled={busy()}
           checked={isPrivate()}
-          onChange={(event) => setPrivate(event.currentTarget.checked)}
+          onChange={(event) =>
+            setPrivate(event.currentTarget.checked, event.currentTarget)
+          }
         />
       </Row>
 
