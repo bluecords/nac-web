@@ -150,6 +150,14 @@ export function ServerNotificationsModal(
               </Radio2.Option>
             </Radio2>
           </Choices>
+          <Show when={!state.notifications.get().server[props.server.id]}>
+            <Text class="label" size="small">
+              <Trans>
+                You haven't chosen one, so this is the server's default. Pick
+                one to make it your own.
+              </Trans>
+            </Text>
+          </Show>
           <Text class="label" size="small">
             <Trans>
               Applies to alerts in NAC and to push on your phone. Channels you

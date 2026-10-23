@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 
 import { Trans, useLingui } from "@lingui-solid/solid/macro";
 import { Channel, NotificationDefaults, Server } from "stoat.js";
@@ -35,6 +35,19 @@ export function NotificationDefaultsPage(props: { server: Server }) {
   );
   const [busy, setBusy] = createSignal(false);
   const [done, setDone] = createSignal(false);
+  // true once the admin has changed something on this page
+  const [touched, setTouched] = createSignal(false);
+
+  // Until the admin starts editing, follow what is saved, so another admin's
+  // change (or this page's own save) shows up here instead of being overwritten
+  createEffect(() => {
+    const now = saved();
+    if (touched()) return;
+
+    setServerLevel(now.server ?? "mention");
+    setChannelLevels({ ...(now.channels ?? {}) });
+    setListed(Object.keys(now.channels ?? {}));
+  });
 
   const channels = (): Channel[] =>
     props.server.orderedChannels
@@ -49,21 +62,33 @@ export function NotificationDefaultsPage(props: { server: Server }) {
   const addable = () =>
     channels().filter((channel) => !listed().includes(channel.id));
 
+  /** Only channels that still exist: a deleted channel's id is refused by the server */
+  const liveOnly = (levels: Record<string, string>) => {
+    const live = new Set(channels().map((channel) => channel.id));
+    return Object.fromEntries(
+      Object.entries(levels)
+        .filter(([id]) => live.has(id))
+        .sort(([a], [b]) => a.localeCompare(b)),
+    );
+  };
+
   const current = (): NotificationDefaults => ({
     server: serverLevel(),
-    channels: channelLevels(),
+    channels: liveOnly(channelLevels()) as NotificationDefaults["channels"],
   });
 
   const changed = () => {
     const before = saved();
     return (
       (before.server ?? "mention") !== serverLevel() ||
-      JSON.stringify(before.channels ?? {}) !== JSON.stringify(channelLevels())
+      JSON.stringify(liveOnly(before.channels ?? {})) !==
+        JSON.stringify(current().channels)
     );
   };
 
   function setChannel(channel: Channel, value: string) {
     setDone(false);
+    setTouched(true);
     setChannelLevels((levels) => {
       const next = { ...levels };
       if (value === "") delete next[channel.id];
@@ -76,6 +101,7 @@ export function NotificationDefaultsPage(props: { server: Server }) {
     setBusy(true);
     try {
       await props.server.setNotificationDefaults(current());
+      setTouched(false);
       setDone(true);
     } catch (error) {
       showError(error);
@@ -101,6 +127,7 @@ export function NotificationDefaultsPage(props: { server: Server }) {
             value={serverLevel()}
             onChange={(event) => {
               setDone(false);
+              setTouched(true);
               setServerLevel(event.currentTarget.value as "all" | "mention");
             }}
           >
@@ -159,7 +186,10 @@ export function NotificationDefaultsPage(props: { server: Server }) {
             value=""
             onChange={(event) => {
               const id = event.currentTarget.value;
-              if (id) setListed((list) => [...list, id]);
+              if (id) {
+                setTouched(true);
+                setListed((list) => [...list, id]);
+              }
               event.currentTarget.value = "";
             }}
           >
