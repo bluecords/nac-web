@@ -23,22 +23,12 @@ export function NotificationContextMenu(props: { channel: Channel }) {
   const state = useState();
 
   /**
-   * The category's own choice for this channel's category, if it has one
+   * What this channel gets when the member picks the default for it, and
+   * whether that comes from its category, its own admin default, or the server
    */
-  const categoryChoice = () => {
-    const id = props.channel.category?.id;
-    return id ? state.notifications.getCategory(id) : undefined;
-  };
-
-  /**
-   * What this channel gets when it has no choice of its own: its category's
-   * choice, else the server's
-   */
-  const inheritedState = () =>
-    categoryChoice() ??
-    (props.channel.server
-      ? state.notifications.computeForServer(props.channel.server)
-      : undefined);
+  const inherited = () =>
+    state.notifications.inheritedForChannel(props.channel);
+  const inheritedState = () => inherited().state;
 
   return (
     <>
@@ -124,12 +114,14 @@ export function NotificationContextMenu(props: { channel: Channel }) {
         >
           <Column gap="none">
             <Show when={props.channel.server} fallback={<Trans>Default</Trans>}>
-              <Show
-                when={categoryChoice()}
-                fallback={<Trans>Server Default</Trans>}
-              >
-                <Trans>Category Default</Trans>
-              </Show>
+              <Switch fallback={<Trans>Server Default</Trans>}>
+                <Match when={inherited().from === "category"}>
+                  <Trans>Category Default</Trans>
+                </Match>
+                <Match when={inherited().from === "channel"}>
+                  <Trans>Channel Default</Trans>
+                </Match>
+              </Switch>
             </Show>
             <Text class="label" size="small">
               <Switch fallback={<Trans>None</Trans>}>

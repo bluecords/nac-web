@@ -1,4 +1,5 @@
 import {
+  BiSolidBell,
   BiSolidEnvelope,
   BiSolidFlagAlt,
   BiSolidGroup,
@@ -25,6 +26,7 @@ import { Feeds } from "./server/feeds/Feeds";
 import { ListServerInvites } from "./server/invites/ListServerInvites";
 import { DiscordClaims } from "./server/members/DiscordClaims";
 import { MemberList } from "./server/members/MemberList";
+import { NotificationDefaultsPage } from "./server/notifications/NotificationDefaults";
 import { RoleClassesEditor } from "./server/roles/RoleClassesEditor";
 import { ServerRoleEditor } from "./server/roles/ServerRoleEditor";
 import { ServerRoleOverview } from "./server/roles/ServerRoleOverview";
@@ -90,6 +92,8 @@ const Config: SettingsConfiguration<Server> = {
         return <ListServerBans server={server} />;
       case "feeds":
         return <Feeds server={server} />;
+      case "notification_defaults":
+        return <NotificationDefaultsPage server={server} />;
 
       default:
         return null;
@@ -203,6 +207,12 @@ const Config: SettingsConfiguration<Server> = {
               id: "feeds",
               icon: <BiSolidFlagAlt size={20} />,
               title: <Trans>News feeds</Trans>,
+            },
+            {
+              hidden: !server.havePermission("ManageServer"),
+              id: "notification_defaults",
+              icon: <BiSolidBell size={20} />,
+              title: <Trans>Notification defaults</Trans>,
             },
           ],
         },
