@@ -44,6 +44,12 @@ export interface TypeNotificationOptions {
   server: Record<string, NotificationState | undefined>;
 
   /**
+   * Per-category settings (a category's channels follow it unless they
+   * have a setting of their own)
+   */
+  category: Record<string, NotificationState | undefined>;
+
+  /**
    * Per-channel settings
    */
   channel: Record<string, NotificationState | undefined>;
@@ -52,6 +58,11 @@ export interface TypeNotificationOptions {
    * Server mute settings
    */
   server_mutes: Record<string, MuteState | undefined>;
+
+  /**
+   * Category mute settings
+   */
+  category_mutes: Record<string, MuteState | undefined>;
 
   /**
    * Channel mute settings
@@ -100,8 +111,10 @@ export class NotificationOptions extends AbstractStore<
   default(): TypeNotificationOptions {
     return {
       server: {},
+      category: {},
       channel: {},
       server_mutes: {},
+      category_mutes: {},
       channel_mutes: {},
     };
   }
@@ -111,8 +124,10 @@ export class NotificationOptions extends AbstractStore<
    */
   clean(input: Partial<TypeNotificationOptions>): TypeNotificationOptions {
     const server: TypeNotificationOptions["server"] = {};
+    const category: TypeNotificationOptions["category"] = {};
     const channel: TypeNotificationOptions["channel"] = {};
     const server_mutes: TypeNotificationOptions["server_mutes"] = {};
+    const category_mutes: TypeNotificationOptions["category_mutes"] = {};
     const channel_mutes: TypeNotificationOptions["channel_mutes"] = {};
 
     if (typeof input.server === "object") {
@@ -126,6 +141,15 @@ export class NotificationOptions extends AbstractStore<
 
         if (entry && NotificationStates.includes(entry)) {
           server[serverId] = entry;
+        }
+      }
+    }
+
+    if (typeof input.category === "object") {
+      for (const categoryId of Object.keys(input.category)) {
+        const entry = input.category[categoryId];
+        if (entry && NotificationStates.includes(entry)) {
+          category[categoryId] = entry;
         }
       }
     }
@@ -160,6 +184,19 @@ export class NotificationOptions extends AbstractStore<
       }
     }
 
+    if (typeof input.category_mutes === "object") {
+      for (const categoryId of Object.keys(input.category_mutes)) {
+        const entry = input.category_mutes[categoryId];
+        if (
+          entry &&
+          (typeof entry.until === "undefined" ||
+            (typeof entry.until === "number" && entry.until > now))
+        ) {
+          category_mutes[categoryId] = { until: entry.until };
+        }
+      }
+    }
+
     if (typeof input.channel_mutes === "object") {
       for (const channelId of Object.keys(input.channel_mutes)) {
         const entry = input.channel_mutes[channelId];
@@ -175,8 +212,10 @@ export class NotificationOptions extends AbstractStore<
 
     return {
       server,
+      category,
       channel,
       server_mutes,
+      category_mutes,
       channel_mutes,
     };
   }
@@ -198,11 +237,60 @@ export class NotificationOptions extends AbstractStore<
    * @returns Notification state
    */
   computeForChannel(channel: Channel) {
+    const categoryId = channel.category?.id;
+
     return (
       this.get().channel[channel.id] ??
+      (categoryId ? this.get().category[categoryId] : undefined) ??
       this.computeForServer(channel.server) ??
       DEFAULT_STATES[channel.type]
     );
+  }
+
+  /**
+   * Set notification state for a category
+   * @param categoryId Category id
+   * @param state State (undefined: follow the server)
+   */
+  setCategory(categoryId: string, state: NotificationState | undefined) {
+    this.set("category", categoryId, state);
+  }
+
+  /**
+   * Get notification state chosen for a category
+   * @param categoryId Category id
+   * @returns Chosen state, or undefined if it follows the server
+   */
+  getCategory(categoryId: string) {
+    return this.get().category[categoryId];
+  }
+
+  /**
+   * Set mute state for a category
+   * @param categoryId Category id
+   * @param state State
+   */
+  setCategoryMute(categoryId: string, state: MuteState | undefined) {
+    this.set("category_mutes", categoryId, state);
+  }
+
+  /**
+   * Get muted state for a category
+   * @param categoryId Category id
+   * @returns Current state
+   */
+  getCategoryMute(categoryId: string) {
+    return this.get().category_mutes[categoryId];
+  }
+
+  /**
+   * Whether a category is muted
+   * @param categoryId Category id
+   * @returns Whether it is muted right now
+   */
+  isCategoryMuted(categoryId: string): boolean {
+    const value = this.get().category_mutes[categoryId];
+    return !!value && (!value.until || value.until > this.#now());
   }
 
   /**
@@ -277,6 +365,11 @@ export class NotificationOptions extends AbstractStore<
     let value: MuteState | undefined;
     if (target instanceof Channel) {
       if (this.isMuted(target.server)) return true;
+
+      // a muted category mutes every channel in it
+      const categoryId = target.category?.id;
+      if (categoryId && this.isCategoryMuted(categoryId)) return true;
+
       value = this.get().channel_mutes[target.id];
     } else if (target instanceof Server) {
       value = this.get().server_mutes[target.id];

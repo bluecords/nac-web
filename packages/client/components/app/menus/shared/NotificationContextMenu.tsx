@@ -22,6 +22,24 @@ import { ContextMenuButton, ContextMenuSubMenu } from "../ContextMenu";
 export function NotificationContextMenu(props: { channel: Channel }) {
   const state = useState();
 
+  /**
+   * The category's own choice for this channel's category, if it has one
+   */
+  const categoryChoice = () => {
+    const id = props.channel.category?.id;
+    return id ? state.notifications.getCategory(id) : undefined;
+  };
+
+  /**
+   * What this channel gets when it has no choice of its own: its category's
+   * choice, else the server's
+   */
+  const inheritedState = () =>
+    categoryChoice() ??
+    (props.channel.server
+      ? state.notifications.computeForServer(props.channel.server)
+      : undefined);
+
   return (
     <>
       <Show
@@ -106,28 +124,24 @@ export function NotificationContextMenu(props: { channel: Channel }) {
         >
           <Column gap="none">
             <Show when={props.channel.server} fallback={<Trans>Default</Trans>}>
-              <Trans>Server Default</Trans>
+              <Show
+                when={categoryChoice()}
+                fallback={<Trans>Server Default</Trans>}
+              >
+                <Trans>Category Default</Trans>
+              </Show>
             </Show>
             <Text class="label" size="small">
               <Switch fallback={<Trans>None</Trans>}>
                 <Match
                   when={
-                    props.channel.server
-                      ? state.notifications.computeForServer(
-                          props.channel.server!,
-                        ) === "all"
-                      : true
+                    props.channel.server ? inheritedState() === "all" : true
                   }
                 >
                   <Trans>All Messages</Trans>
                 </Match>
                 <Match
-                  when={
-                    props.channel.server &&
-                    state.notifications.computeForServer(
-                      props.channel.server!,
-                    ) === "mention"
-                  }
+                  when={props.channel.server && inheritedState() === "mention"}
                 >
                   <Trans>Mentions Only</Trans>
                 </Match>

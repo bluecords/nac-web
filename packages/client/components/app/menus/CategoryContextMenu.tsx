@@ -19,6 +19,7 @@ import {
   ContextMenuButton,
   ContextMenuDivider,
 } from "./ContextMenu";
+import { CategoryNotificationContextMenu } from "./shared/CategoryNotificationContextMenu";
 
 export type CategoryData = Omit<API.Category, "channels"> & {
   channels: Channel[];
@@ -105,6 +106,12 @@ export function CategoryContextMenu(props: {
         </ContextMenuButton>
         <ContextMenuDivider />
       </Show>
+
+      <CategoryNotificationContextMenu
+        server={props.server}
+        categoryId={props.category.id}
+      />
+      <ContextMenuDivider />
 
       <Show when={props.server.havePermission("ManageChannel")}>
         <ContextMenuButton icon={MdLibraryAdd} onClick={createCategory}>
