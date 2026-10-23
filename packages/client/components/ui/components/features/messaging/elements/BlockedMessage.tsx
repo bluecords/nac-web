@@ -86,12 +86,14 @@ interface Props {
    */
   kind?: "blocked" | "ignored";
   /**
-   * Who is behind the collapsed ignored messages. With `onUnignore`, the
-   * strip becomes tappable and offers to stop ignoring each of them - the
-   * hidden messages leave no other way to reach their profile menu.
+   * Who is behind the collapsed messages. With `onUnignore` (ignored) or
+   * `onUnblock` (blocked), the strip becomes tappable and offers to undo it
+   * for each of them - the hidden messages leave no other way to reach their
+   * profile menu.
    */
   authors?: { id: string; name: string }[];
   onUnignore?: (userId: string) => void;
+  onUnblock?: (userId: string) => void;
 }
 
 /**
@@ -99,8 +101,9 @@ interface Props {
  */
 export function BlockedMessage(props: Props) {
   const [open, setOpen] = createSignal(false);
-  const canUnignore = () =>
-    props.kind === "ignored" && !!props.authors?.length && !!props.onUnignore;
+  const undo = () =>
+    props.kind === "ignored" ? props.onUnignore : props.onUnblock;
+  const canUndo = () => !!props.authors?.length && !!undo();
 
   const label = () => (
     <Show
@@ -125,7 +128,7 @@ export function BlockedMessage(props: Props) {
     <Base>
       <Ripple />
       <Show
-        when={canUnignore()}
+        when={canUndo()}
         fallback={
           <>
             <MdClose {...iconSize(16)} /> {label()}
@@ -144,13 +147,14 @@ export function BlockedMessage(props: Props) {
             <Choices>
               <For each={props.authors}>
                 {(author) => (
-                  <Choice
-                    type="button"
-                    onClick={() => props.onUnignore!(author.id)}
-                  >
+                  <Choice type="button" onClick={() => undo()!(author.id)}>
                     {(() => {
                       const name = author.name;
-                      return <Trans>Stop ignoring {name}</Trans>;
+                      return props.kind === "ignored" ? (
+                        <Trans>Stop ignoring {name}</Trans>
+                      ) : (
+                        <Trans>Unblock {name}</Trans>
+                      );
                     })()}
                   </Choice>
                 )}

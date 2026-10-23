@@ -27,6 +27,7 @@ import {
 } from "@revolt/client";
 import { State } from "@revolt/client/Controller";
 import { useTime } from "@revolt/i18n";
+import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
 import {
   BlockedMessage,
@@ -771,6 +772,8 @@ export function Messages(props: Props) {
     const lastReadId = props.lastReadId() ?? "0";
 
     let blockedMessages = 0;
+    let blockedAuthors = new Map<string, string>();
+    let blockedFirstId = "";
     let ignoredMessages = 0;
     let ignoredAuthors = new Map<string, string>();
     let ignoredFirstId = "";
@@ -781,12 +784,21 @@ export function Messages(props: Props) {
      */
     const createBlockedMessageCount = () => {
       if (blockedMessages) {
-        messagesWithTail.push({
-          t: 2,
-          count: blockedMessages,
-        });
+        const authors = [...blockedAuthors].map(([id, name]) => ({ id, name }));
+        const key = `blocked:${blockedFirstId}:${blockedMessages}:${authors
+          .map((a) => `${a.id}=${a.name}`)
+          .join(",")}`;
+        messagesWithTail.push(
+          objectCache.get(key) ?? {
+            t: 2,
+            count: blockedMessages,
+            authors,
+            key,
+          },
+        );
 
         blockedMessages = 0;
+        blockedAuthors = new Map();
       }
     };
 
@@ -876,7 +888,12 @@ export function Messages(props: Props) {
       }
 
       if (message.author?.relationship === "Blocked") {
+        if (!blockedMessages) blockedFirstId = message.id;
         blockedMessages++;
+        blockedAuthors.set(
+          message.author.id,
+          message.author.displayName ?? message.author.username,
+        );
       } else if (message.authorId && isIgnored(message.authorId)) {
         if (!ignoredMessages) ignoredFirstId = message.id;
         ignoredMessages++;
@@ -931,7 +948,7 @@ export function Messages(props: Props) {
         objectCache.set(`${object.message.id}:${object.tail}`, object);
       } else if (object.t === 1) {
         objectCache.set(object.unread ?? object.date, object);
-      } else if (object.t === 3) {
+      } else if (object.t === 2 || object.t === 3) {
         objectCache.set(object.key, object);
       }
     }
@@ -1086,6 +1103,8 @@ type ListEntry =
       // Blocked messages
       t: 2;
       count: number;
+      authors: { id: string; name: string }[];
+      key: string;
     }
   | {
       // Ignored messages
@@ -1107,6 +1126,8 @@ function Entry(
     "highlightedMessageId",
     "editingMessageId",
   ]);
+  const client = useClient();
+  const { showError } = useModals();
 
   return (
     <Switch>
@@ -1127,7 +1148,13 @@ function Entry(
         <MessageDivider {...(other as ListEntry & { t: 1 })} />
       </Match>
       <Match when={local.t === 2}>
-        <BlockedMessage count={(other as ListEntry & { t: 2 }).count} />
+        <BlockedMessage
+          count={(other as ListEntry & { t: 2 }).count}
+          authors={(other as ListEntry & { t: 2 }).authors}
+          onUnblock={(id) => {
+            client().users.get(id)?.unblockUser().catch(showError);
+          }}
+        />
       </Match>
       <Match when={local.t === 3}>
         <BlockedMessage
