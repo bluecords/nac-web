@@ -379,6 +379,20 @@ export class NotificationOptions extends AbstractStore<
   }
 
   /**
+   * Check whether a Channel is muted by itself or by its category (ignoring
+   * the server): what unread dots and the sidebar's dimming follow
+   * @param channel Channel
+   * @returns Whether this channel, or its category, is muted
+   */
+  isChannelOrCategoryMuted(channel: Channel): boolean {
+    const categoryId = channel.category?.id;
+    return (
+      this.isChannelMuted(channel) ||
+      (!!categoryId && this.isCategoryMuted(categoryId))
+    );
+  }
+
+  /**
    * Check whether a Channel is muted (ignoring server)
    * @param channel Channel
    * @returns Whether this channel is muted

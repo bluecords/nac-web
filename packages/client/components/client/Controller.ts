@@ -284,7 +284,7 @@ class Lifecycle {
       channelIsMuted: (channel) =>
         this.#controller.state.notifications.isMuted(channel),
       channelExclusiveMuted: (channel) =>
-        this.#controller.state.notifications.isChannelMuted(channel),
+        this.#controller.state.notifications.isChannelOrCategoryMuted(channel),
     });
 
     this.client.configuration = {
