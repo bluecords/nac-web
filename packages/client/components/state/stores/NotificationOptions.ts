@@ -227,24 +227,69 @@ export class NotificationOptions extends AbstractStore<
    */
   computeForServer(server?: Server) {
     return server
-      ? (this.get().server[server.id] ?? DEFAULT_SERVER_STATE)
+      ? (this.get().server[server.id] ??
+          server.notificationDefaults?.server ??
+          DEFAULT_SERVER_STATE)
       : undefined;
   }
 
   /**
-   * Compute the actual notification state for a given Channel
+   * Compute the actual notification state for a given Channel.
+   *
+   * Order: the member's own choice for the channel, then its category, then the
+   * whole server; only where they chose nothing, the admin's default for the
+   * channel, then the admin's default for the server.
    * @param channel Channel
    * @returns Notification state
    */
   computeForChannel(channel: Channel) {
+    const own = this.get().channel[channel.id];
+    if (own) return own;
+
     const categoryId = channel.category?.id;
+    const ownCategory = categoryId
+      ? this.get().category[categoryId]
+      : undefined;
+    if (ownCategory) return ownCategory;
+
+    const server = channel.server;
+    if (!server) return DEFAULT_STATES[channel.type];
 
     return (
-      this.get().channel[channel.id] ??
-      (categoryId ? this.get().category[categoryId] : undefined) ??
-      this.computeForServer(channel.server) ??
-      DEFAULT_STATES[channel.type]
+      this.get().server[server.id] ??
+      server.notificationDefaults?.channels?.[channel.id] ??
+      server.notificationDefaults?.server ??
+      DEFAULT_SERVER_STATE
     );
+  }
+
+  /**
+   * What a channel gets when the member picks the default for it: their
+   * category's choice, else their server choice, else the admin's defaults.
+   * @param channel Channel
+   * @returns Notification state, and where it comes from
+   */
+  inheritedForChannel(channel: Channel) {
+    const categoryId = channel.category?.id;
+    const ownCategory = categoryId
+      ? this.get().category[categoryId]
+      : undefined;
+    if (ownCategory) return { state: ownCategory, from: "category" as const };
+
+    const server = channel.server;
+    if (!server)
+      return { state: DEFAULT_STATES[channel.type], from: "server" as const };
+
+    const ownServer = this.get().server[server.id];
+    if (ownServer) return { state: ownServer, from: "server" as const };
+
+    const adminChannel = server.notificationDefaults?.channels?.[channel.id];
+    if (adminChannel) return { state: adminChannel, from: "channel" as const };
+
+    return {
+      state: server.notificationDefaults?.server ?? DEFAULT_SERVER_STATE,
+      from: "server" as const,
+    };
   }
 
   /**
