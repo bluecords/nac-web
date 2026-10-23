@@ -5,6 +5,7 @@ import { ServerMember, User } from "stoat.js";
 import { styled } from "styled-system/jsx";
 
 import { UserContextMenu } from "@revolt/app";
+import { isIgnored, removeIgnored } from "@revolt/client";
 import { useModals } from "@revolt/modal";
 
 import MdCancel from "@material-design-icons/svg/filled/cancel.svg?component-solid";
@@ -70,8 +71,24 @@ export function ProfileActions(props: {
     );
   }
 
+  /**
+   * Unblock - also in the "..." menu, but a blocked or ignored member's way
+   * back should not depend on finding that menu
+   */
+  function unblock() {
+    props.user.unblockUser().catch(showError);
+  }
+
   return (
     <Actions width={props.width}>
+      <Show when={props.user.relationship === "Blocked"}>
+        <Button onPress={unblock}>Unblock</Button>
+      </Show>
+      <Show when={!props.user.self && isIgnored(props.user.id)}>
+        <Button onPress={() => removeIgnored(props.user.id)}>
+          Stop ignoring
+        </Button>
+      </Show>
       <Show when={props.user.relationship === "None" && !props.user.bot}>
         <Button onPress={addFriend}>Add Friend</Button>
       </Show>
