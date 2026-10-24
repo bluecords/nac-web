@@ -227,7 +227,8 @@ export default function Sounds() {
             icon="blank"
             description={
               <Trans>
-                "Slowly" by Tokyo Music Walker (breakingcopyright.com)
+                "Slowly" by Tokyo Music Walker — Free download:
+                breakingcopyright.com/song/tokyo-music-walker-slowly
               </Trans>
             }
           >
