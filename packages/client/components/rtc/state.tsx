@@ -84,6 +84,13 @@ class Voice {
   showBar: Accessor<boolean>;
   #setShowBar: Setter<boolean>;
 
+  /** How many other people are in the call right now */
+  otherParticipants: Accessor<number>;
+  #setOtherParticipants: Setter<number>;
+
+  /** Connected, and nobody else is here */
+  alone: Accessor<boolean>;
+
   private sound: SoundController;
   private device: Device;
 
@@ -138,6 +145,11 @@ class Voice {
     const [showBar, setShowBar] = createSignal(true);
     this.showBar = showBar;
     this.#setShowBar = setShowBar;
+
+    const [otherParticipants, setOtherParticipants] = createSignal(0);
+    this.otherParticipants = otherParticipants;
+    this.#setOtherParticipants = setOtherParticipants;
+    this.alone = () => state() === "CONNECTED" && otherParticipants() === 0;
 
     this.openModal = modals.openModal;
 
@@ -242,6 +254,7 @@ class Voice {
 
     room.addListener("connected", () => {
       this.#setState("CONNECTED");
+      this.#setOtherParticipants(room.remoteParticipants.size);
       if (this.speakingPermission)
         room.localParticipant
           .setMicrophoneEnabled(this.#settings.micOn)
@@ -272,10 +285,12 @@ class Voice {
     });
 
     room.addListener("participantConnected", () => {
+      this.#setOtherParticipants(room.remoteParticipants.size);
       this.sound.playSound("userJoinVoice");
     });
 
     room.addListener("participantDisconnected", () => {
+      this.#setOtherParticipants(room.remoteParticipants.size);
       this.sound.playSound("userLeaveVoice");
     });
 
@@ -332,6 +347,7 @@ class Voice {
 
       batch(() => {
         this.#setState("READY");
+        this.#setOtherParticipants(0);
         this.#setRoom();
         this.#setChannel();
         this.#setFullscreen(false);

@@ -1,6 +1,7 @@
 import { createContext, JSXElement, useContext } from "solid-js";
 
 import { Sounds, TypeSounds, useState } from "@revolt/state";
+import aloneInCallSound from "../../public/assets/sounds/alone_in_call.ogg";
 import deafenSound from "../../public/assets/sounds/deafen.ogg";
 import messageSound from "../../public/assets/sounds/message_sound.ogg";
 import muteSound from "../../public/assets/sounds/mute.ogg";
@@ -15,6 +16,13 @@ import unmuteSound from "../../public/assets/sounds/unmute.ogg";
 import userJoinVoiceSound from "../../public/assets/sounds/user_join_voice.ogg";
 import userLeaveVoiceSound from "../../public/assets/sounds/user_leave_voice.ogg";
 import userMovedSound from "../../public/assets/sounds/user_moved.ogg";
+
+/**
+ * Sounds that can be played on repeat with `startLoop`
+ */
+const loopSources: Partial<Record<keyof TypeSounds, string>> = {
+  aloneInCall: aloneInCallSound,
+};
 
 /**
  * A controller class for making sure sounds are managed in one place and to prevent undesirable sound overlaps
@@ -77,6 +85,10 @@ export class SoundController {
       return false;
     }
     switch (sound) {
+      case "aloneInCall": {
+        this.node = new Audio(aloneInCallSound);
+        break;
+      }
       case "deafen": {
         this.node = new Audio(deafenSound);
         break;
@@ -137,6 +149,32 @@ export class SoundController {
     this.lastPlayedSound = sound;
     this.node.play();
     return true;
+  }
+
+  /**
+   * Play a sound on repeat, quietly, until the returned function is called.
+   * Does nothing (and returns a no-op) if the sound is turned off.
+   *
+   * @param sound The sound to loop
+   * @returns Function that stops it
+   */
+  startLoop(sound: keyof TypeSounds): () => void {
+    const source = loopSources[sound];
+
+    if (!source || !this.soundState.enabled(sound)) {
+      return () => {};
+    }
+
+    const node = new Audio(source);
+    node.loop = true;
+    node.volume = 0.5;
+    node.play().catch(() => {});
+
+    return () => {
+      node.pause();
+      node.removeAttribute("src");
+      node.load();
+    };
   }
 }
 

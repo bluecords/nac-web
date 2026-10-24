@@ -9,6 +9,7 @@ import { IconButton } from "@revolt/ui/components/design";
 import { Symbol } from "@revolt/ui/components/utils/Symbol";
 import { scrollableStyles } from "@revolt/ui/directives";
 
+import { AloneInCallNotice } from "./AloneInCallNotice";
 import { ParticipantTile, tile } from "./ParticipantTile";
 import { VoiceCallCardActions } from "./VoiceCallCardActions";
 import { VoiceCallCardStatus } from "./VoiceCallCardStatus";
@@ -19,6 +20,7 @@ import { VoiceCallCardStatus } from "./VoiceCallCardStatus";
 export function VoiceCallCardActiveRoom() {
   return (
     <View>
+      <AloneInCallNotice />
       <Participants />
       <VoiceCallControls>
         <VoiceCallControlHolder right>
