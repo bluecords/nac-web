@@ -23,6 +23,7 @@ import MdAlternateEmail from "@material-design-icons/svg/outlined/alternate_emai
 import MdAssignmentInd from "@material-design-icons/svg/outlined/assignment_ind.svg?component-solid";
 import MdBadge from "@material-design-icons/svg/outlined/badge.svg?component-solid";
 import MdBlock from "@material-design-icons/svg/outlined/block.svg?component-solid";
+import MdCallEnd from "@material-design-icons/svg/outlined/call_end.svg?component-solid";
 import MdCancel from "@material-design-icons/svg/outlined/cancel.svg?component-solid";
 import MdChat from "@material-design-icons/svg/outlined/chat.svg?component-solid";
 import MdClose from "@material-design-icons/svg/outlined/close.svg?component-solid";
@@ -54,6 +55,8 @@ export function UserContextMenu(props: {
   member?: ServerMember;
   contextMessage?: Message;
   inVoice?: boolean;
+  /** This user is a participant in a voice call (shown for anyone who can move members) */
+  inCall?: boolean;
   isScreenshare?: boolean;
 }) {
   // TODO: if we take serverId instead, we could dynamically fetch server member here
@@ -157,6 +160,13 @@ export function UserContextMenu(props: {
       type: "timeout_member",
       member: props.member!,
     });
+  }
+
+  /**
+   * Remove the member from the voice call they are in (they stay in the server)
+   */
+  function removeFromCall() {
+    props.member!.edit({ remove: ["VoiceChannel"] }).catch(showError);
   }
 
   /**
@@ -300,6 +310,21 @@ export function UserContextMenu(props: {
       (props.member?.server?.owner?.self ||
         (props.member?.server?.havePermission("AssignRoles") &&
           props.member.inferiorTo(props.member.server.member!)))
+    );
+  }
+
+  /**
+   * Whether the user can remove this member from their call
+   *
+   * Same gate as the server's member edit: MoveMembers, and only against
+   * members ranked below us.
+   */
+  function canRemoveFromCall() {
+    return (
+      props.inCall &&
+      !props.user.self &&
+      props.member?.server?.havePermission("MoveMembers") &&
+      props.member.inferiorTo(props.member.server.member!)
     );
   }
 
@@ -538,7 +563,8 @@ export function UserContextMenu(props: {
       <Show
         when={
           canRemoveMemberFromGroup() ||
-          (props.member && (canTimeout() || canKick() || canBan()))
+          (props.member &&
+            (canRemoveFromCall() || canTimeout() || canKick() || canBan()))
         }
       >
         <ContextMenuDivider />
@@ -549,6 +575,15 @@ export function UserContextMenu(props: {
             destructive
           >
             <Trans>Remove Member</Trans>
+          </ContextMenuButton>
+        </Show>
+        <Show when={canRemoveFromCall()}>
+          <ContextMenuButton
+            icon={MdCallEnd}
+            onClick={removeFromCall}
+            destructive
+          >
+            <Trans>Remove from call</Trans>
           </ContextMenuButton>
         </Show>
         <Show when={canTimeout()}>

@@ -144,6 +144,7 @@ function CommonUser(props: {
             user={user().user!}
             member={user().member}
             inVoice={rest.isLive}
+            inCall
           />
         ),
       }}
