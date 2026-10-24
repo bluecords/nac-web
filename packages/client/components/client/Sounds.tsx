@@ -17,6 +17,19 @@ import userLeaveVoiceSound from "../../public/assets/sounds/user_leave_voice.ogg
 import userMovedSound from "../../public/assets/sounds/user_moved.ogg";
 
 /**
+ * Served from public/sounds, not public/assets: the assets folder can be swapped for
+ * a private pack that does not have this file.
+ */
+const aloneInCallSound = `${import.meta.env.BASE_URL}sounds/alone_in_call.ogg`;
+
+/**
+ * Sounds that can be played on repeat with `startLoop`
+ */
+const loopSources: Partial<Record<keyof TypeSounds, string>> = {
+  aloneInCall: aloneInCallSound,
+};
+
+/**
  * A controller class for making sure sounds are managed in one place and to prevent undesirable sound overlaps
  */
 export class SoundController {
@@ -77,6 +90,13 @@ export class SoundController {
       return false;
     }
     switch (sound) {
+      case "aloneInCall": {
+        // the real thing loops for as long as you are alone; this is the preview
+        const preview = new Audio(aloneInCallSound);
+        setTimeout(() => preview.pause(), 4000);
+        this.node = preview;
+        break;
+      }
       case "deafen": {
         this.node = new Audio(deafenSound);
         break;
@@ -137,6 +157,32 @@ export class SoundController {
     this.lastPlayedSound = sound;
     this.node.play();
     return true;
+  }
+
+  /**
+   * Play a sound on repeat, quietly, until the returned function is called.
+   * Does nothing (and returns a no-op) if the sound is turned off.
+   *
+   * @param sound The sound to loop
+   * @returns Function that stops it
+   */
+  startLoop(sound: keyof TypeSounds): () => void {
+    const source = loopSources[sound];
+
+    if (!source || !this.soundState.enabled(sound)) {
+      return () => {};
+    }
+
+    const node = new Audio(source);
+    node.loop = true;
+    node.volume = 0.5;
+    node.play().catch(() => {});
+
+    return () => {
+      node.pause();
+      node.removeAttribute("src");
+      node.load();
+    };
   }
 }
 

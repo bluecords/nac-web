@@ -221,6 +221,26 @@ export default function Sounds() {
               </IconButton>
             </Content>
           </CategoryButton>
+          <CategoryButton
+            action={<Checkbox checked={sounds.enabled("aloneInCall")} />}
+            onClick={() => sounds.toggle("aloneInCall")}
+            icon="blank"
+          >
+            <Content>
+              <Trans>Alone in Call Music</Trans>
+              <IconButton
+                onPress={() => soundController.playSound("aloneInCall", true)}
+                use:floating={{
+                  tooltip: {
+                    placement: "top",
+                    content: playSoundString,
+                  },
+                }}
+              >
+                <MdVolumeUp {...iconSize(18)} />
+              </IconButton>
+            </Content>
+          </CategoryButton>
         </CategoryButton.Group>
       </Column>
     </>

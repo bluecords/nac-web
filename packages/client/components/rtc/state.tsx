@@ -5,7 +5,9 @@ import {
   createEffect,
   createSignal,
   JSX,
+  onCleanup,
   Setter,
+  untrack,
   useContext,
 } from "solid-js";
 import {
@@ -52,6 +54,11 @@ type ScreenShareQuality = {
   contentHint: string;
 };
 
+/**
+ * How long you can sit alone in a call before we hang up for you
+ */
+const AUTO_LEAVE_SECONDS = 10 * 60;
+
 class Voice {
   #settings: VoiceSettings;
 
@@ -83,6 +90,19 @@ class Voice {
 
   showBar: Accessor<boolean>;
   #setShowBar: Setter<boolean>;
+
+  /** How many other people are in the call right now */
+  otherParticipants: Accessor<number>;
+  #setOtherParticipants: Setter<number>;
+
+  /** Connected, and nobody else is here */
+  alone: Accessor<boolean>;
+
+  /** Seconds until we hang up on someone who has been alone in the call too long */
+  aloneSecondsLeft: Accessor<number>;
+  #setAloneSecondsLeft: Setter<number>;
+  #aloneStays: Accessor<number>;
+  #setAloneStays: Setter<number>;
 
   private sound: SoundController;
   private device: Device;
@@ -138,6 +158,20 @@ class Voice {
     const [showBar, setShowBar] = createSignal(true);
     this.showBar = showBar;
     this.#setShowBar = setShowBar;
+
+    const [otherParticipants, setOtherParticipants] = createSignal(0);
+    this.otherParticipants = otherParticipants;
+    this.#setOtherParticipants = setOtherParticipants;
+    this.alone = () => state() === "CONNECTED" && otherParticipants() === 0;
+
+    const [aloneSecondsLeft, setAloneSecondsLeft] =
+      createSignal(AUTO_LEAVE_SECONDS);
+    this.aloneSecondsLeft = aloneSecondsLeft;
+    this.#setAloneSecondsLeft = setAloneSecondsLeft;
+
+    const [aloneStays, setAloneStays] = createSignal(0);
+    this.#aloneStays = aloneStays;
+    this.#setAloneStays = setAloneStays;
 
     this.openModal = modals.openModal;
 
@@ -242,6 +276,7 @@ class Voice {
 
     room.addListener("connected", () => {
       this.#setState("CONNECTED");
+      this.#setOtherParticipants(room.remoteParticipants.size);
       if (this.speakingPermission)
         room.localParticipant
           .setMicrophoneEnabled(this.#settings.micOn)
@@ -271,11 +306,17 @@ class Voice {
       }
     });
 
+    room.addListener("reconnected", () => {
+      this.#setOtherParticipants(room.remoteParticipants.size);
+    });
+
     room.addListener("participantConnected", () => {
+      this.#setOtherParticipants(room.remoteParticipants.size);
       this.sound.playSound("userJoinVoice");
     });
 
     room.addListener("participantDisconnected", () => {
+      this.#setOtherParticipants(room.remoteParticipants.size);
       this.sound.playSound("userLeaveVoice");
     });
 
@@ -321,6 +362,56 @@ class Voice {
     });
   }
 
+  /**
+   * Quiet music and an automatic hang up for when you are alone in a call.
+   * Call once from a component that stays mounted for as long as the app does,
+   * so it keeps going if you leave the call's page.
+   * Someone joining, or `stayAlone()`, starts it over.
+   */
+  startAloneWatch() {
+    createEffect(() => {
+      // pressing Stay re-runs this effect, which starts the countdown again
+      this.#aloneStays();
+
+      if (!this.alone()) return;
+
+      // Count against the clock, not by ticks: browsers slow timers in background tabs.
+      const deadline = Date.now() + AUTO_LEAVE_SECONDS * 1000;
+      this.#setAloneSecondsLeft(AUTO_LEAVE_SECONDS);
+
+      const stopMusic = untrack(() => this.sound.startLoop("aloneInCall"));
+
+      const timer = setInterval(() => {
+        const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        this.#setAloneSecondsLeft(left);
+
+        if (left > 0) return;
+
+        // The head count can be out of date after the computer slept: check the
+        // room itself before hanging up on someone who is not alone any more.
+        const room = this.room();
+        if (room && room.remoteParticipants.size > 0) {
+          this.#setOtherParticipants(room.remoteParticipants.size);
+          return;
+        }
+
+        this.disconnect();
+      }, 1000);
+
+      onCleanup(() => {
+        clearInterval(timer);
+        stopMusic();
+      });
+    });
+  }
+
+  /**
+   * Start the alone-in-call countdown again
+   */
+  stayAlone() {
+    this.#setAloneStays((n) => n + 1);
+  }
+
   disconnect() {
     this.device.releaseWakeLock();
     try {
@@ -332,6 +423,7 @@ class Voice {
 
       batch(() => {
         this.#setState("READY");
+        this.#setOtherParticipants(0);
         this.#setRoom();
         this.#setChannel();
         this.#setFullscreen(false);
@@ -718,6 +810,7 @@ export function VoiceContext(props: { children: JSX.Element }) {
   const sound = useSound();
   const device = useDevice();
   const voice = new Voice(state.voice, modals, sound, device);
+  voice.startAloneWatch();
 
   return (
     <voiceContext.Provider value={voice}>

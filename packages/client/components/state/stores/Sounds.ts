@@ -4,6 +4,11 @@ import { AbstractStore } from ".";
 
 export type TypeSounds = {
   /**
+   * Play quiet music while you are the only one in a call
+   */
+  aloneInCall: boolean;
+
+  /**
    * Play sound on deafen
    */
   deafen: boolean;
@@ -83,6 +88,7 @@ export class Sounds extends AbstractStore<"sounds", TypeSounds> {
 
   default(): TypeSounds {
     return {
+      aloneInCall: true,
       deafen: true,
       message: true,
       mute: true,
@@ -102,6 +108,8 @@ export class Sounds extends AbstractStore<"sounds", TypeSounds> {
 
   clean(input: Partial<TypeSounds>): TypeSounds {
     return {
+      aloneInCall:
+        typeof input.aloneInCall === "boolean" ? input.aloneInCall : true,
       deafen: typeof input.deafen === "boolean" ? input.deafen : true,
       message: typeof input.message === "boolean" ? input.message : true,
       mute: typeof input.mute === "boolean" ? input.mute : true,
