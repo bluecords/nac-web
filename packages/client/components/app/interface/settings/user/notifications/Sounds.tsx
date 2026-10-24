@@ -225,6 +225,11 @@ export default function Sounds() {
             action={<Checkbox checked={sounds.enabled("aloneInCall")} />}
             onClick={() => sounds.toggle("aloneInCall")}
             icon="blank"
+            description={
+              <Trans>
+                "Slowly" by Tokyo Music Walker (breakingcopyright.com)
+              </Trans>
+            }
           >
             <Content>
               <Trans>Alone in Call Music</Trans>
