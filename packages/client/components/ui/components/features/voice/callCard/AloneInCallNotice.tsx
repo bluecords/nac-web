@@ -24,9 +24,12 @@ export function AloneInCallNotice() {
   return (
     <Show when={voice.alone()}>
       <Notice>
-        <Symbol>
-          {sounds.enabled("aloneInCall") ? "music_note" : "person"}
-        </Symbol>
+        <Show
+          when={sounds.enabled("aloneInCall")}
+          fallback={<Symbol>timer</Symbol>}
+        >
+          <Symbol>headphones</Symbol>
+        </Show>
         <Message>
           <Show
             when={sounds.enabled("aloneInCall")}
