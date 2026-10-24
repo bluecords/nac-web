@@ -19,6 +19,7 @@ from pathlib import Path
 RATE = 44100
 PEAK = 0.45
 OUT = Path(__file__).parent / "assets_fallback" / "sounds"
+PAD_OUT = Path(__file__).parent.parent / "public" / "sounds"
 
 # (frequency Hz, seconds); frequency 0 is a rest
 SOUNDS = {
@@ -108,7 +109,7 @@ def write_pad(name="alone_in_call"):
             wav.writeframes(b"".join(struct.pack("<h", int(s * 32767)) for s in samples))
         subprocess.run(
             ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav_path),
-             "-c:a", "libvorbis", "-q:a", "3", str(OUT / f"{name}.ogg")],
+             "-c:a", "libvorbis", "-q:a", "3", str(PAD_OUT / f"{name}.ogg")],
             check=True,
         )
     print("wrote", name)

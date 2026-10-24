@@ -1,7 +1,6 @@
 import { createContext, JSXElement, useContext } from "solid-js";
 
 import { Sounds, TypeSounds, useState } from "@revolt/state";
-import aloneInCallSound from "../../public/assets/sounds/alone_in_call.ogg";
 import deafenSound from "../../public/assets/sounds/deafen.ogg";
 import messageSound from "../../public/assets/sounds/message_sound.ogg";
 import muteSound from "../../public/assets/sounds/mute.ogg";
@@ -16,6 +15,12 @@ import unmuteSound from "../../public/assets/sounds/unmute.ogg";
 import userJoinVoiceSound from "../../public/assets/sounds/user_join_voice.ogg";
 import userLeaveVoiceSound from "../../public/assets/sounds/user_leave_voice.ogg";
 import userMovedSound from "../../public/assets/sounds/user_moved.ogg";
+
+/**
+ * Served from public/sounds, not public/assets: the assets folder can be swapped for
+ * a private pack that does not have this file.
+ */
+const aloneInCallSound = `${import.meta.env.BASE_URL}sounds/alone_in_call.ogg`;
 
 /**
  * Sounds that can be played on repeat with `startLoop`
@@ -86,7 +91,10 @@ export class SoundController {
     }
     switch (sound) {
       case "aloneInCall": {
-        this.node = new Audio(aloneInCallSound);
+        // the real thing loops for as long as you are alone; this is the preview
+        const preview = new Audio(aloneInCallSound);
+        setTimeout(() => preview.pause(), 4000);
+        this.node = preview;
         break;
       }
       case "deafen": {
