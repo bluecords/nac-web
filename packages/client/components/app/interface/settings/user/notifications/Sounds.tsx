@@ -16,14 +16,14 @@ import {
 import MdVolumeUp from "@material-design-icons/svg/outlined/volume_up.svg?component-solid";
 
 export default function Sounds() {
-  const { settings, sounds } = useState();
+  const { sounds } = useState();
   const soundController = useSound();
   const { t } = useLingui();
 
   const playSoundString = t`Play sound`;
 
   return (
-    <Show when={settings.desktopNotificationsState !== "unsupported"}>
+    <>
       <Column>
         <Text class="title">
           <Trans>Sounds</Trans>
@@ -223,7 +223,7 @@ export default function Sounds() {
           </CategoryButton>
         </CategoryButton.Group>
       </Column>
-    </Show>
+    </>
   );
 }
 
