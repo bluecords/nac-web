@@ -1,8 +1,9 @@
 # Sound credits
 
-`alone_in_call.ogg` is "Slowly" by Tokyo Music Walker, played quietly on repeat while you
-are the only person in a call. Free download: https://breakingcopyright.com/song/tokyo-music-walker-slowly
+`alone_in_call.ogg`, played quietly on repeat while you are the only person in a call:
 
-It is the original track converted to Ogg Vorbis, made quieter, with a 2 second fade in and
-out so the loop does not jump. The creator asks for the credit above; it is also shown in
-Settings under Notification sounds.
+"Slowly" by Tokyo Music Walker — Free download: breakingcopyright.com/song/tokyo-music-walker-slowly
+
+This credit is the wording the creator requires. It is also shown in Settings under
+Notification sounds. The file is the original track converted to Ogg Vorbis, made quieter,
+with a 2 second fade in and out so the loop does not jump.
