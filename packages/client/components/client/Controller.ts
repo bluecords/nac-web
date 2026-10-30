@@ -1,7 +1,7 @@
-import { Accessor, Setter, createMemo, createSignal } from "solid-js";
+import { Accessor, Setter, batch, createMemo, createSignal } from "solid-js";
 
 import { detect } from "detect-browser";
-import { API, Client, ConnectionState } from "stoat.js";
+import { API, Channel, Client, ConnectionState } from "stoat.js";
 import { ProtocolV1 } from "stoat.js/lib/events/v1";
 
 import { CONFIGURATION } from "@revolt/common";
@@ -107,6 +107,9 @@ let recentDisconnects: number[] = [];
  * in a few seconds), not the recovery attempt itself.
  */
 const FORCED_RETRY_COOLDOWN_MS = 5_000;
+
+/** Hidden at least this long -> refetch unread state when the tab returns. */
+const RESYNC_AFTER_HIDDEN_MS = 30_000;
 let lastForcedRetryAt = 0;
 
 /**
@@ -170,6 +173,7 @@ class Lifecycle {
     this.onState = this.onState.bind(this);
     this.onReady = this.onReady.bind(this);
     this.onPolicyChanges = this.onPolicyChanges.bind(this);
+    this.onChannelAcknowledged = this.onChannelAcknowledged.bind(this);
 
     const [state, setState] = createSignal(State.Ready);
     this.state = state;
@@ -242,10 +246,25 @@ class Lifecycle {
         channel.flushAck();
       }
     };
+    let hiddenAt = 0;
     this.#visibilityListener = () => {
       if (document.visibilityState === "visible") {
         forceRetryNow();
+        // Belt and braces for read state: if the tab sat hidden for a while,
+        // the socket may have dropped silently and missed "read on another
+        // device" events (the state still says Connected, so forceRetryNow
+        // does nothing). Refetch; ChannelUnreadCollection.sync() merges and
+        // never regresses a read channel back to unread.
+        if (
+          hiddenAt &&
+          Date.now() - hiddenAt >= RESYNC_AFTER_HIDDEN_MS &&
+          this.state() === State.Connected
+        ) {
+          this.client?.channelUnreads.sync().catch(() => {});
+        }
+        hiddenAt = 0;
       } else if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
         flushPendingAcks();
       }
     };
@@ -317,6 +336,7 @@ class Lifecycle {
     this.client.events.on("state", this.onState);
     this.client.on("ready", this.onReady);
     this.client.on("policyChanges", this.onPolicyChanges);
+    this.client.on("channelAcknowledged", this.onChannelAcknowledged);
   }
 
   #enter(nextState: State) {
@@ -572,6 +592,31 @@ class Lifecycle {
   private onReady() {
     this.transition({
       type: TransitionType.SocketConnected,
+    });
+  }
+
+  /**
+   * "This channel was read on another device" (the member's other session
+   * acked). The client re-emitted this event but nothing listened, so a tab
+   * left open while reading on a phone kept showing those channels as new
+   * until a reload. Apply it locally - no request, the server already knows.
+   * Never regress: if this tab has already read further, keep that.
+   */
+  private onChannelAcknowledged(channel: Channel, messageId: string) {
+    const unread = this.client.channelUnreads.for(channel);
+    if ((unread.lastMessageId ?? "0").localeCompare(messageId) >= 0) return;
+
+    batch(() => {
+      this.client.channelUnreads.updateUnderlyingObject(
+        channel.id,
+        "lastMessageId",
+        messageId,
+      );
+      // Mentions at or before the acked message are read; later ones are not.
+      for (const id of [...unread.messageMentionIds]) {
+        if (id.localeCompare(messageId) <= 0)
+          unread.messageMentionIds.delete(id);
+      }
     });
   }
 
