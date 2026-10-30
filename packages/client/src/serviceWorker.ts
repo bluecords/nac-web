@@ -132,11 +132,113 @@ async function openNotificationTarget(target: string): Promise<void> {
   await self.clients.openWindow(url.href);
 }
 
+const MARK_READ_ACTION = "mark-read";
+
+/**
+ * Pull the channel and message ids out of a message notification's URL
+ * (`<app>/channel/<channel>/<message>`, optionally under `/server/<id>`).
+ * Anything else - friend requests, the site root - has no message to mark.
+ */
+function parseMessageTarget(
+  target: string,
+): { channel: string; message: string } | undefined {
+  try {
+    const segments = new URL(target, self.registration.scope).pathname
+      .split("/")
+      .filter(Boolean);
+    const i = segments.indexOf("channel");
+    const channel = segments[i + 1];
+    const message = segments[i + 2];
+    if (i !== -1 && channel && message) return { channel, message };
+  } catch {
+    // not a URL we understand
+  }
+  return undefined;
+}
+
+/**
+ * The saved session token, read straight from the IndexedDB record the page
+ * writes (localforage: database "localforage", store "keyvaluepairs", key
+ * "auth" - see components/state). A worker cannot reach the page's in-memory
+ * state, and this is the only copy it can see. It reads only: it never
+ * creates the database or its store (so it cannot disturb localforage's own
+ * setup), and it resolves undefined on every failure.
+ */
+function readSessionToken(): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    try {
+      const open = indexedDB.open("localforage");
+      open.onerror = () => resolve(undefined);
+      open.onupgradeneeded = () => {
+        // The database did not exist: nothing is saved. Abort so the empty
+        // database this open would create never persists.
+        open.transaction?.abort();
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        try {
+          const get = db
+            .transaction("keyvaluepairs", "readonly")
+            .objectStore("keyvaluepairs")
+            .get("auth");
+          get.onsuccess = () => {
+            db.close();
+            const token = get.result?.session?.token;
+            resolve(typeof token === "string" ? token : undefined);
+          };
+          get.onerror = () => {
+            db.close();
+            resolve(undefined);
+          };
+        } catch {
+          db.close();
+          resolve(undefined);
+        }
+      };
+    } catch {
+      resolve(undefined);
+    }
+  });
+}
+
+/** Mark the notification's message (and everything before it) as read. */
+async function markNotificationRead(target: string): Promise<boolean> {
+  const ids = parseMessageTarget(target);
+  if (!ids) return false;
+  const token = await readSessionToken();
+  if (!token) return false;
+
+  try {
+    const res = await fetch(
+      `${self.location.origin}/api/channels/${encodeURIComponent(
+        ids.channel,
+      )}/ack/${encodeURIComponent(ids.message)}`,
+      { method: "PUT", headers: { "x-session-token": token } },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  if (typeof event.notification.data === "string") {
-    event.waitUntil(openNotificationTarget(event.notification.data));
+  const target = event.notification.data;
+  if (typeof target !== "string") return;
+
+  if (event.action === MARK_READ_ACTION) {
+    // If marking fails for any reason (signed out, offline, server error) the
+    // notification is already gone, so open the chat rather than leave the
+    // member with a tap that visibly did nothing.
+    event.waitUntil(
+      markNotificationRead(target).then((ok) =>
+        ok ? undefined : openNotificationTarget(target),
+      ),
+    );
+    return;
   }
+
+  event.waitUntil(openNotificationTarget(target));
 });
 
 self.addEventListener("push", (event) => {
@@ -172,11 +274,25 @@ self.addEventListener("push", (event) => {
         }
       }
 
-      await self.registration.showNotification(notification.title || "NAC", {
+      // Only message notifications get the button; friend requests and the
+      // like have no message to mark. `actions` is not in the DOM lib's
+      // NotificationOptions, hence the cast. Browsers without action support
+      // (iOS) ignore it and show the plain notification.
+      const options: NotificationOptions & {
+        actions?: { action: string; title: string }[];
+      } = {
         icon: notification.icon,
         body: notification.body,
         data: notification.url,
-      });
+      };
+      if (parseMessageTarget(notification.url ?? "")) {
+        options.actions = [{ action: MARK_READ_ACTION, title: "Mark as read" }];
+      }
+
+      await self.registration.showNotification(
+        notification.title || "NAC",
+        options,
+      );
     })(),
   );
 });
