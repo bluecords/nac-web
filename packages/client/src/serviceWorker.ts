@@ -86,10 +86,56 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
+/**
+ * Take the member to the notification's target.
+ *
+ * `openWindow` alone is not enough for an installed app that is already
+ * running: on Android it brings the existing window forward WITHOUT moving it
+ * to the URL, so tapping a message notification left the member on whatever
+ * they had open and they had to hunt for the chat (reported by members).
+ * So: reuse a window of ours if one exists - focus it and navigate it - and
+ * only open a new one when there is none, or when focusing/navigating fails.
+ */
+async function openNotificationTarget(target: string): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(target, self.registration.scope);
+  } catch {
+    return;
+  }
+  // The URL came from a push payload; never steer a window off our origin.
+  if (url.origin !== self.location.origin) return;
+
+  try {
+    const windows = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
+    const existing = windows.find((client) => {
+      try {
+        return new URL(client.url).origin === url.origin;
+      } catch {
+        return false;
+      }
+    });
+
+    if (existing) {
+      const focused = await existing.focus();
+      if (focused.url !== url.href) await focused.navigate(url.href);
+      return;
+    }
+  } catch {
+    // focus()/navigate() can reject (e.g. a client we do not control). A new
+    // window at the right URL is better than nothing happening.
+  }
+
+  await self.clients.openWindow(url.href);
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   if (typeof event.notification.data === "string") {
-    event.waitUntil(self.clients.openWindow(event.notification.data));
+    event.waitUntil(openNotificationTarget(event.notification.data));
   }
 });
 
