@@ -86,6 +86,48 @@ function reloadOnce(reason: string): void {
   location.reload();
 }
 
+// The reload for a member who PRESSED "Refresh now". It must not share
+// `hasReloaded` or the storm budget with the automatic path: reloadOnce sets
+// `hasReloaded` BEFORE it knows the reload happened, so when the automatic
+// attempt is refused by the budget, or the browser drops a reload requested
+// while the page was hidden (measured on a phone, 2026-10-30: the banner stayed
+// up, the button highlighted and did nothing until the page was pulled down to
+// refresh), every later press hit `if (hasReloaded) return` and was swallowed.
+// A person cannot loop 345 times in 87 seconds, so a deliberate press is always
+// honoured; the short debounce only absorbs a double tap.
+const TAP_DEBOUNCE_MS = 1500;
+let lastTap = 0;
+let activateWaiting: (() => unknown) | undefined;
+let newWorkerControlling = false;
+// How long a waiting worker gets to take over before the banner is shown.
+const NEED_REFRESH_FALLBACK_MS = 20_000;
+// How long a tap gives a waiting worker to take over before reloading anyway.
+const TAP_ACTIVATE_WAIT_MS = 1500;
+
+function reloadFromTap(reason: string): void {
+  const now = Date.now();
+  if (now - lastTap < TAP_DEBOUNCE_MS) return;
+  lastTap = now;
+
+  reportReload(`${reason}:tap`, false);
+  try {
+    // If a new worker is still waiting, wake it: a reload while the old one
+    // owns the page just returns the old build.
+    void activateWaiting?.();
+  } catch {
+    // The reload below is the point; this is only a nudge.
+  }
+
+  const reload = () => {
+    location.reload();
+    // A reload can be dropped silently; if this page is still here a moment
+    // later, navigate to the same address, which cannot be.
+    setTimeout(() => location.replace(location.href), TAP_DEBOUNCE_MS);
+  };
+  if (newWorkerControlling) reload();
+  else setTimeout(reload, TAP_ACTIVATE_WAIT_MS);
+}
+
 // Which signal last said "an update is ready", so the reload can name it.
 let updateReason = "unknown";
 
@@ -97,7 +139,14 @@ const [updateApply, setUpdateApply] = createSignal<() => void>(
   () => reloadOnce("default"),
 );
 
-export { pendingUpdate, updateApply, updateReady };
+// What the banner's "Refresh now" button runs.
+function applyUpdateNow(): void {
+  const pending = pendingUpdate();
+  if (pending) pending();
+  else reloadFromTap(`update:${updateReason}`);
+}
+
+export { applyUpdateNow, pendingUpdate, updateApply, updateReady };
 
 // The server can reject a request with 426 Upgrade Required if this build is
 // below its configured minimum client version (same gate as the Android app,
@@ -115,7 +164,7 @@ window.fetch = async (...args) => {
     // UPDATER and calls it immediately, so `setPendingUpdate(() => reload())`
     // reloaded on the spot and stored undefined - the banner this comment
     // describes could never appear. To store a function you must return it.
-    setPendingUpdate(() => () => reloadOnce("upgrade-required-426"));
+    setPendingUpdate(() => () => reloadFromTap("upgrade-required-426"));
   }
 
   return response;
@@ -123,11 +172,25 @@ window.fetch = async (...args) => {
 
 if (import.meta.env.PROD) {
   const updateSW = registerSW({
-    // Kept for the "prompt" contract, though the worker skip-waits itself so
-    // this is belt and braces rather than the mechanism.
+    // A new worker is installed but is only WAITING, which is not the same as
+    // serving this page. Reloading now is the reload loop measured on Android
+    // Chrome (nginx `__nac-reload` log, 2026-10-30 12:42:53: four page loads in
+    // one second, three allowed and the fourth refused, the banner then stuck
+    // and every tap refused for the rest of the minute; the same signature on
+    // 10-17, 10-23 and 10-24): the old worker still owns the page, so the
+    // reload is answered from ITS cache, comes back as the old build, sees a
+    // waiting worker again, and reloads again.
+    //
+    // So this only nudges the worker and waits for `controllerchange` (below),
+    // which is the signal that new code is serving the page. The timer is the
+    // net under that: if no takeover arrives, say so after a while instead of
+    // leaving the member on an old build for good.
     onNeedRefresh() {
       updateReason = "need-refresh";
-      setUpdateReady(true);
+      void activateWaiting?.();
+      setTimeout(() => {
+        if (!newWorkerControlling) setUpdateReady(true);
+      }, NEED_REFRESH_FALLBACK_MS);
     },
     onOfflineReady() {
       console.info("Ready to work offline =)");
@@ -178,6 +241,7 @@ if (import.meta.env.PROD) {
   // nothing is interrupted.
   navigator.serviceWorker?.addEventListener("controllerchange", () => {
     updateReason = "controller-change";
+    newWorkerControlling = true;
     setUpdateReady(true);
   });
 
@@ -230,8 +294,10 @@ if (import.meta.env.PROD) {
     if (iconFontFailed(failed)) healIconFont();
   });
 
-  // Expose the apply step for the banner's Refresh button. Calling updateSW
-  // first is harmless when the worker has already taken over.
+  activateWaiting = () => updateSW(false);
+
+  // Expose the AUTOMATIC apply step (the banner's button uses applyUpdateNow).
+  // Calling updateSW first is harmless when the worker has already taken over.
   setUpdateApply(() => () => {
     // updateSW(true) arms the plugin's own reload, which this file's counter
     // cannot see, so check the budget BEFORE arming it.

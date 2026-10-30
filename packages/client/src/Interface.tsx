@@ -34,6 +34,7 @@ import { MobileMessagesOverlay } from "./interface/mobile/MobileMessagesOverlay"
 import { MobileNavProvider } from "./interface/mobile/MobileNavContext";
 import { Sidebar } from "./interface/Sidebar";
 import {
+  applyUpdateNow,
   pendingUpdate,
   updateApply,
   updateReady,
@@ -227,7 +228,7 @@ const Interface = (props: { children: JSX.Element }) => {
               </Text>
               <Button
                 variant="text"
-                onPress={() => (pendingUpdate() ?? updateApply())()}
+                onPress={applyUpdateNow}
               >
                 Refresh now
               </Button>
