@@ -11,6 +11,7 @@ import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { useClient } from "@revolt/client";
+import { useModals } from "@revolt/modal";
 
 import { classFollowsChannel, roleChannelDefaults } from "./channelAccess";
 
@@ -76,7 +77,10 @@ export function ChannelPermissionsEditor(props: Props) {
     props.type === "channel_role" ||
     props.type === "group";
 
+  const { showError } = useModals();
   const [freshChannel, setFreshChannel] = createSignal<API.Channel>();
+  const [saving, setSaving] = createSignal(false);
+  const [justSaved, setJustSaved] = createSignal(false);
   const [loadFailed, setLoadFailed] = createSignal(false);
 
   /**
@@ -259,53 +263,91 @@ export function ChannelPermissionsEditor(props: Props) {
   }
 
   /**
-   * Commit changes
-   * @todo mutator
+   * Commit changes.
+   *
+   * Waits for the server, then adopts its answer as the new baseline. The
+   * channel editors compare against a channel fetched when the screen opened,
+   * so without this the "unsaved changes" state never cleared after a
+   * successful save: the buttons stayed enabled, nothing said it worked, and
+   * the screen looked exactly the same (reported 2026-10-29). Failures are
+   * shown instead of being dropped as an unhandled rejection.
    */
-  function save() {
-    switch (props.type) {
-      case "server_default":
-        props.context.setPermissions(undefined, Number(value()[0]));
-        break;
-      case "server_role":
-        props.context.setPermissions(props.roleId, {
-          allow: Number(value()[0]),
-          deny: Number(value()[1]),
-        });
-        break;
-      case "channel_default":
-        props.context.setPermissions(undefined, {
-          allow: Number(value()[0]),
-          deny: Number(value()[1]),
-        });
-        break;
-      case "channel_role":
-        props.context.setPermissions(props.roleId, {
-          allow: Number(value()[0]),
-          deny: Number(value()[1]),
-        });
-        break;
-      case "category_default":
-        props.context.setCategoryPermissions(props.categoryId, "default", {
-          allow: Number(value()[0]),
-          deny: Number(value()[1]),
-        });
-        break;
-      case "category_role":
-        props.context.setCategoryPermissions(props.categoryId, props.roleId, {
-          allow: Number(value()[0]),
-          deny: Number(value()[1]),
-        });
-        break;
-      case "group":
-        props.context.setPermissions(undefined, Number(value()[0]));
-        break;
-      case "class_default":
-        props.context.setClassDefaultPermissions(props.roleClass, {
-          allow: Number(value()[0]),
-          deny: Number(value()[1]),
-        });
-        break;
+  async function save() {
+    if (saving()) return;
+    setSaving(true);
+
+    try {
+      let updated: unknown;
+
+      switch (props.type) {
+        case "server_default":
+          updated = await props.context.setPermissions(
+            undefined,
+            Number(value()[0]),
+          );
+          break;
+        case "server_role":
+          updated = await props.context.setPermissions(props.roleId, {
+            allow: Number(value()[0]),
+            deny: Number(value()[1]),
+          });
+          break;
+        case "channel_default":
+          updated = await props.context.setPermissions(undefined, {
+            allow: Number(value()[0]),
+            deny: Number(value()[1]),
+          });
+          break;
+        case "channel_role":
+          updated = await props.context.setPermissions(props.roleId, {
+            allow: Number(value()[0]),
+            deny: Number(value()[1]),
+          });
+          break;
+        case "category_default":
+          await props.context.setCategoryPermissions(
+            props.categoryId,
+            "default",
+            {
+              allow: Number(value()[0]),
+              deny: Number(value()[1]),
+            },
+          );
+          break;
+        case "category_role":
+          await props.context.setCategoryPermissions(
+            props.categoryId,
+            props.roleId,
+            {
+              allow: Number(value()[0]),
+              deny: Number(value()[1]),
+            },
+          );
+          break;
+        case "group":
+          updated = await props.context.setPermissions(
+            undefined,
+            Number(value()[0]),
+          );
+          break;
+        case "class_default":
+          await props.context.setClassDefaultPermissions(props.roleClass, {
+            allow: Number(value()[0]),
+            deny: Number(value()[1]),
+          });
+          break;
+      }
+
+      if (needsFreshChannel && updated && typeof updated === "object") {
+        setFreshChannel(updated as API.Channel);
+      }
+
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2500);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -733,7 +775,7 @@ export function ChannelPermissionsEditor(props: Props) {
         <StickyPanel>
           <Row>
             <Button
-              isDisabled={!unsavedChanges()}
+              isDisabled={!unsavedChanges() || saving()}
               variant="text"
               size={unsavedChanges() ? "md" : "sm"}
               onPress={reset}
@@ -741,11 +783,15 @@ export function ChannelPermissionsEditor(props: Props) {
               Reset
             </Button>
             <Button
-              isDisabled={!unsavedChanges()}
-              size={unsavedChanges() ? "md" : "sm"}
+              isDisabled={!unsavedChanges() || saving()}
+              size={unsavedChanges() || justSaved() ? "md" : "sm"}
               onPress={save}
             >
-              Save permissions
+              {saving()
+                ? "Saving..."
+                : justSaved()
+                  ? "Saved"
+                  : "Save permissions"}
             </Button>
           </Row>
         </StickyPanel>
