@@ -959,6 +959,19 @@ function MemberRoleMenu(props: {
         bottom:
           props.anchor.bottom !== undefined ? `${props.anchor.bottom}px` : undefined,
         left: `${props.anchor.left}px`,
+        // Never taller than the room actually left on screen, then scroll.
+        // The list grows with every role the server adds; without a cap the
+        // bottom of it (the newest roles) ran off the screen with nothing to
+        // scroll, so those roles could not be assigned here (reported
+        // 2026-10-29: "I can't scroll down to this new role").
+        "max-height": `${Math.max(
+          160,
+          window.innerHeight -
+            (props.anchor.top !== undefined
+              ? props.anchor.top
+              : props.anchor.bottom) -
+            16,
+        )}px`,
       }}
     >
       <MenuTitle>
@@ -1205,7 +1218,9 @@ const RoleMenuPopover = styled("div", {
     padding: "6px",
     display: "flex",
     flexDirection: "column",
-    overflow: "hidden",
+    overflowX: "hidden",
+    overflowY: "auto",
+    overscrollBehavior: "contain",
     borderRadius: "var(--borderRadius-xs)",
     background: "var(--md-sys-color-surface-container)",
     color: "var(--md-sys-color-on-surface)",
