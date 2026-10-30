@@ -53,44 +53,184 @@ interface StoatPushNotification {
 }
 
 /**
- * Is a focused window already showing this channel?
+ * Is the app in front of the member right now?
  *
- * pushd skips sessions it sees as currently connected (message.rs), but that
- * check can lag a live tab during a reconnect blip - the connection/push
- * area's most common failure shape. This asks the browser directly instead
- * of trusting the server's view of "connected", so a member already reading
- * the channel never gets an OS notification duplicating what's on screen.
+ * The server sends a push to every subscribed device (pushd no longer skips
+ * sessions with a live connection: a backgrounded app keeps its websocket for
+ * minutes, so skipping it meant no notification at all - measured 2026-10-29).
+ * Only the device knows whether the app is in the foreground, so it decides:
+ * a window that is both visible and focused means they are looking at NAC and
+ * the OS notification would only duplicate it. Anything else (backgrounded,
+ * screen off, closed, another app on top) gets the notification.
  */
-async function isChannelFocused(channelId: string): Promise<boolean> {
+async function isAppInForeground(): Promise<boolean> {
   const windows = await self.clients.matchAll({
     type: "window",
     includeUncontrolled: true,
   });
 
-  return windows.some((client) => {
-    if (!client.focused) return false;
-    try {
-      const segments = new URL(client.url).pathname.split("/");
-      const i = segments.indexOf("channel");
-      return i !== -1 && segments[i + 1] === channelId;
-    } catch {
-      // An unparsable client URL isn't this channel - it must not abort the
-      // whole check, or one odd client (e.g. an about:blank window in the
-      // list) would silently drop a real notification for everyone.
-      return false;
-    }
-  });
+  return windows.some(
+    (client) => client.focused && client.visibilityState === "visible",
+  );
 }
 
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
+/**
+ * Take the member to the notification's target.
+ *
+ * `openWindow` alone is not enough for an installed app that is already
+ * running: on Android it brings the existing window forward WITHOUT moving it
+ * to the URL, so tapping a message notification left the member on whatever
+ * they had open and they had to hunt for the chat (reported by members).
+ * So: reuse a window of ours if one exists - focus it and navigate it - and
+ * only open a new one when there is none, or when focusing/navigating fails.
+ */
+async function openNotificationTarget(target: string): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(target, self.registration.scope);
+  } catch {
+    return;
+  }
+  // The URL came from a push payload; never steer a window off our origin.
+  if (url.origin !== self.location.origin) return;
+
+  try {
+    const windows = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
+    const existing = windows.find((client) => {
+      try {
+        return new URL(client.url).origin === url.origin;
+      } catch {
+        return false;
+      }
+    });
+
+    if (existing) {
+      const focused = await existing.focus();
+      if (focused.url !== url.href) await focused.navigate(url.href);
+      return;
+    }
+  } catch {
+    // focus()/navigate() can reject (e.g. a client we do not control). A new
+    // window at the right URL is better than nothing happening.
+  }
+
+  await self.clients.openWindow(url.href);
+}
+
+const MARK_READ_ACTION = "mark-read";
+
+/**
+ * Pull the channel and message ids out of a message notification's URL
+ * (`<app>/channel/<channel>/<message>`, optionally under `/server/<id>`).
+ * Anything else - friend requests, the site root - has no message to mark.
+ */
+function parseMessageTarget(
+  target: string,
+): { channel: string; message: string } | undefined {
+  try {
+    const segments = new URL(target, self.registration.scope).pathname
+      .split("/")
+      .filter(Boolean);
+    const i = segments.indexOf("channel");
+    const channel = segments[i + 1];
+    const message = segments[i + 2];
+    if (i !== -1 && channel && message) return { channel, message };
+  } catch {
+    // not a URL we understand
+  }
+  return undefined;
+}
+
+/**
+ * The saved session token, read straight from the IndexedDB record the page
+ * writes (localforage: database "localforage", store "keyvaluepairs", key
+ * "auth" - see components/state). A worker cannot reach the page's in-memory
+ * state, and this is the only copy it can see. It reads only: it never
+ * creates the database or its store (so it cannot disturb localforage's own
+ * setup), and it resolves undefined on every failure.
+ */
+function readSessionToken(): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    try {
+      const open = indexedDB.open("localforage");
+      open.onerror = () => resolve(undefined);
+      open.onupgradeneeded = () => {
+        // The database did not exist: nothing is saved. Abort so the empty
+        // database this open would create never persists.
+        open.transaction?.abort();
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        try {
+          const get = db
+            .transaction("keyvaluepairs", "readonly")
+            .objectStore("keyvaluepairs")
+            .get("auth");
+          get.onsuccess = () => {
+            db.close();
+            const token = get.result?.session?.token;
+            resolve(typeof token === "string" ? token : undefined);
+          };
+          get.onerror = () => {
+            db.close();
+            resolve(undefined);
+          };
+        } catch {
+          db.close();
+          resolve(undefined);
+        }
+      };
+    } catch {
+      resolve(undefined);
+    }
+  });
+}
+
+/** Mark the notification's message (and everything before it) as read. */
+async function markNotificationRead(target: string): Promise<boolean> {
+  const ids = parseMessageTarget(target);
+  if (!ids) return false;
+  const token = await readSessionToken();
+  if (!token) return false;
+
+  try {
+    const res = await fetch(
+      `${self.location.origin}/api/channels/${encodeURIComponent(
+        ids.channel,
+      )}/ack/${encodeURIComponent(ids.message)}`,
+      { method: "PUT", headers: { "x-session-token": token } },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  if (typeof event.notification.data === "string") {
-    event.waitUntil(self.clients.openWindow(event.notification.data));
+  const target = event.notification.data;
+  if (typeof target !== "string") return;
+
+  if (event.action === MARK_READ_ACTION) {
+    // If marking fails for any reason (signed out, offline, server error) the
+    // notification is already gone, so open the chat rather than leave the
+    // member with a tap that visibly did nothing.
+    event.waitUntil(
+      markNotificationRead(target).then((ok) =>
+        ok ? undefined : openNotificationTarget(target),
+      ),
+    );
+    return;
   }
+
+  event.waitUntil(openNotificationTarget(target));
 });
 
 self.addEventListener("push", (event) => {
@@ -115,22 +255,34 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
-      if (notification.tag) {
-        // If the focus check itself fails (e.g. matchAll rejects), fail open
-        // and show the notification - a duplicate is recoverable, a real
-        // notification silently dropped is not.
-        try {
-          if (await isChannelFocused(notification.tag)) return;
-        } catch {
-          // fall through to showNotification
-        }
+      // If the foreground check itself fails (e.g. matchAll rejects), fail open
+      // and show the notification - a duplicate is recoverable, a real
+      // notification silently dropped is not.
+      try {
+        if (await isAppInForeground()) return;
+      } catch {
+        // fall through to showNotification
       }
 
-      await self.registration.showNotification(notification.title || "NAC", {
+      // Only message notifications get the button; friend requests and the
+      // like have no message to mark. `actions` is not in the DOM lib's
+      // NotificationOptions, hence the cast. Browsers without action support
+      // (iOS) ignore it and show the plain notification.
+      const options: NotificationOptions & {
+        actions?: { action: string; title: string }[];
+      } = {
         icon: notification.icon,
         body: notification.body,
         data: notification.url,
-      });
+      };
+      if (parseMessageTarget(notification.url ?? "")) {
+        options.actions = [{ action: MARK_READ_ACTION, title: "Mark as read" }];
+      }
+
+      await self.registration.showNotification(
+        notification.title || "NAC",
+        options,
+      );
     })(),
   );
 });
