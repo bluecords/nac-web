@@ -53,33 +53,25 @@ interface StoatPushNotification {
 }
 
 /**
- * Is a focused window already showing this channel?
+ * Is the app in front of the member right now?
  *
- * pushd skips sessions it sees as currently connected (message.rs), but that
- * check can lag a live tab during a reconnect blip - the connection/push
- * area's most common failure shape. This asks the browser directly instead
- * of trusting the server's view of "connected", so a member already reading
- * the channel never gets an OS notification duplicating what's on screen.
+ * The server sends a push to every subscribed device (pushd no longer skips
+ * sessions with a live connection: a backgrounded app keeps its websocket for
+ * minutes, so skipping it meant no notification at all - measured 2026-10-29).
+ * Only the device knows whether the app is in the foreground, so it decides:
+ * a window that is both visible and focused means they are looking at NAC and
+ * the OS notification would only duplicate it. Anything else (backgrounded,
+ * screen off, closed, another app on top) gets the notification.
  */
-async function isChannelFocused(channelId: string): Promise<boolean> {
+async function isAppInForeground(): Promise<boolean> {
   const windows = await self.clients.matchAll({
     type: "window",
     includeUncontrolled: true,
   });
 
-  return windows.some((client) => {
-    if (!client.focused) return false;
-    try {
-      const segments = new URL(client.url).pathname.split("/");
-      const i = segments.indexOf("channel");
-      return i !== -1 && segments[i + 1] === channelId;
-    } catch {
-      // An unparsable client URL isn't this channel - it must not abort the
-      // whole check, or one odd client (e.g. an about:blank window in the
-      // list) would silently drop a real notification for everyone.
-      return false;
-    }
-  });
+  return windows.some(
+    (client) => client.focused && client.visibilityState === "visible",
+  );
 }
 
 self.addEventListener("message", (event) => {
@@ -263,15 +255,13 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
-      if (notification.tag) {
-        // If the focus check itself fails (e.g. matchAll rejects), fail open
-        // and show the notification - a duplicate is recoverable, a real
-        // notification silently dropped is not.
-        try {
-          if (await isChannelFocused(notification.tag)) return;
-        } catch {
-          // fall through to showNotification
-        }
+      // If the foreground check itself fails (e.g. matchAll rejects), fail open
+      // and show the notification - a duplicate is recoverable, a real
+      // notification silently dropped is not.
+      try {
+        if (await isAppInForeground()) return;
+      } catch {
+        // fall through to showNotification
       }
 
       // Only message notifications get the button; friend requests and the
