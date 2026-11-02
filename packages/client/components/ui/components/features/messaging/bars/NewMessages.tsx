@@ -50,12 +50,20 @@ export function NewMessages(props: Props) {
     <Show when={props.lastId()}>
       <FloatingIndicator position="top" onClick={props.jumpBack}>
         <Ripple />
-        <span class={css({ flexGrow: 1 })}>
+        <span
+          class={css({
+            flexGrow: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          })}
+        >
           <Trans>
             New messages since {dayjs(decodeTime(props.lastId()!)).fromNow()}
           </Trans>
         </span>
-        <span>
+        <span class={css({ flexShrink: 0, whiteSpace: "nowrap" })}>
           <Trans>Jump to the beginning</Trans>
         </span>
         <CancelIcon onClick={onCancel}>
@@ -69,5 +77,6 @@ export function NewMessages(props: Props) {
 const CancelIcon = styled("div", {
   base: {
     height: "16px",
+    flexShrink: 0,
   },
 });
