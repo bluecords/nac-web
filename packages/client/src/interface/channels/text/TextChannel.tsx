@@ -213,11 +213,14 @@ export function TextChannel(props: ChannelPageProps) {
             jumpToBottomRef={(ref) => (jumpToBottomRef = ref)}
           />
 
-          {/* A server channel you cannot post in gets no composer at all. DMs
-              keep the box, which explains a blocked conversation. */}
+          {/* A server channel you cannot post in gets no composer at all. Only
+              once the server has loaded: until then permissions read as zero
+              and the composer would flash away. DMs, groups and saved notes
+              keep the box. */}
           <Show
             when={
-              props.channel.type === "DirectMessage" ||
+              props.channel.type !== "TextChannel" ||
+              !props.channel.server ||
               props.channel.havePermission("SendMessage")
             }
           >

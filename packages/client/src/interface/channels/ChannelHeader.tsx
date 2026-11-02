@@ -150,6 +150,7 @@ export function ChannelHeader(props: Props) {
       <Show
         when={
           props.channel.type === "TextChannel" &&
+          !!props.channel.server &&
           !props.channel.havePermission("SendMessage")
         }
       >
