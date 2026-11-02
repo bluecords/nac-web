@@ -213,10 +213,19 @@ export function TextChannel(props: ChannelPageProps) {
             jumpToBottomRef={(ref) => (jumpToBottomRef = ref)}
           />
 
-          <MessageComposition
-            channel={props.channel}
-            onMessageSend={() => jumpToBottomRef?.()}
-          />
+          {/* A server channel you cannot post in gets no composer at all. DMs
+              keep the box, which explains a blocked conversation. */}
+          <Show
+            when={
+              props.channel.type === "DirectMessage" ||
+              props.channel.havePermission("SendMessage")
+            }
+          >
+            <MessageComposition
+              channel={props.channel}
+              onMessageSend={() => jumpToBottomRef?.()}
+            />
+          </Show>
         </main>
         <Show
           when={

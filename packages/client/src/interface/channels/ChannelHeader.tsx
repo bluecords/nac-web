@@ -146,6 +146,29 @@ export function ChannelHeader(props: Props) {
         </Match>
       </Switch>
 
+      {/* The composer is hidden when you cannot post, so say why here */}
+      <Show
+        when={
+          props.channel.type === "TextChannel" &&
+          !props.channel.havePermission("SendMessage")
+        }
+      >
+        <span
+          class={readOnlyChip}
+          use:floating={{
+            tooltip: {
+              placement: "bottom",
+              content: t`You don't have permission to send messages in this channel.`,
+            },
+          }}
+        >
+          <Symbol size={16}>lock</Symbol>
+          <Show when={!isMobile()}>
+            <Trans>Read-only</Trans>
+          </Show>
+        </span>
+      </Show>
+
       <Spacer />
 
       {/* Voice join — visible on all viewports */}
@@ -314,4 +337,17 @@ const Divider = styled("div", {
  */
 const descriptionLink = css({
   minWidth: 0,
+});
+
+/**
+ * Small muted "Read-only" marker next to the channel name
+ */
+const readOnlyChip = css({
+  display: "inline-flex",
+  alignItems: "center",
+  flexShrink: 0,
+  gap: "4px",
+  marginInlineStart: "var(--gap-md)",
+  color: "var(--md-sys-color-outline)",
+  ...typography.raw({ size: "small" }),
 });
