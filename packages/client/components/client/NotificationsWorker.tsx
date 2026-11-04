@@ -18,6 +18,14 @@ import { useState } from "@revolt/state";
 import { useClient, useNotifications, useSound } from ".";
 
 /**
+ * Notification options the DOM lib's type does not list but browsers accept.
+ */
+type AppNotificationOptions = NotificationOptions & {
+  image?: string;
+  timestamp?: number;
+};
+
+/**
  * Process and display desktop notifications
  */
 export function NotificationsWorker() {
@@ -80,6 +88,7 @@ export function NotificationsWorker() {
         }
         break;
       case "TextChannel":
+      case "ForumChannel":
         title = `@${message.username} (#${message.channel?.name}, ${message.channel?.server?.name})`;
         break;
     }
@@ -192,30 +201,78 @@ export function NotificationsWorker() {
       body = t`Sent ${message.attachments!.length} attachments`;
     }
 
-    // Don't continue if we don't have notification permissions
-    if (
-      Notification.permission !== "granted" ||
-      state.settings.desktopNotificationsState !== "allowed"
-    )
-      return;
+    // Don't continue if we don't have notification permissions. Desktop
+    // notifications must be on - or, on Android Chrome, push notifications:
+    // that browser refuses `new Notification()`, so the app records desktop
+    // notifications as "unsupported" there (and never lets that change), and
+    // push is the setting the member actually turned on.
+    const desktopState = state.settings.desktopNotificationsState;
+    const canShow =
+      desktopState === "allowed" ||
+      (desktopState === "unsupported" &&
+        state.settings.pushNotificationsState === "allowed");
+    if (Notification.permission !== "granted" || !canShow) return;
 
     sound.playSound("message");
 
-    const notification = new Notification(title!, {
+    const options: AppNotificationOptions = {
       icon,
-      // @ts-expect-error this does exist on some platforms
       image,
       body,
-      timestamp: message.createdAt,
+      timestamp: message.createdAt.valueOf(),
       tag: message.channelId,
       badge: "/assets/web/android-chrome-512x512.png",
       silent: true,
-    });
+    };
 
-    notification.addEventListener("click", () => {
-      window.focus();
-      navigate(message.path);
-    });
+    // Android Chrome refuses `new Notification()` ("Illegal constructor"):
+    // only a service worker registration may show one there. Until this, a
+    // message in another channel while the app was open showed nothing on
+    // Android (the push worker stays quiet while the app is in front, and
+    // this function returned above).
+    if (desktopState === "unsupported") {
+      void showViaServiceWorker(title ?? "NAC", options, message.path);
+      return;
+    }
+
+    try {
+      const notification = new Notification(title ?? "NAC", options);
+
+      notification.addEventListener("click", () => {
+        window.focus();
+        navigate(message.path);
+      });
+    } catch {
+      void showViaServiceWorker(title ?? "NAC", options, message.path);
+    }
+  }
+
+  /**
+   * Show a notification through the service worker registration, for browsers
+   * that do not allow `new Notification()` (Android Chrome). Clicking it is
+   * handled by the service worker, which opens `data` (an absolute URL).
+   *
+   * Only while the app is visible and focused: that is the one case the push
+   * worker stays quiet in (it would only duplicate what is on screen), so
+   * showing here as well while the app is in the background would put two
+   * notifications on the phone for one message.
+   */
+  async function showViaServiceWorker(
+    title: string,
+    options: AppNotificationOptions,
+    path: string,
+  ) {
+    if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration();
+      await registration?.showNotification(title, {
+        ...options,
+        data: new URL(path, location.origin).href,
+      });
+    } catch {
+      // No worker, or the browser refused: nothing more we can show.
+    }
   }
 
   createEffect(() => {
