@@ -1,13 +1,11 @@
 import { Accessor, createEffect, on, onMount } from "solid-js";
 
-import { completionStatus } from "@codemirror/autocomplete";
 import { defaultKeymap, history, insertNewline } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { css } from "styled-system/css";
 
-import { diag } from "../../../../../src/diagnostics";
 import { scrollableStyles } from "../../../directives/scrollable";
 import { AutoCompleteSearchSpace } from "../../utils/autoComplete";
 
@@ -77,18 +75,6 @@ interface Props {
 const placeholderCompartment = new Compartment();
 
 /**
- * Android only: it is the platform whose keyboards (Gboard) can hand the editor
- * an Enter that CodeMirror does not recognise. See `enterInTextEdit`.
- */
-const isAndroid = () => /Android/i.test(navigator.userAgent);
-
-/**
- * CodeMirror replays an Enter it deferred a moment after the edit it belongs
- * to, so the same press can reach `complete` twice, a few ms apart.
- */
-const REPLAY_MS = 400;
-
-/**
  * Text editor powered by CodeMirror
  */
 export function TextEditor2(props: Props) {
@@ -96,23 +82,6 @@ export function TextEditor2(props: Props) {
 
   const codeMirror = document.createElement("div");
   codeMirror.className = editor;
-
-  /**
-   * Submit (Enter).
-   * @param route How Enter reached the editor (diagnostics only)
-   */
-  let lastTextEditEnter = -Infinity;
-  function complete(route: "key" | "text-edit") {
-    if (!props.onComplete) return;
-
-    // The key press CodeMirror replays right after a text-edit Enter is the
-    // same press: do not submit twice.
-    if (route === "text-edit") lastTextEditEnter = performance.now();
-    else if (performance.now() - lastTextEditEnter < REPLAY_MS) return;
-
-    diag("composer-enter", route);
-    props.onComplete();
-  }
 
   /**
    * Handle 'Enter' key presses
@@ -126,7 +95,7 @@ export function TextEditor2(props: Props) {
 
         const cursor = view.state.selection.main;
         if (!isInFencedCodeBlock(view.state, cursor.from, cursor.to)) {
-          complete("key");
+          props.onComplete();
           return true;
         } else {
           return false;
@@ -134,48 +103,6 @@ export function TextEditor2(props: Props) {
       },
     },
   ]);
-
-  /**
-   * Enter that arrives inside a text edit, on Android.
-   *
-   * On a desktop Enter is a key press and the keymap above handles it. An
-   * Android keyboard may instead send the Enter inside a text edit, and
-   * CodeMirror only turns an edit into the Enter key when it is a lone line
-   * break at the cursor. When the keyboard also changes the word being typed
-   * (autocorrect: "teh" becomes "the" plus the line break, in one edit) it is
-   * inserted as text, i.e. Enter adds a line break instead of posting the
-   * message (member report, 2026-11-03).
-   *
-   * So an edit that is one word and a trailing line break is Enter: keep the
-   * word, drop the line break, send. Left alone: a fenced code block, an open
-   * @mention / :emoji: popup (Enter must accept the suggestion), and longer
-   * text (a pasted or dictated line is not an Enter press).
-   *
-   * Verified only by simulation (firing the edit); the member's own failure
-   * was NOT reproduced - SwiftKey and Samsung Keyboard on a real phone, and
-   * Chrome's Pixel emulation, already sent - and Gboard was not available.
-   */
-  const enterInTextEdit = EditorView.inputHandler.of(
-    // eslint-disable-next-line solid/reactivity
-    (view, from, to, text) => {
-      if (!props.onComplete || !isAndroid()) return false;
-      if (!/^\S{0,64}\n$/.test(text)) return false;
-      if (completionStatus(view.state) !== null) return false;
-      if (isInFencedCodeBlock(view.state, from, to)) return false;
-
-      // keep what was typed (e.g. the corrected word), drop the line break
-      const typed = text.slice(0, -1);
-      if (typed.length) {
-        view.dispatch({
-          changes: { from, to, insert: typed },
-          selection: { anchor: from + typed.length },
-          userEvent: "input.type",
-        });
-      }
-      complete("text-edit");
-      return true;
-    },
-  );
 
   /**
    * Handle 'Shift-Enter' (insert a line break without sending).
@@ -231,7 +158,6 @@ export function TextEditor2(props: Props) {
         /* Mount keymaps */
         enterKeymap,
         shiftEnterKeymap,
-        enterInTextEdit,
         arrowUpKeymap,
         keymap.of(defaultKeymap as never), // required for atomic ranges to work: https://github.com/codemirror/dev/issues/923
 
