@@ -10,6 +10,8 @@ import { Button, CategoryButton, Column, Row, Text } from "@revolt/ui";
 
 import { useSettingsNavigation } from "../../Settings";
 
+import { ChannelPeople } from "./ChannelPeople";
+
 import {
   CLASS_LABEL,
   ROLE_CLASSES,
@@ -315,6 +317,8 @@ export function ChannelPermissionsOverview(props: { context: Channel }) {
       >
         <Trans>Default Permissions</Trans>
       </CategoryButton>
+
+      <ChannelPeople context={props.context} />
 
       <Show when={server()?.havePermission("ManagePermissions")}>
         <Column gap="sm">
