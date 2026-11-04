@@ -1,5 +1,6 @@
 import { Accessor, createEffect, on, onMount } from "solid-js";
 
+import { completionStatus } from "@codemirror/autocomplete";
 import { defaultKeymap, history, insertNewline } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Compartment, EditorState } from "@codemirror/state";
@@ -76,17 +77,16 @@ interface Props {
 const placeholderCompartment = new Compartment();
 
 /**
- * Phones only: on the soft keyboards CodeMirror cannot rely on a key event for
- * Enter, so the extra Enter handling below is limited to them.
+ * Android only: it is the platform whose keyboards (Gboard) can hand the editor
+ * an Enter that CodeMirror does not recognise. See `enterInTextEdit`.
  */
-const isPhoneKeyboard = () =>
-  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isAndroid = () => /Android/i.test(navigator.userAgent);
 
 /**
- * Two submits closer together than this are one Enter press that reached the
- * editor by more than one route (see `enterIntercepts`).
+ * CodeMirror replays an Enter it deferred a moment after the edit it belongs
+ * to, so the same press can reach `complete` twice, a few ms apart.
  */
-const SAME_ENTER_MS = 350;
+const REPLAY_MS = 400;
 
 /**
  * Text editor powered by CodeMirror
@@ -98,16 +98,18 @@ export function TextEditor2(props: Props) {
   codeMirror.className = editor;
 
   /**
-   * Submit (Enter). Every route Enter can take into the editor ends here, and
-   * a repeat within SAME_ENTER_MS is the same key press arriving twice.
+   * Submit (Enter).
    * @param route How Enter reached the editor (diagnostics only)
    */
-  let lastComplete = 0;
-  function complete(route: string) {
+  let lastTextEditEnter = -Infinity;
+  function complete(route: "key" | "text-edit") {
     if (!props.onComplete) return;
-    const now = Date.now();
-    if (now - lastComplete < SAME_ENTER_MS) return;
-    lastComplete = now;
+
+    // The key press CodeMirror replays right after a text-edit Enter is the
+    // same press: do not submit twice.
+    if (route === "text-edit") lastTextEditEnter = performance.now();
+    else if (performance.now() - lastTextEditEnter < REPLAY_MS) return;
+
     diag("composer-enter", route);
     props.onComplete();
   }
@@ -134,52 +136,31 @@ export function TextEditor2(props: Props) {
   ]);
 
   /**
-   * Enter on a phone keyboard, caught where the key handler cannot see it.
+   * Enter that arrives inside a text edit, on Android.
    *
-   * On a desktop Enter is a key press and the keymap above handles it. A phone
-   * keyboard may send Enter as a text edit instead, and CodeMirror only turns
-   * that into a key press when the edit is a lone line break at the cursor; any
-   * other shape is inserted as text, i.e. Enter adds a line break instead of
-   * posting the message (member report, 2026-11-03). Two shapes are caught:
-   *  - a `beforeinput` of type insertParagraph / insertLineBreak (Chrome sends
-   *    the first, Safari the second);
-   *  - one text edit that ends in the line break, e.g. the keyboard replaces
-   *    the word being typed (autocorrect) and adds the Enter in a single change.
-   * Both are Enter, so send. Shift is respected (a hardware keyboard's
-   * Shift+Enter is still a line break) and so is a fenced code block.
+   * On a desktop Enter is a key press and the keymap above handles it. An
+   * Android keyboard may instead send the Enter inside a text edit, and
+   * CodeMirror only turns an edit into the Enter key when it is a lone line
+   * break at the cursor. When the keyboard also changes the word being typed
+   * (autocorrect: "teh" becomes "the" plus the line break, in one edit) it is
+   * inserted as text, i.e. Enter adds a line break instead of posting the
+   * message (member report, 2026-11-03).
    *
-   * What was verified: SwiftKey and Samsung Keyboard on a real phone (Chrome),
-   * Chrome's Pixel emulation, WebKit's iPhone emulation and desktop all send
-   * once. The member's own failure was NOT reproduced (Gboard was not
-   * available), and the text-edit shape was only simulated by firing the event.
+   * So an edit that is one word and a trailing line break is Enter: keep the
+   * word, drop the line break, send. Left alone: a fenced code block, an open
+   * @mention / :emoji: popup (Enter must accept the suggestion), and longer
+   * text (a pasted or dictated line is not an Enter press).
+   *
+   * Verified only by simulation (firing the edit); the member's own failure
+   * was NOT reproduced - SwiftKey and Samsung Keyboard on a real phone, and
+   * Chrome's Pixel emulation, already sent - and Gboard was not available.
    */
-  let shiftHeld = false;
-  const enterIntercepts = [
-    EditorView.domEventHandlers({
-      beforeinput: (event, view) => {
-        if (!props.onComplete || !isPhoneKeyboard()) return false;
-        if (
-          event.inputType !== "insertParagraph" &&
-          event.inputType !== "insertLineBreak"
-        )
-          return false;
-        if (shiftHeld) return false;
-
-        const cursor = view.state.selection.main;
-        if (isInFencedCodeBlock(view.state, cursor.from, cursor.to))
-          return false;
-
-        event.preventDefault();
-        complete("beforeinput " + event.inputType);
-        return true;
-      },
-    }),
+  const enterInTextEdit = EditorView.inputHandler.of(
     // eslint-disable-next-line solid/reactivity
-    EditorView.inputHandler.of((view, from, to, text) => {
-      if (!props.onComplete || !isPhoneKeyboard()) return false;
-      // exactly one line break, and it is the last thing typed
-      if (!text.endsWith("\n") || text.indexOf("\n") !== text.length - 1)
-        return false;
+    (view, from, to, text) => {
+      if (!props.onComplete || !isAndroid()) return false;
+      if (!/^\S{0,64}\n$/.test(text)) return false;
+      if (completionStatus(view.state) !== null) return false;
       if (isInFencedCodeBlock(view.state, from, to)) return false;
 
       // keep what was typed (e.g. the corrected word), drop the line break
@@ -191,10 +172,10 @@ export function TextEditor2(props: Props) {
           userEvent: "input.type",
         });
       }
-      complete("text-change");
+      complete("text-edit");
       return true;
-    }),
-  ];
+    },
+  );
 
   /**
    * Handle 'Shift-Enter' (insert a line break without sending).
@@ -250,7 +231,7 @@ export function TextEditor2(props: Props) {
         /* Mount keymaps */
         enterKeymap,
         shiftEnterKeymap,
-        enterIntercepts,
+        enterInTextEdit,
         arrowUpKeymap,
         keymap.of(defaultKeymap as never), // required for atomic ranges to work: https://github.com/codemirror/dev/issues/923
 
@@ -292,20 +273,6 @@ export function TextEditor2(props: Props) {
       ],
     }),
   });
-
-  // Shift state for `enterIntercepts`. A plain listener, not an editor handler:
-  // on Android Chrome CodeMirror consumes the Enter key event itself, before
-  // any editor handler runs.
-  view.contentDOM.addEventListener(
-    "keydown",
-    (event) => (shiftHeld = event.shiftKey),
-    true,
-  );
-  view.contentDOM.addEventListener(
-    "keyup",
-    (event) => (shiftHeld = event.shiftKey),
-    true,
-  );
 
   // Apply shared scrollbar styles from the exported scrollable style classes.
   const scroller = codeMirror.querySelector<HTMLDivElement>(".cm-scroller");
