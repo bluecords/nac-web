@@ -503,6 +503,9 @@ export function MessageComposition(props: Props) {
         nodeReplacement={nodeReplacement()}
         formatAction={formatAction()}
         onSendMessage={() => sendMessage()}
+        enterAddsLine={() =>
+          state.settings.getValue("appearance:enter_adds_line") ?? false
+        }
         onTyping={delayedStopTyping}
         onEditLastMessage={() => state.draft.setEditingMessage(true)}
         content={draft()?.content ?? ""}

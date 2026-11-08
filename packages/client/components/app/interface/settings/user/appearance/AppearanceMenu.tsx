@@ -403,6 +403,18 @@ export function AppearanceMenu() {
           <Trans>Show send message button</Trans>
         </Checkbox>
 
+        <Checkbox
+          checked={state.settings.getValue("appearance:enter_adds_line")}
+          onChange={(event) =>
+            state.settings.setValue(
+              "appearance:enter_adds_line",
+              event.currentTarget.checked,
+            )
+          }
+        >
+          <Trans>Enter starts a new line (use the send button to send)</Trans>
+        </Checkbox>
+
         <FloatingSelect
           label={t`Emoji Pack (affects your messages only)`}
           value={state.settings.getValue("appearance:unicode_emoji")}

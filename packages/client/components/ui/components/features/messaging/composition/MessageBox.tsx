@@ -12,6 +12,11 @@ import { FormatKind } from "../../texteditor/markdownFormatting";
 
 interface Props {
   /**
+   * When true, Enter starts a new line instead of sending
+   */
+  enterAddsLine?: () => boolean;
+
+  /**
    * Initial content
    */
   initialValue: readonly [string];
@@ -268,6 +273,7 @@ export function MessageBox(props: Props) {
                 formatAction={props.formatAction}
                 onChange={props.setContent}
                 onComplete={props.onSendMessage}
+                enterAddsLine={props.enterAddsLine}
                 onTyping={props.onTyping}
                 onPreviousContext={props.onEditLastMessage}
                 autoCompleteSearchSpace={props.autoCompleteSearchSpace}
