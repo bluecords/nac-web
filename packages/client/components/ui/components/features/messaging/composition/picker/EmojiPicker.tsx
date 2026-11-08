@@ -67,6 +67,110 @@ type Item =
 
 const COLUMNS = 10;
 
+/**
+ * Extra search words per emoji (keys are names from emojiMapping.json), so a
+ * member can find "folded-hands" by typing "prayer" instead of hunting through
+ * every hand.
+ */
+const ALIASES: Record<string, string[]> = {
+  "folded-hands": [
+    "pray",
+    "prayer",
+    "praying",
+    "please",
+    "thanks",
+    "thank you",
+    "namaste",
+    "hope",
+    "amen",
+  ],
+  "raising-hands": ["praise", "worship", "hallelujah", "celebrate", "hooray"],
+  clap: ["clapping", "applause", "bravo", "well done"],
+  "thumbs-up": ["like", "yes", "approve", "good", "agree"],
+  "thumbs-down": ["dislike", "no", "disapprove", "bad"],
+  ok: ["okay", "fine", "perfect"],
+  "gesture-ok": ["okay", "fine", "perfect"],
+  wave: ["hello", "hi", "bye", "goodbye", "hand"],
+  muscle: ["strong", "strength", "flex", "bicep"],
+  "red-heart": ["love", "like"],
+  heart: ["love"],
+  "heart-eyes": ["love", "adore"],
+  "loudly-crying": ["sob", "sad", "cry", "crying", "tears"],
+  "holding-back-tears": ["touched", "moved", "grateful"],
+  joy: ["lol", "laugh", "laughing", "funny", "tears of joy"],
+  rofl: ["lol", "funny", "laugh", "laughing"],
+  pleading: ["please", "beg", "puppy eyes"],
+  fire: ["lit", "hot", "flame"],
+  "latin-cross": ["jesus", "christian", "christ", "church", "faith"],
+  church: ["christian", "worship", "faith"],
+  "open-book": ["bible", "read", "scripture"],
+  books: ["bible", "read", "library"],
+  peace: ["dove"],
+  "peace-symbol": ["peace"],
+  sparkles: ["shiny", "magic", "new", "glitter"],
+  "party-popper": ["celebrate", "congratulations", "tada", "party"],
+  "partying-face": ["celebrate", "party", "birthday"],
+  "check-mark-button": ["yes", "done", "correct", "complete"],
+  skull: ["dead", "death", "dying"],
+  eyes: ["look", "looking", "watching"],
+  "hug-face": ["hug", "hugging"],
+  hugging: ["hug", "hug-face"],
+  sleepy: ["tired", "sleep", "zzz"],
+  angry: ["mad", "upset", "furious"],
+  pouting: ["mad", "angry"],
+  smirk: ["sly", "smug"],
+  "star-struck": ["wow", "amazing", "excited"],
+  "100": ["perfect", "hundred", "score"],
+  crown: ["king", "queen", "royal"],
+  rose: ["flower", "love"],
+};
+
+/** Words an emoji can be found by: its name, and any aliases. */
+function searchWords(name: string) {
+  return `${name.replace(/-/g, " ")} ${(ALIASES[name] ?? []).join(" ")}`.toLowerCase();
+}
+
+function matchesFilter(name: string, filterText: string) {
+  const words = filterText.split(/\s+/).filter(Boolean);
+  const hay = searchWords(name);
+  return words.every((w) => hay.includes(w));
+}
+
+/** 0 when the search is an exact alias/name word, so those list first. */
+function matchRank(name: string, filterText: string) {
+  const q = filterText.trim();
+  if (name === q.replace(/\s+/g, "-")) return 0;
+  return (ALIASES[name] ?? []).includes(q) ? 0 : 1;
+}
+
+const USAGE_KEY = "nac:emoji-usage";
+const FREQUENT_COUNT = 20;
+
+/**
+ * How often this device has picked each emoji. Kept in this browser only: it
+ * is a convenience, and a failed read or write must never break the picker.
+ */
+function readUsage(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(USAGE_KEY) ?? "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const [usage, setUsage] = createSignal<Record<string, number>>(readUsage());
+
+function recordUsage(key: string) {
+  const next = { ...readUsage() };
+  next[key] = (next[key] ?? 0) + 1;
+  setUsage(next);
+  try {
+    localStorage.setItem(USAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* not saved; still counted for this session */
+  }
+}
+
 export function EmojiPicker() {
   const client = useClient();
   const state = useState();
@@ -89,12 +193,49 @@ export function EmojiPicker() {
               .map((emoji) => ({ t: 2, emoji })),
           ),
         ...Object.entries(emojiMapping)
-          .filter(([name]) => name.toLowerCase().includes(filterText))
+          .filter(([name]) => matchesFilter(name, filterText))
+          .sort(
+            ([a], [b]) =>
+              matchRank(a, filterText.trim()) - matchRank(b, filterText.trim()),
+          )
           .map(([name, text]) => ({ t: 4, name, text })),
       ] as Item[];
     }
 
     const items: Item[] = [];
+
+    // Most used on this device, above everything else.
+    const frequent = Object.entries(usage())
+      .sort((a, b) => b[1] - a[1])
+      .flatMap(([key]): Item[] => {
+        if (key.startsWith("u:")) {
+          const name = key.slice(2);
+          const text = (emojiMapping as Record<string, string>)[name];
+          return text ? [{ t: 4, name, text }] : [];
+        }
+
+        const id = key.slice(2);
+        for (const server of state.ordering.orderedServers(client())) {
+          const emoji = server.emojis.find((e) => e.id === id);
+          if (emoji) return [{ t: 2, emoji }];
+        }
+        return [];
+      })
+      .slice(0, FREQUENT_COUNT);
+
+    if (frequent.length) {
+      items.push({ t: 3, title: "Most used" });
+
+      while (items.length % COLUMNS) {
+        items.push({ t: 1 });
+      }
+
+      items.push(...frequent);
+
+      while (items.length % COLUMNS) {
+        items.push({ t: 1 });
+      }
+    }
 
     for (const server of state.ordering.orderedServers(client())) {
       const emojis = server.emojis;
@@ -238,7 +379,9 @@ const ServerOption = styled("div", {
 
 const EmojiItem = (props: { style: unknown; tabIndex: number; item: Item }) => {
   const state = useState();
-  const { onTextReplacement } = useContext(CompositionMediaPickerContext);
+  const { onTextReplacement, close } = useContext(
+    CompositionMediaPickerContext,
+  );
 
   return (
     <EmojiOption
@@ -248,13 +391,19 @@ const EmojiItem = (props: { style: unknown; tabIndex: number; item: Item }) => {
       role="listitem"
       onClick={() => {
         if (props.item.t === 2) {
+          recordUsage(`c:${props.item.emoji.id}`);
           onTextReplacement(`:${props.item.emoji.id}:`);
+          close();
         }
 
         if (props.item.t === 4) {
+          recordUsage(`u:${props.item.name}`);
           onTextReplacement(
             `${UNICODE_EMOJI_PACK_PUA[state.settings.getValue("appearance:unicode_emoji")!] ?? ""}${props.item.text}`,
           );
+          // Close after a pick so the member can see what it did (on a phone
+          // the picker covers the message it was added to). Reopen to add more.
+          close();
         }
       }}
     >
