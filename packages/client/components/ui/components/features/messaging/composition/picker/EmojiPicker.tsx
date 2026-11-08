@@ -4,6 +4,8 @@ import {
   Switch,
   createMemo,
   createSignal,
+  onCleanup,
+  onMount,
   useContext,
 } from "solid-js";
 
@@ -65,6 +67,10 @@ type Item =
       text: string;
     };
 
+/** Width of one emoji cell, in px (matches the `itemSize` given below). */
+const CELL = 40;
+
+/** Columns assumed until the grid has been measured. */
 const COLUMNS = 10;
 
 /**
@@ -180,7 +186,24 @@ export function EmojiPicker() {
   let serverScrollTargetElement!: HTMLDivElement;
   let emojiScrollTargetElement!: HTMLDivElement;
 
+  // How many cells actually fit across. This used to be a fixed 10, but the
+  // grid is `floor(width / 40)` wide, and on a phone the picker is narrower
+  // than 400px: 9 columns fit, the section padding assumed 10, and every row
+  // drifted one cell sideways (headings and the first emoji of each section
+  // ended up in the middle of the row).
+  const [columns, setColumns] = createSignal(COLUMNS);
+
+  onMount(() => {
+    const observer = new ResizeObserver(([entry]) => {
+      const fit = Math.floor(entry.contentRect.width / CELL);
+      if (fit > 0) setColumns(fit);
+    });
+    observer.observe(emojiScrollTargetElement);
+    onCleanup(() => observer.disconnect());
+  });
+
   const items = createMemo(() => {
+    const cols = columns();
     const filterText = filter().toLowerCase();
 
     if (filterText) {
@@ -226,13 +249,13 @@ export function EmojiPicker() {
     if (frequent.length) {
       items.push({ t: 3, title: "Most used" });
 
-      while (items.length % COLUMNS) {
+      while (items.length % cols) {
         items.push({ t: 1 });
       }
 
       items.push(...frequent);
 
-      while (items.length % COLUMNS) {
+      while (items.length % cols) {
         items.push({ t: 1 });
       }
     }
@@ -247,7 +270,7 @@ export function EmojiPicker() {
         server,
       });
 
-      while (items.length % COLUMNS) {
+      while (items.length % cols) {
         items.push({ t: 1 });
       }
 
@@ -255,7 +278,7 @@ export function EmojiPicker() {
         items.push({ t: 2, emoji });
       }
 
-      while (items.length % COLUMNS) {
+      while (items.length % cols) {
         items.push({ t: 1 });
       }
     }
@@ -265,7 +288,7 @@ export function EmojiPicker() {
       title: "Default",
     });
 
-    while (items.length % COLUMNS) {
+    while (items.length % cols) {
       items.push({ t: 1 });
     }
 
@@ -281,7 +304,7 @@ export function EmojiPicker() {
   });
 
   return (
-    <Stack>
+    <Stack style={{ "--emoji-cols": String(columns()) }}>
       <TextField
         // Desktop only: on touch this focuses the field, the on-screen keyboard
         // opens over the picker, and the emoji you came for are hidden behind
@@ -452,7 +475,7 @@ const EmojiOption = styled("div", {
         display: "flex",
         alignItems: "center",
         paddingInline: "var(--gap-md)",
-        width: `calc(40px * ${COLUMNS}) !important`,
+        width: `calc(${CELL}px * var(--emoji-cols, ${COLUMNS})) !important`,
       },
     },
     {
