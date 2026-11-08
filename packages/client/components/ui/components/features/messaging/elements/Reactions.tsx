@@ -175,10 +175,50 @@ function Reaction(props: {
   const { t } = useLingui();
   const users = useUsers(() => [...(props.users?.values() ?? [])]);
 
+  // Long-press on a touch screen opens the reactions window (hover tooltips
+  // do not exist there). Android also fires `contextmenu` at about the same
+  // moment, so remember when we last opened it to avoid doing it twice.
+  let pressTimer: ReturnType<typeof setTimeout> | undefined;
+  let pressStart: [number, number] = [0, 0];
+  let openedAt = 0;
+
+  function openWindow() {
+    openedAt = Date.now();
+    props.onViewReactions?.(props.reaction);
+  }
+
+  function cancelPress() {
+    clearTimeout(pressTimer);
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    if (e.pointerType === "mouse" || !props.onViewReactions) return;
+    e.stopPropagation(); // keep the message's own long-press menu out of it
+    pressStart = [e.clientX, e.clientY];
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(openWindow, 500);
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (Math.hypot(e.clientX - pressStart[0], e.clientY - pressStart[1]) > 10) {
+      cancelPress();
+    }
+  }
+
+  function onContextMenu(e: MouseEvent) {
+    if (!props.onViewReactions) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (Date.now() - openedAt > 1000) openWindow();
+  }
+
   /**
    * Handle toggling reaction
    */
   function onClick() {
+    // The lift after a long-press must not also toggle the reaction
+    if (Date.now() - openedAt < 1000) return;
+
     if (props.active) {
       props.removeReaction(props.reaction);
     } else {
@@ -228,13 +268,14 @@ function Reaction(props: {
       <ReactionBase
         active={props.active}
         onClick={onClick}
-        onContextMenu={(e: MouseEvent) => {
-          // Right-click on desktop, long-press on a phone
-          if (!props.onViewReactions) return;
-          e.preventDefault();
-          e.stopPropagation();
-          props.onViewReactions(props.reaction);
-        }}
+        // Native (on:) listeners, so they run before the message's own
+        // right-click / long-press menu and can claim the gesture for the
+        // reactions window instead of letting the message menu open.
+        on:contextmenu={onContextMenu}
+        on:pointerdown={onPointerDown}
+        on:pointermove={onPointerMove}
+        on:pointerup={cancelPress}
+        on:pointercancel={cancelPress}
       >
         <Ripple />
         <Emoji emoji={props.reaction} /> {props.users?.size || 0}
