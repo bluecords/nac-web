@@ -56,6 +56,11 @@ interface Props {
   onComplete?: () => void;
 
   /**
+   * When true, Enter starts a new line instead of submitting
+   */
+  enterAddsLine?: () => boolean;
+
+  /**
    * Event is fired when any keys are input
    */
   onTyping?: () => void;
@@ -92,6 +97,7 @@ export function TextEditor2(props: Props) {
       key: "Enter",
       run: (view) => {
         if (!props.onComplete) return false;
+        if (props.enterAddsLine?.()) return insertNewline(view);
 
         const cursor = view.state.selection.main;
         if (!isInFencedCodeBlock(view.state, cursor.from, cursor.to)) {

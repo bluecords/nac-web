@@ -61,6 +61,12 @@ interface SettingsDefinition {
   "appearance:show_send_button": boolean;
 
   /**
+   * Make the Enter key start a new line instead of sending (this device only;
+   * the send button sends). Useful on phones, which have no Shift key.
+   */
+  "appearance:enter_adds_line": boolean;
+
+  /**
    * Whether to render messages in compact mode
    */
   "appearance:compact_mode": boolean;
@@ -100,6 +106,7 @@ const EXPECTED_TYPES: { [K in keyof SettingsDefinition]: ValueType<K> } = {
   "notifications:push": "string",
   "appearance:unicode_emoji": "string",
   "appearance:show_send_button": "boolean",
+  "appearance:enter_adds_line": "boolean",
   "appearance:compact_mode": "boolean",
   "advanced:copy_id": "boolean",
 };
@@ -142,6 +149,7 @@ export class Settings extends AbstractStore<"settings", TypeSettings> {
       "notifications:push": "default",
       "appearance:unicode_emoji": "fluent-3d",
       "appearance:show_send_button": true,
+      "appearance:enter_adds_line": false,
       "appearance:compact_mode": false,
       "advanced:copy_id": false,
     };
