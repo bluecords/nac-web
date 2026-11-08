@@ -33,6 +33,12 @@ interface Props {
   userId?: string;
 
   /**
+   * Open the full list of who reacted (right-click, or long-press on a phone)
+   * @param reaction ID of the reaction that was pressed
+   */
+  onViewReactions?(reaction: string): void;
+
+  /**
    * Add a reaction
    * @param reaction ID
    */
@@ -103,6 +109,7 @@ export function Reactions(props: Props) {
               reaction={entry}
               active={props.reactions?.get(entry)?.has(props.userId!)}
               users={props.reactions?.get(entry)}
+              onViewReactions={props.onViewReactions}
               addReaction={props.addReaction}
               removeReaction={props.removeReaction}
             />
@@ -117,6 +124,7 @@ export function Reactions(props: Props) {
               reaction={entry}
               active={props.reactions?.get(entry)?.has(props.userId!)}
               users={props.reactions?.get(entry)}
+              onViewReactions={props.onViewReactions}
               addReaction={props.addReaction}
               removeReaction={props.removeReaction}
             />
@@ -160,6 +168,7 @@ function Reaction(props: {
   reaction: string;
   active?: boolean;
   users?: Set<string>;
+  onViewReactions?(reaction: string): void;
   addReaction(id: string): void;
   removeReaction(id: string): void;
 }) {
@@ -216,7 +225,17 @@ function Reaction(props: {
       )}
       aria={peopleList()}
     >
-      <ReactionBase active={props.active} onClick={onClick}>
+      <ReactionBase
+        active={props.active}
+        onClick={onClick}
+        onContextMenu={(e: MouseEvent) => {
+          // Right-click on desktop, long-press on a phone
+          if (!props.onViewReactions) return;
+          e.preventDefault();
+          e.stopPropagation();
+          props.onViewReactions(props.reaction);
+        }}
+      >
         <Ripple />
         <Emoji emoji={props.reaction} /> {props.users?.size || 0}
       </ReactionBase>

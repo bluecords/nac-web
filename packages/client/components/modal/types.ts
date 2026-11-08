@@ -184,6 +184,11 @@ export type Modals =
       type: "favorites_list";
     }
   | {
+      type: "reactions_list";
+      message: Message;
+      emoji?: string;
+    }
+  | {
       type: "join_server";
       client: Client;
     }

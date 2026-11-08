@@ -22,8 +22,8 @@ import MdReply from "@material-design-icons/svg/outlined/reply.svg?component-sol
 import MdReport from "@material-design-icons/svg/outlined/report.svg?component-solid";
 import MdShare from "@material-design-icons/svg/outlined/share.svg?component-solid";
 
-import MdSentimentContent from "@material-symbols/svg-400/outlined/sentiment_content.svg?component-solid";
 import MdDriveFileMove from "@material-symbols/svg-400/outlined/drive_file_move.svg?component-solid";
+import MdSentimentContent from "@material-symbols/svg-400/outlined/sentiment_content.svg?component-solid";
 
 import {
   ContextMenu,
@@ -197,6 +197,16 @@ export function MessageContextMenu(props: { message?: Message; file?: File }) {
                 <Trans>Unpin message</Trans>
               </Match>
             </Switch>
+          </ContextMenuButton>
+        </Show>
+        <Show when={props.message!.reactions.size}>
+          <ContextMenuButton
+            symbol={MdSentimentContent}
+            onClick={() =>
+              openModal({ type: "reactions_list", message: props.message! })
+            }
+          >
+            <Trans>View reactions</Trans>
           </ContextMenuButton>
         </Show>
         <Show
