@@ -8,6 +8,7 @@ import {
 import { Match, Show, Switch } from "solid-js";
 
 import { File, MessageEmbed } from "stoat.js";
+import { css } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
 import { IconButton, Text } from "@revolt/ui/components/design";
@@ -19,7 +20,7 @@ import { Symbol } from "@revolt/ui/components/utils/Symbol";
  * Base container
  */
 const Base = styled(Row, {
-  base: {},
+  base: { minWidth: 0 },
 });
 
 interface Props {
@@ -64,8 +65,12 @@ export function FileInfo(props: Props) {
           <BiSolidFileTxt size={24} />
         </Match>
       </Switch>
-      <Column grow>
-        <span>{props.file?.filename}</span>
+      {/* min-width: 0 lets a long filename shrink instead of pushing the
+          download button off the right edge on narrow screens. */}
+      <Column grow class={css({ minWidth: 0 })}>
+        <span class={css({ overflowWrap: "anywhere" })}>
+          {props.file?.filename}
+        </span>
         <Show when={props.file?.size}>
           <Text class="label" size="small">
             {humanFileSize(props.file!.size!)}
@@ -74,6 +79,7 @@ export function FileInfo(props: Props) {
       </Column>
       <Show when={props.file}>
         <a
+          class={css({ flexShrink: 0 })}
           target="_blank"
           href={props.file?.originalUrl}
           download={props.file?.filename}

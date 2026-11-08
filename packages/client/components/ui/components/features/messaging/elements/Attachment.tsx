@@ -26,6 +26,10 @@ import { TextFile } from "./TextFile";
  */
 export const AttachmentContainer = styled(Column, {
   base: {
+    // Never grow wider than the message, so a long filename cannot push
+    // the download button off-screen on mobile.
+    maxWidth: "100%",
+    minWidth: 0,
     padding: "var(--gap-md)",
     borderRadius: "var(--borderRadius-md)",
     color: "var(--md-sys-color-inverse-on-surface)",
