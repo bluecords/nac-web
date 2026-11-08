@@ -9,6 +9,7 @@ import { decodeTime } from "ulid";
 import { useClient } from "@revolt/client";
 import { useTime } from "@revolt/i18n";
 import { Markdown } from "@revolt/markdown";
+import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
 import {
   Attachment,
@@ -85,6 +86,7 @@ export function Message(props: Props) {
   const state = useState();
   const { t } = useLingui();
   const client = useClient();
+  const { openModal } = useModals();
 
   const [isHovering, setIsHovering] = createSignal(false);
 
@@ -353,6 +355,13 @@ export function Message(props: Props) {
       <Reactions
         reactions={props.message.reactions as never as Map<string, Set<string>>}
         interactions={props.message.interactions}
+        onViewReactions={(emoji) =>
+          openModal({
+            type: "reactions_list",
+            message: props.message,
+            emoji,
+          })
+        }
         userId={client().user!.id}
         addReaction={react}
         removeReaction={unreact}

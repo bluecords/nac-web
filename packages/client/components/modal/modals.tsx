@@ -51,6 +51,7 @@ import { ModViewModal } from "./modals/ModView";
 import { MoveToChannelModal } from "./modals/MoveToChannel";
 import { OnboardingModal } from "./modals/Onboarding";
 import { PolicyChangeModal } from "./modals/PolicyChange";
+import { ReactionsListModal } from "./modals/ReactionsList";
 import { RemoveMemberModal } from "./modals/RemoveMember";
 import { RenameSessionModal } from "./modals/RenameSession";
 import { ReportContentModal } from "./modals/ReportContent";
@@ -152,6 +153,8 @@ export function RenderModal(props: ActiveModal & { onClose: () => void }) {
       return <Error2Modal {...modalProps} />;
     case "favorites_list":
       return <FavoritesListModal {...modalProps} />;
+    case "reactions_list":
+      return <ReactionsListModal {...modalProps} />;
     case "image_viewer":
       return <ImageViewerModal {...modalProps} />;
     case "invite":
