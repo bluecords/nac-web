@@ -90,7 +90,7 @@ export function NotificationsWorker() {
     )?.previewUrl;
 
     // Find body/icon
-    let body, icon;
+    let body: string | undefined, icon: string | undefined;
     if (message.content) {
       body = message.contentPlain;
       icon = message.avatarURL;
@@ -193,29 +193,68 @@ export function NotificationsWorker() {
     }
 
     // Don't continue if we don't have notification permissions
-    if (
-      Notification.permission !== "granted" ||
-      state.settings.desktopNotificationsState !== "allowed"
-    )
-      return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+
+    const desktopAllowed =
+      state.settings.desktopNotificationsState === "allowed";
+    const pushAllowed = state.settings.pushNotificationsState === "allowed";
+
+    if (!desktopAllowed && !pushAllowed) return;
+
+    // Android Chrome does not allow `new Notification()` (it throws), so
+    // desktopNotificationsState is "unsupported" there for good. The service
+    // worker drops a push while the app is in front, expecting this in-page
+    // alert to cover it, so on Android nothing was shown at all for a message
+    // in another channel while the app was open. Fall back to showing it
+    // through the service worker, and only when the worker would have dropped
+    // the push (app focused and visible) so a backgrounded app is not alerted
+    // twice.
+    if (!desktopAllowed) {
+      if (!(document.visibilityState === "visible" && document.hasFocus()))
+        return;
+    }
 
     sound.playSound("message");
 
-    const notification = new Notification(title!, {
-      icon,
-      // @ts-expect-error this does exist on some platforms
-      image,
-      body,
-      timestamp: message.createdAt,
-      tag: message.channelId,
-      badge: "/assets/web/android-chrome-512x512.png",
-      silent: true,
-    });
+    if (desktopAllowed) {
+      try {
+        const notification = new Notification(title!, {
+          icon,
+          // @ts-expect-error this does exist on some platforms
+          image,
+          body,
+          timestamp: message.createdAt,
+          tag: message.channelId,
+          badge: "/assets/web/android-chrome-512x512.png",
+          silent: true,
+        });
 
-    notification.addEventListener("click", () => {
-      window.focus();
-      navigate(message.path);
-    });
+        notification.addEventListener("click", () => {
+          window.focus();
+          navigate(message.path);
+        });
+        return;
+      } catch {
+        // fall through to the service worker
+      }
+    }
+
+    navigator.serviceWorker
+      ?.getRegistration()
+      .then((registration) =>
+        registration?.showNotification(title!, {
+          icon,
+          body,
+          tag: message.channelId,
+          badge: "/assets/web/android-chrome-512x512.png",
+          silent: true,
+          data: message.path,
+        }),
+      )
+      .catch(() => {
+        /* nothing more to try */
+      });
   }
 
   createEffect(() => {
