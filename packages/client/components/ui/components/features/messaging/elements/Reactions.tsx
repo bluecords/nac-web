@@ -181,27 +181,24 @@ function Reaction(props: {
    * Generate list of users
    */
   const peopleList = () => {
-    const all = users();
-    const list = all.filter((user) => user);
-    const unknown =
-      all.filter((user) => !user).length + Math.max(0, list.length - 3);
+    const total = props.users?.size ?? 0;
+    const names = users()
+      .filter((user) => user)
+      .slice(0, 3)
+      .map((user) => user?.username);
 
-    const usernames = list
-      .slice(0, 2)
-      .map((user) => user?.username)
-      .join(", ");
+    // Everyone who reacted but is not named above (not loaded yet, or
+    // beyond the first three), so the count always adds up to the number
+    // on the button.
+    const others = Math.max(0, total - names.length);
+    const list = names.join(", ");
 
-    if (unknown) {
-      if (usernames) {
-        return t`${usernames} and ${unknown} others reacted`;
-      } else if (unknown === 1) {
-        return t`1 person reacted`;
-      } else {
-        return t`${unknown} reacted`;
-      }
-    } else {
-      return t`${usernames} reacted`;
+    if (!names.length) {
+      return others === 1 ? t`1 person reacted` : t`${others} reacted`;
     }
+    if (others === 0) return t`${list} reacted`;
+    if (others === 1) return t`${list} and 1 other reacted`;
+    return t`${list} and ${others} others reacted`;
   };
 
   return (
@@ -328,11 +325,8 @@ const List = styled("div", {
  */
 const PeopleList = styled("span", {
   base: {
-    lineClamp: 2,
-    // display: "-webkit-box",
-    // WebkitLineClamp: 2,
-    // WebkitBoxOrient: "vertical",
-    maxWidth: "200px",
+    lineClamp: 4,
+    maxWidth: "280px",
     overflow: "hidden",
     whiteSpace: "pre-wrap",
     textOverflow: "ellipsis",
