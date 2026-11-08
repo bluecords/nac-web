@@ -15,7 +15,7 @@ import {
 import { Portal } from "solid-js/web";
 import { Motion, Presence } from "solid-motionone";
 
-import { flip, offset, shift } from "@floating-ui/dom";
+import { flip, offset, shift, size } from "@floating-ui/dom";
 import { cva } from "styled-system/css";
 import { styled } from "styled-system/jsx";
 
@@ -127,7 +127,22 @@ function Picker(
 
   const position = useFloating(() => props.anchor(), floating, {
     placement: "top-end",
-    middleware: [offset(5), flip(), shift()],
+    // The picker is up to 500px tall and is anchored to a message toolbar or
+    // the composer, so on a phone there is often not enough room on either
+    // side. `shift()` alone only slides it along the anchor's axis, which left
+    // the top of the picker (tabs and search bar) above the screen. Shrink it
+    // to the space available and let it slide on both axes to stay on screen.
+    middleware: [
+      offset(5),
+      flip(),
+      size({
+        padding: 8,
+        apply({ availableHeight, elements }) {
+          elements.floating.style.maxHeight = `${Math.max(240, availableHeight)}px`;
+        },
+      }),
+      shift({ padding: 8, crossAxis: true }),
+    ],
   });
 
   function onDismiss(e: Event) {
