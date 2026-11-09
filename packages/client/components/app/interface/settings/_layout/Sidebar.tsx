@@ -30,7 +30,7 @@ export function SettingsSidebar(props: {
    * Select first page on load (desktop only — mobile starts at the list)
    */
   onMount(() => {
-    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    const isMobile = window.matchMedia("(max-width: 900px)").matches;
     if (!props.page() && !isMobile) {
       props.setPage(props.list().entries[0].entries[0].id);
     }

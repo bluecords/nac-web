@@ -147,7 +147,7 @@ export function TextChannel(props: ChannelPageProps) {
   // Detect mobile viewport synchronously so use:scrollable gets the right showOnHover value
   const isMobile = () =>
     typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 768px)").matches;
+    window.matchMedia("(max-width: 900px)").matches;
 
   // Sidebar state
   const [sidebarState, setSidebarState] = createSignal<SidebarState>({
