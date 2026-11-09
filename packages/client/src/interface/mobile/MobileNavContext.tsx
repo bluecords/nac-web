@@ -30,7 +30,7 @@ const MobileNavContext = createContext<MobileNavContextValue>();
 export function MobileNavProvider(props: { children: JSX.Element }) {
   const mq =
     typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 768px)")
+      ? window.matchMedia("(max-width: 900px)")
       : null;
 
   const [isMobile, setIsMobile] = createSignal(mq?.matches ?? false);

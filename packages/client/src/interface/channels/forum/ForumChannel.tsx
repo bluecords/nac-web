@@ -73,7 +73,7 @@ export function ForumChannel(props: ChannelPageProps) {
   // message-search / pinned-posts panel. Reset when the channel changes.
   const isMobile = () =>
     typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 768px)").matches;
+    window.matchMedia("(max-width: 900px)").matches;
 
   // Per-forum, chosen by admins in channel settings: a text-first list or an
   // image gallery (two columns on phones). Ruled by Bunjie 2026-09-24.

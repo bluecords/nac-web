@@ -85,7 +85,7 @@ export function Settings(props: SettingsProps & SettingsConfiguration<never>) {
 
   const isMobile = () =>
     typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 768px)").matches;
+    window.matchMedia("(max-width: 900px)").matches;
 
   const ContentEl = () => (
     <Presence exitBeforeEnter>

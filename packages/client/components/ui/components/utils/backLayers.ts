@@ -21,7 +21,7 @@ type Layer = { close: () => void };
 /** Same breakpoint MobileNavContext uses for `isMobile`. Desktop has no Back-closes-layer behaviour. */
 const isPhoneWidth = () =>
   typeof window !== "undefined" &&
-  window.matchMedia("(max-width: 768px)").matches;
+  window.matchMedia("(max-width: 900px)").matches;
 
 const stack: Layer[] = [];
 
