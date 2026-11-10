@@ -16,6 +16,8 @@ export interface AutoCompleteSearchSpace {
   roles?: ServerRole[];
   /** sender may use @everyone / @online in this channel */
   canMentionEveryone?: boolean;
+  /** sender may mention roles in this channel */
+  canMentionRoles?: boolean;
 }
 
 function generateSearchSpaceFrom(
@@ -29,6 +31,7 @@ function generateSearchSpaceFrom(
       return {
         ...generateSearchSpaceFrom(object.server, client),
         canMentionEveryone: object.havePermission("MentionEveryone"),
+        canMentionRoles: object.havePermission("MentionRoles"),
       };
     if (object.type === "Group" || object.type === "DirectMessage") {
       return {

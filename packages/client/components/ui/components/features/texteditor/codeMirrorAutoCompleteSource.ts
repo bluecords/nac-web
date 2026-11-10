@@ -5,7 +5,7 @@ import type {
   CompletionContext,
   CompletionResult,
 } from "@codemirror/autocomplete";
-import { User } from "stoat.js";
+import { Permission, User } from "stoat.js";
 
 import { useClient } from "@revolt/client";
 import {
@@ -78,6 +78,32 @@ export function codeMirrorAutoCompleteSource(
       : [],
   );
 
+  // Staff roles (any role that can moderate) are offered under "@" so any
+  // member can reach the admins and mods; other roles stay behind "%".
+  const staffRoles = createMemo(() =>
+    searchSpace()?.canMentionRoles
+      ? (searchSpace()?.roles ?? [])
+          .filter(
+            (role) =>
+              (role.permissions.a &
+                (Permission.TimeoutMembers | Permission.ManageMessages)) !==
+              0n,
+          )
+          .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+          .map(
+            (role) =>
+              ({
+                type: "role",
+                label: ("@" + role.name).normalize("NFKC"),
+                displayLabel: "@" + role.name,
+                detail: "Staff",
+                apply: `<%${role.id}> `,
+                colour: role.colour,
+              }) as Completion,
+          )
+      : [],
+  );
+
   const users = createMemo(() =>
     (
       searchSpace()?.members ??
@@ -147,7 +173,7 @@ export function codeMirrorAutoCompleteSource(
       case "@":
         return {
           from: token.from,
-          options: [...everyone(), ...users()],
+          options: [...everyone(), ...staffRoles(), ...users()],
           validFor: RE_mentionValidFor,
         } as CompletionResult;
       case "%":
