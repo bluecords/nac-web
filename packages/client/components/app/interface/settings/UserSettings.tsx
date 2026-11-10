@@ -21,6 +21,7 @@ import MdMemory from "@material-design-icons/svg/outlined/memory.svg?component-s
 import MdMic from "@material-design-icons/svg/outlined/mic.svg?component-solid";
 import MdNotifications from "@material-design-icons/svg/outlined/notifications.svg?component-solid";
 import MdShield from "@material-design-icons/svg/outlined/shield.svg?component-solid";
+import MdRssFeed from "@material-design-icons/svg/outlined/rss_feed.svg?component-solid";
 import MdPalette from "@material-design-icons/svg/outlined/palette.svg?component-solid";
 import MdRateReview from "@material-design-icons/svg/outlined/rate_review.svg?component-solid";
 import MdScience from "@material-design-icons/svg/outlined/science.svg?component-solid";
@@ -38,6 +39,7 @@ import { AppearanceMenu } from "./user/appearance";
 import { MyBots, ViewBot } from "./user/bots";
 import { Feedback } from "./user/Feedback";
 import { DiscordAccount } from "./user/DiscordAccount";
+import { MyFeeds } from "./user/MyFeeds";
 import { PrivacySettings } from "./user/Privacy";
 import { LanguageSettings } from "./user/Language";
 import Native from "./user/Native";
@@ -104,6 +106,8 @@ const Config: SettingsConfiguration<{ server: Server }> = {
         return <PrivacySettings />;
       case "discord":
         return <DiscordAccount />;
+      case "feeds":
+        return <MyFeeds />;
       default:
         return null;
     }
@@ -251,6 +255,13 @@ const Config: SettingsConfiguration<{ server: Server }> = {
               id: "discord",
               icon: <MdLink {...iconSize(20)} />,
               title: <Trans>Discord account</Trans>,
+            },
+            {
+              // Members add their own feed; NACbot shares new items and credits them.
+              // Who may actually do it is decided by the workflow, not by this entry.
+              id: "feeds",
+              icon: <MdRssFeed {...iconSize(20)} />,
+              title: <Trans>My feeds</Trans>,
             },
             {
               id: "notifications",

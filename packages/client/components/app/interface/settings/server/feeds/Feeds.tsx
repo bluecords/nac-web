@@ -8,6 +8,8 @@ import { useModals } from "@revolt/modal";
 import { useState } from "@revolt/state";
 import { Button, CircularProgress, Column, Row, Text } from "@revolt/ui";
 
+import { MemberFeedsAdmin } from "./MemberFeedsAdmin";
+
 /**
  * Admin page for the automated news feeds.
  *
@@ -105,9 +107,9 @@ export function Feeds(props: { server: Server }) {
   const state = useState();
   const { showError } = useModals();
 
-  const [tab, setTab] = createSignal<"sources" | "review" | "activity">(
-    "sources",
-  );
+  const [tab, setTab] = createSignal<
+    "sources" | "review" | "activity" | "member"
+  >("sources");
   const [busyItem, setBusyItem] = createSignal<string>();
   const [feeds, setFeeds] = createSignal<Feed[]>([]);
   const [globalBlockText, setGlobalBlockText] = createSignal("");
@@ -268,10 +270,21 @@ export function Feeds(props: { server: Server }) {
           >
             <Trans>Activity</Trans>
           </Button>
+          <Button
+            group="standard"
+            onPress={() => setTab("member")}
+            isDisabled={tab() === "member"}
+          >
+            <Trans>Member feeds</Trans>
+          </Button>
           <Text class="label">
             {data.data!.pending} awaiting review in the queue
           </Text>
         </Row>
+
+        <Show when={tab() === "member"}>
+          <MemberFeedsAdmin server={props.server} />
+        </Show>
 
         <Show when={tab() === "sources"}>
           <Column gap="md">
