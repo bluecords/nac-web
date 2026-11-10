@@ -59,6 +59,19 @@ export function MyFeeds() {
         setDenied(true);
       } else {
         setError(message);
+        // A failed change leaves the screen showing what we asked for, not what is
+        // true (the checkbox): reload the real state.
+        if (body.action !== "get") {
+          try {
+            setData(
+              await callMemberFeeds(state.auth.getSession()?.token, {
+                action: "get",
+              }),
+            );
+          } catch {
+            /* keep the error shown above */
+          }
+        }
       }
       return false;
     } finally {
@@ -110,6 +123,12 @@ export function MyFeeds() {
         </Button>
       </Show>
 
+      <Show when={data() && error()}>
+        <div style={{ color: "var(--md-sys-color-error)" }}>
+          <Text class="body">{error()}</Text>
+        </div>
+      </Show>
+
       <Show when={data()}>
         <Text class="body">
           <Trans>
@@ -149,7 +168,10 @@ export function MyFeeds() {
                     <input
                       type="checkbox"
                       checked={feed.enabled}
-                      disabled={busy()}
+                      disabled={
+                        busy() ||
+                        (feed.disabledBy === "admin" && !data()!.me.isAdmin)
+                      }
                       onChange={(e) =>
                         run({
                           action: "update",
@@ -222,11 +244,6 @@ export function MyFeeds() {
                 to {data()!.maxPerMember} feeds each.
               </Trans>
             </Text>
-            <Show when={error()}>
-              <div style={{ color: "var(--md-sys-color-error)" }}>
-                <Text class="body">{error()}</Text>
-              </div>
-            </Show>
             <Row>
               <Button
                 group="standard"

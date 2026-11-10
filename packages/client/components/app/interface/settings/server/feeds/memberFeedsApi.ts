@@ -17,6 +17,8 @@ export type MemberFeed = {
   /** NAC user id credited with an @mention on each post, or null for none. */
   ownerId: string | null;
   enabled: boolean;
+  /** Who switched it off: an admin's switch-off cannot be undone by the owner. */
+  disabledBy: "admin" | "owner" | null;
   createdAt: string | null;
 };
 

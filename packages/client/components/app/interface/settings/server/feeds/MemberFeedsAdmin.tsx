@@ -222,7 +222,6 @@ export function MemberFeedsAdmin(props: { server: Server }) {
                   </Text>
                   <select
                     style={{ ...input, "max-width": "260px" }}
-                    value={feed.ownerId ?? ""}
                     disabled={busy()}
                     onChange={(e) =>
                       run({
@@ -232,19 +231,25 @@ export function MemberFeedsAdmin(props: { server: Server }) {
                       })
                     }
                   >
-                    <option value="">None (posts as the feed name)</option>
+                    <option value="" selected={!feed.ownerId}>
+                      None (posts as the feed name)
+                    </option>
                     <Show
                       when={
                         feed.ownerId &&
                         !people().some((p) => p.id === feed.ownerId)
                       }
                     >
-                      <option value={feed.ownerId!}>
+                      <option value={feed.ownerId!} selected>
                         {nameOf(feed.ownerId)}
                       </option>
                     </Show>
                     <For each={people()}>
-                      {(p) => <option value={p.id}>{p.name}</option>}
+                      {(p) => (
+                        <option value={p.id} selected={p.id === feed.ownerId}>
+                          {p.name}
+                        </option>
+                      )}
                     </For>
                   </select>
                 </Row>
