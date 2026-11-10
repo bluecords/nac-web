@@ -14,6 +14,8 @@ export interface AutoCompleteSearchSpace {
   members?: ServerMember[];
   channels?: Channel[];
   roles?: ServerRole[];
+  /** sender may use @everyone / @online in this channel */
+  canMentionEveryone?: boolean;
 }
 
 function generateSearchSpaceFrom(
@@ -23,7 +25,11 @@ function generateSearchSpaceFrom(
   if (object instanceof Message) {
     if (object.channel) return generateSearchSpaceFrom(object.channel, client);
   } else if (object instanceof Channel) {
-    if (object.server) return generateSearchSpaceFrom(object.server, client);
+    if (object.server)
+      return {
+        ...generateSearchSpaceFrom(object.server, client),
+        canMentionEveryone: object.havePermission("MentionEveryone"),
+      };
     if (object.type === "Group" || object.type === "DirectMessage") {
       return {
         users: object.recipients,

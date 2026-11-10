@@ -60,6 +60,24 @@ export function codeMirrorAutoCompleteSource(
     );
   });
 
+  const everyone = createMemo(() =>
+    searchSpace()?.canMentionEveryone
+      ? ["everyone", "online"].map(
+          (name) =>
+            ({
+              type: "user",
+              label: `@${name}`,
+              displayLabel: `@${name}`,
+              detail:
+                name === "everyone"
+                  ? "All in this channel"
+                  : "Online in channel",
+              apply: `@${name} `,
+            }) as Completion,
+        )
+      : [],
+  );
+
   const users = createMemo(() =>
     (
       searchSpace()?.members ??
@@ -129,7 +147,7 @@ export function codeMirrorAutoCompleteSource(
       case "@":
         return {
           from: token.from,
-          options: users(),
+          options: [...everyone(), ...users()],
           validFor: RE_mentionValidFor,
         } as CompletionResult;
       case "%":
