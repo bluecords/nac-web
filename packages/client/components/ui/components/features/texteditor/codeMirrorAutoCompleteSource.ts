@@ -70,8 +70,8 @@ export function codeMirrorAutoCompleteSource(
               displayLabel: `@${name}`,
               detail:
                 name === "everyone"
-                  ? "Notify everyone who can see this channel"
-                  : "Notify online members of this channel",
+                  ? "All in this channel"
+                  : "Online in channel",
               apply: `@${name} `,
             }) as Completion,
         )

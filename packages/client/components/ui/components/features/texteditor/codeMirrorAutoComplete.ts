@@ -30,7 +30,9 @@ const completionTheme = EditorView.theme({
   },
   ".cm-tooltip.cm-tooltip-autocomplete > ul": {
     "min-width": "10em",
-    "max-width": "50vw",
+    // 50vw on desktop; on a phone that is ~180px and clips names and
+    // descriptions, so allow up to 90vw there (capped at 20em)
+    "max-width": "max(50vw, min(90vw, 20em))",
     "max-height": "min(50vh, 490px)",
     "font-family": "inherit",
   },
@@ -46,6 +48,12 @@ const completionTheme = EditorView.theme({
   '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected="true"]': {
     background:
       "color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)",
+  },
+  ".cm-completionDetail": {
+    "min-width": "0",
+    overflow: "hidden",
+    "text-overflow": "ellipsis",
+    "white-space": "nowrap",
   },
   ".cm-completionMatchedText": {
     "text-decoration": "inherit",
