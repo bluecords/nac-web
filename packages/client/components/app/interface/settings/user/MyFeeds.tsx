@@ -79,6 +79,10 @@ export function MyFeeds() {
     }
   }
 
+  /** Admins are sent every member's feeds; this screen is only your own. */
+  const mine = () =>
+    (data()?.feeds ?? []).filter((f) => f.ownerId === data()?.me.id);
+
   onMount(() => void run({ action: "get" }));
 
   async function add() {
@@ -99,10 +103,6 @@ export function MyFeeds() {
 
   return (
     <Column gap="lg">
-      <Text class="title" size="large">
-        <Trans>My feeds</Trans>
-      </Text>
-
       <Show when={denied()}>
         <Text class="body">
           <Trans>
@@ -140,7 +140,7 @@ export function MyFeeds() {
 
         <Column gap="md">
           <For
-            each={data()!.feeds}
+            each={mine()}
             fallback={
               <Text class="label">
                 <Trans>You haven't added a feed yet.</Trans>
@@ -206,11 +206,7 @@ export function MyFeeds() {
           </For>
         </Column>
 
-        <Show
-          when={
-            data()!.feeds.length < data()!.maxPerMember || data()!.me.isAdmin
-          }
-        >
+        <Show when={mine().length < data()!.maxPerMember || data()!.me.isAdmin}>
           <Column gap="sm">
             <Text class="title">
               <Trans>Add a feed</Trans>
