@@ -245,8 +245,21 @@ export function NotificationsOffBanner() {
   );
 }
 
+// Pinned to the BOTTOM, above the mobile channel drawer. In normal flow at the
+// top it was hidden: on a phone the drawer is position: fixed, z-index 400,
+// from the very top of the screen, and covered it completely (measured on the
+// live site 2026-11-23). At the top above the drawer it would cover the
+// member's name/settings row instead. 450 = above the drawer (400), below
+// dialogs (998) and the image viewer (999).
 const Banner = styled("div", {
   base: {
+    position: "fixed",
+    left: "8px",
+    right: "8px",
+    bottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+    zIndex: 450,
+    borderRadius: "12px",
+    boxShadow: "0 2px 12px #0006",
     display: "flex",
     flexDirection: "column",
     gap: "var(--gap-sm)",
@@ -259,6 +272,8 @@ const Banner = styled("div", {
 const Steps = styled("ol", {
   base: {
     margin: 0,
+    // The app's base styles strip list markers; the numbers matter here.
+    listStyle: "decimal",
     paddingInlineStart: "1.25em",
     display: "flex",
     flexDirection: "column",
