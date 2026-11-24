@@ -233,6 +233,96 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(openNotificationTarget(target));
 });
 
+// ---------------------------------------------------------------------------
+// RE-REGISTER IN THE BACKGROUND when the browser replaces the push address.
+//
+// WHY, measured 2026-11-23: 16 sessions across 10 members had their push
+// registration pruned by pushd ("no longer valid") and only one ever came
+// back. The page re-posts its subscription only when the member OPENS NAC on
+// that device - and a member whose notifications stopped stops opening it
+// (Ryan Ash's phone: pruned 11-15, not opened since). Browsers announce a
+// replaced address with `pushsubscriptionchange`; until now nothing listened.
+// Bunjie approved building this 2026-11-23 ("Yes, build it").
+//
+// Firefox fires this event reliably; Chrome far less so. The page-side resync
+// and the "Notifications are off" banner remain the safety net.
+//
+// The worker is not "logged in" itself, so it uses readSessionToken() above
+// (the session the page saved). The token goes only to our own API, the same
+// origin + /api that markNotificationRead uses.
+// ---------------------------------------------------------------------------
+
+const API_URL = `${self.location.origin}/api`;
+
+function toBase64Url(buffer: ArrayBuffer | null): string {
+  if (!buffer) return "";
+  let binary = "";
+  for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function urlBase64ToBytes(base64: string): Uint8Array {
+  const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4))
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+}
+
+/** Tell the server about the device's current push address. */
+async function resubscribeInBackground(
+  newSubscription: PushSubscription | null,
+  oldSubscription: PushSubscription | null,
+): Promise<void> {
+  const token = await readSessionToken();
+  if (!token) return; // signed out on this device: nothing to register
+
+  let subscription = newSubscription;
+  if (!subscription) {
+    // Reuse the old key when the browser kept it; otherwise ask our server.
+    let key: BufferSource | null =
+      oldSubscription?.options?.applicationServerKey ?? null;
+    if (!key) {
+      const config = await fetch(`${API_URL}/`).then((r) => r.json());
+      if (typeof config?.vapid !== "string") return;
+      key = urlBase64ToBytes(config.vapid);
+    }
+    subscription = await self.registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: key,
+    });
+  }
+
+  const response = await fetch(`${API_URL}/push/subscribe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Token": token,
+    },
+    body: JSON.stringify({
+      endpoint: subscription.endpoint,
+      p256dh: toBase64Url(subscription.getKey("p256dh")),
+      auth: toBase64Url(subscription.getKey("auth")),
+    }),
+  });
+  if (!response.ok) throw new Error(`push/subscribe ${response.status}`);
+}
+
+interface PushSubscriptionChangeEvent extends ExtendableEvent {
+  readonly newSubscription: PushSubscription | null;
+  readonly oldSubscription: PushSubscription | null;
+}
+
+self.addEventListener("pushsubscriptionchange", ((
+  event: PushSubscriptionChangeEvent,
+) => {
+  event.waitUntil(
+    resubscribeInBackground(
+      event.newSubscription ?? null,
+      event.oldSubscription ?? null,
+    ).catch((error) => console.error("[sw] background resubscribe failed", error)),
+  );
+}) as EventListener);
+
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   const payload = event.data.text();
