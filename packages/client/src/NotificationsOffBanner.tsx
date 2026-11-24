@@ -272,6 +272,8 @@ const Banner = styled("div", {
 const Steps = styled("ol", {
   base: {
     margin: 0,
+    // The app's base styles strip list markers; the numbers matter here.
+    listStyle: "decimal",
     paddingInlineStart: "1.25em",
     display: "flex",
     flexDirection: "column",
