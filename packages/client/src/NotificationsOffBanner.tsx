@@ -1,4 +1,12 @@
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createSignal,
+  on,
+  onCleanup,
+  onMount,
+} from "solid-js";
 
 import { styled } from "styled-system/jsx";
 
@@ -39,6 +47,8 @@ function isIOS(): boolean {
 
 function isPhoneOrTablet(): boolean {
   if ((window as { native?: unknown }).native) return false;
+  // An Android WebView (an app embedding NAC) has no web push to switch on.
+  if (/; wv\)/.test(navigator.userAgent)) return false;
   return isIOS() || /Android/i.test(navigator.userAgent);
 }
 
@@ -100,6 +110,22 @@ export function NotificationsOffBanner() {
       setVariant(null);
     }
   }
+
+  // Push can also be switched on elsewhere (Settings, or the permission prompt
+  // the app raises on the first tap). Re-check when the setting changes, and
+  // again shortly after: the setting flips to "allowed" BEFORE subscribe()
+  // finishes, so an immediate check can still see no subscription.
+  createEffect(
+    on(
+      () => state.settings.pushNotificationsState,
+      () => {
+        void check();
+        const timer = setTimeout(() => void check(), 2500);
+        onCleanup(() => clearTimeout(timer));
+      },
+      { defer: true },
+    ),
+  );
 
   onMount(() => {
     void check();
@@ -164,7 +190,7 @@ export function NotificationsOffBanner() {
               each={
                 variant() === "homescreen"
                   ? [
-                      "Tap the Share button (the square with an arrow pointing up).",
+                      "Tap the Share button: the square with an arrow pointing up (in Chrome it is next to the web address).",
                       'Scroll down and tap "Add to Home Screen", then "Add".',
                       "Open NAC from your Home Screen and sign in.",
                       'Tap "Turn on" when this message appears there.',
@@ -173,7 +199,8 @@ export function NotificationsOffBanner() {
                       "Open your phone's Settings app.",
                       "Go to Apps and find the app you open NAC with (NAC, or your browser such as Chrome).",
                       "Open its Notifications and turn them on.",
-                      'Come back to NAC and tap "Turn on". The names of these menus can differ between phones.',
+                      'If you open NAC in a browser, also allow notifications for this site in the browser\'s site settings.',
+                      'Come back to NAC and tap "I\'ve done this". The names of these menus can differ between phones.',
                     ]
               }
             >
@@ -199,9 +226,17 @@ export function NotificationsOffBanner() {
               {steps() ? "Hide steps" : "Show me how"}
             </Button>
           </Show>
-          <Show when={variant() !== "homescreen"}>
+          <Show when={variant() === "off"}>
             <Button size="sm" variant="filled" onPress={turnOn}>
               Turn on
+            </Button>
+          </Show>
+          {/* Blocked: the browser will not ask again, so a "Turn on" would
+            only raise an error. Re-check instead; once the phone allows it the
+            banner switches to "Turn on" (permission "default") or goes away. */}
+          <Show when={variant() === "blocked"}>
+            <Button size="sm" variant="filled" onPress={() => void check()}>
+              I've done this
             </Button>
           </Show>
         </Buttons>
