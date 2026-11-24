@@ -33,6 +33,7 @@ import { MobileMembersOverlay } from "./interface/mobile/MobileMembersOverlay";
 import { MobileMessagesOverlay } from "./interface/mobile/MobileMessagesOverlay";
 import { MobileNavProvider } from "./interface/mobile/MobileNavContext";
 import { Sidebar } from "./interface/Sidebar";
+import { NotificationsOffBanner } from "./NotificationsOffBanner";
 import {
   applyUpdateNow,
   pendingUpdate,
@@ -249,6 +250,11 @@ const Interface = (props: { children: JSX.Element }) => {
                 normal — it'll be back in a moment.
               </Text>
             </ReconnectBanner>
+          </Show>
+
+          {/* Phones/tablets with no working push. See NotificationsOffBanner. */}
+          <Show when={isLoggedIn() && lifecycle.loadedOnce()}>
+            <NotificationsOffBanner />
           </Show>
 
           <Switch fallback={<CircularProgress />}>
